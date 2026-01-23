@@ -1,9 +1,10 @@
 import type { SourceControlledFile } from '@n8n/api-types';
-import { Logger, isContainedWithin, safeJoinPath } from '@n8n/backend-common';
+import { isContainedWithin, Logger, safeJoinPath } from '@n8n/backend-common';
 import type { TagEntity, WorkflowTagMapping } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { generateKeyPairSync } from 'crypto';
-import { constants as fsConstants, mkdirSync, accessSync } from 'fs';
+import { accessSync, constants as fsConstants, mkdirSync } from 'fs';
+import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
 import { jsonParse, UserError, type DataTableColumnType } from 'n8n-workflow';
 import { ok } from 'node:assert/strict';
 import { readFile as fsReadFile } from 'node:fs/promises';
@@ -17,20 +18,61 @@ import {
 	SOURCE_CONTROL_TAGS_EXPORT_FILE,
 	SOURCE_CONTROL_VARIABLES_EXPORT_FILE,
 } from './constants';
-import type { ExportedFolders } from './types/exportable-folders';
-import type { KeyPair } from './types/key-pair';
-import type { KeyPairType } from './types/key-pair-type';
-import type { SourceControlWorkflowVersionId } from './types/source-control-workflow-version-id';
-import type { RemoteResourceOwner, StatusResourceOwner } from './types/resource-owner';
+import type { StatusExportableCredential } from './types/exportable-credential';
 import type {
 	ExportableDataTable,
 	ExportableDataTableColumn,
 	StatusExportableDataTable,
 } from './types/exportable-data-table';
-import type { StatusExportableCredential } from './types/exportable-credential';
+import type { ExportedFolders } from './types/exportable-folders';
+import type { KeyPair } from './types/key-pair';
+import type { KeyPairType } from './types/key-pair-type';
+import type { RemoteResourceOwner, StatusResourceOwner } from './types/resource-owner';
+import type { SourceControlWorkflowVersionId } from './types/source-control-workflow-version-id';
 
 export function stringContainsExpression(testString: string): boolean {
 	return /^=.*\{\{.*\}\}/.test(testString);
+}
+
+/**
+ * Sanitizes credential data for source control export by:
+ * - Keeping expression values (strings starting with '=' containing '{{ }}')
+ * - Replacing plain string values with empty strings (to avoid committing secrets)
+ * - Keeping number values
+ * - Removing null values
+ * - Recursively processing nested objects
+ */
+export function sanitizeCredentialData(
+	data: ICredentialDataDecryptedObject,
+): ICredentialDataDecryptedObject {
+	for (const key of Object.keys(data)) {
+		const value = data[key];
+		if (value === null) {
+			delete data[key];
+		} else if (typeof value === 'object' && !Array.isArray(value)) {
+			data[key] = sanitizeCredentialData(value as ICredentialDataDecryptedObject);
+		} else if (typeof value === 'string') {
+			data[key] = stringContainsExpression(value) ? value : '';
+		}
+		// Numbers, booleans, and arrays are kept as-is
+	}
+	return data;
+}
+
+/**
+ * Compares two sanitized credential data objects to determine if they have changed.
+ * Used by source control status detection to identify modified credentials.
+ */
+export function hasCredentialDataChanged(
+	data1: ICredentialDataDecryptedObject | undefined,
+	data2: ICredentialDataDecryptedObject | undefined,
+): boolean {
+	// Both undefined = no change
+	if (!data1 && !data2) return false;
+	// One undefined, other not = change
+	if (!data1 || !data2) return true;
+	// Compare serialized JSON
+	return JSON.stringify(data1) !== JSON.stringify(data2);
 }
 
 export function getWorkflowExportPath(workflowId: string, workflowExportFolder: string): string {
