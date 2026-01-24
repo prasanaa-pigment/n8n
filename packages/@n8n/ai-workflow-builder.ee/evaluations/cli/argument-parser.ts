@@ -2,6 +2,11 @@
 import { z } from 'zod';
 
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type ModelId } from '@/llm-config';
+import {
+	AVAILABLE_PROMPT_VERSIONS,
+	DEFAULT_PROMPT_VERSION,
+	type PromptVersionId,
+} from '@/prompts/one-shot';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
 import type { LangsmithExampleFilters } from '../harness/harness-types';
@@ -51,6 +56,10 @@ export interface EvaluationArgs {
 
 	/** CSV file path for evaluation results */
 	outputCsv?: string;
+
+	// Prompt version configuration
+	/** Prompt version to use for generation */
+	promptVersion: PromptVersionId;
 
 	// Model configuration
 	/** Default model for all stages */
@@ -124,6 +133,11 @@ const cliSchema = z
 		templateExamples: z.boolean().default(false),
 		webhookUrl: z.string().url().optional(),
 		webhookSecret: z.string().min(16).optional(),
+
+		// Prompt version configuration
+		promptVersion: z
+			.enum(AVAILABLE_PROMPT_VERSIONS as [PromptVersionId, ...PromptVersionId[]])
+			.default(DEFAULT_PROMPT_VERSION),
 
 		// Model configuration
 		model: modelIdSchema.default(DEFAULT_MODEL),
@@ -275,6 +289,14 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		kind: 'boolean',
 		group: 'feature',
 		desc: 'Enable template examples phase',
+	},
+
+	// Prompt version configuration
+	'--prompt-version': {
+		key: 'promptVersion',
+		kind: 'string',
+		group: 'model',
+		desc: `Prompt version (${AVAILABLE_PROMPT_VERSIONS.join('|')}, default: ${DEFAULT_PROMPT_VERSION})`,
 	},
 
 	// Model configuration
@@ -573,6 +595,8 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		featureFlags,
 		webhookUrl: parsed.webhookUrl,
 		webhookSecret: parsed.webhookSecret,
+		// Prompt version configuration
+		promptVersion: parsed.promptVersion,
 		// Model configuration
 		model: parsed.model,
 		judgeModel: parsed.judgeModel,
