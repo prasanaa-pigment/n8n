@@ -47,6 +47,7 @@ export function createProgrammaticEvaluator(
 					userPrompt: ctx.prompt,
 					generatedWorkflow: workflow,
 					referenceWorkflows: ctx.referenceWorkflows,
+					generatedCode: ctx.generatedCode,
 				},
 				nodeTypes,
 			);
@@ -82,6 +83,12 @@ export function createProgrammaticEvaluator(
 					result.parameters.score,
 					'metric',
 					formatViolations(result.parameters.violations),
+				),
+			fb(
+					'graphValidation',
+					result.graphValidation.score,
+					'metric',
+					formatViolations(result.graphValidation.violations),
 				),
 			];
 

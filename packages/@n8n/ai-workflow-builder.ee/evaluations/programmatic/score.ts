@@ -25,6 +25,7 @@ const CATEGORY_IMPORTANCE: Record<string, ImportanceTier> = {
 	agentPrompt: 'medium',
 	tools: 'medium',
 	similarity: 'medium',
+	graphValidation: 'medium',
 	fromAi: 'low',
 	nodeUsage: 'low',
 };
