@@ -1,73 +1,66 @@
+import { switchCase, isSwitchCaseBuilder } from '../switch-case';
 import { workflow } from '../workflow-builder';
-import { node, trigger, isSwitchCaseBuilder } from '../node-builder';
-import { fanOut } from '../fan-out';
+import { node, trigger } from '../node-builder';
+import { merge } from '../merge';
 import type { NodeInstance } from '../types/base';
 
 // Helper type for Switch node
 type SwitchNode = NodeInstance<'n8n-nodes-base.switch', string, unknown>;
 
-describe('Switch Case fluent API', () => {
-	describe('switchNode.onCase() syntax', () => {
-		it('should require a switch node for onCase()', () => {
-			const regularNode = node({
-				type: 'n8n-nodes-base.set',
-				version: 3.4,
-				config: { name: 'Set Node' },
-			});
-			const target = node({
-				type: 'n8n-nodes-base.noOp',
-				version: 1,
-				config: { name: 'Target' },
-			});
-
-			// onCase() should throw on non-Switch nodes
-			expect(() => {
-				(regularNode as unknown as SwitchNode).onCase!(0, target);
-			}).toThrow('.onCase() is only available on Switch nodes');
-		});
-
-		it('should work with fluent syntax: switchNode.onCase!(0, case0).onCase(1, case1)', () => {
+describe('Switch Case Builder', () => {
+	describe('switchCase() builder syntax', () => {
+		it('should return a SwitchCaseBuilder when called with a switch node', () => {
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
 				version: 3.4,
 				config: { name: 'My Switch' },
 			}) as SwitchNode;
-			const case0 = node({
-				type: 'n8n-nodes-base.set',
-				version: 3,
-				config: { name: 'Case 0' },
-			});
-			const case1 = node({
-				type: 'n8n-nodes-base.set',
-				version: 3,
-				config: { name: 'Case 1' },
-			});
 
-			// Fluent syntax should work
-			const builder = switchNode.onCase!(0, case0).onCase(1, case1);
+			const builder = switchCase(switchNode);
+
 			expect(isSwitchCaseBuilder(builder)).toBe(true);
 			expect(builder.switchNode).toBe(switchNode);
 		});
 
-		it('should return a SwitchCaseBuilder', () => {
+		it('should throw if first argument is not a switch node', () => {
+			const notSwitch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Not a Switch' },
+			});
+
+			expect(() => {
+				// @ts-expect-error - Testing runtime rejection
+				switchCase(notSwitch);
+			}).toThrow('switchCase() requires a Switch node as first argument');
+		});
+
+		it('should allow chaining after onCase()', () => {
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
 				version: 3.4,
 				config: { name: 'My Switch' },
 			}) as SwitchNode;
-			const case0 = node({
+			const nodeA = node({
 				type: 'n8n-nodes-base.set',
 				version: 3,
-				config: { name: 'Case 0' },
+				config: { name: 'Node A' },
+			});
+			const nodeB = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Node B' },
 			});
 
-			const builder = switchNode.onCase!(0, case0);
-			expect(isSwitchCaseBuilder(builder)).toBe(true);
-		});
-	});
+			const builder = switchCase(switchNode);
+			const chain = builder.onCase(0, nodeA).then(nodeB);
 
-	describe('fluent API in workflow', () => {
-		it('should support switchNode.onCase!(0, case0).onCase(1, case1) in workflow', () => {
+			expect(chain._isCaseChain).toBe(true);
+			expect(chain.nodes).toContain(nodeA);
+			expect(chain.nodes).toContain(nodeB);
+		});
+
+		it('should generate correct connections for cases', () => {
 			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
@@ -89,22 +82,18 @@ describe('Switch Case fluent API', () => {
 				version: 3,
 				config: { name: 'Case 2' },
 			});
-			const downstream = node({
-				type: 'n8n-nodes-base.set',
-				version: 3,
-				config: { name: 'Downstream' },
-			});
 
-			// Fluent syntax in workflow
-			const wf = workflow('test-id', 'Test')
-				.add(t)
-				.then(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2))
-				.then(downstream);
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, case1);
+			mySwitch.onCase(2, case2);
+
+			const wf = workflow('test-id', 'Test').add(t).then(mySwitch);
 
 			const json = wf.toJSON();
 
-			// Should have: trigger, switch, case0, case1, case2, downstream
-			expect(json.nodes).toHaveLength(6);
+			// Should have: trigger, switch, case0, case1, case2
+			expect(json.nodes).toHaveLength(5);
 
 			// Switch should connect to all case nodes
 			const switchConns = json.connections['My Switch'];
@@ -118,47 +107,50 @@ describe('Switch Case fluent API', () => {
 			expect(switchConns.main[2]![0]!.node).toBe('Case 2');
 		});
 
-		it('should support sparse cases (skipping indices)', () => {
+		it('should allow case chain to end at merge input', () => {
 			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
 				version: 3.4,
 				config: { name: 'My Switch' },
 			}) as SwitchNode;
-			const case0 = node({
+			const nodeA = node({
 				type: 'n8n-nodes-base.set',
 				version: 3,
-				config: { name: 'Case 0' },
+				config: { name: 'Node A' },
 			});
-			const case2 = node({
+			const nodeB = node({
 				type: 'n8n-nodes-base.set',
 				version: 3,
-				config: { name: 'Case 2' },
+				config: { name: 'Node B' },
 			});
 
-			// Fluent syntax with sparse cases (skip case1)
-			const wf = workflow('test-id', 'Test')
-				.add(t)
-				.then(switchNode.onCase!(0, case0).onCase(2, case2));
+			const myMerge = merge({ name: 'Combine' });
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, nodeA).then(myMerge.input(0));
+			mySwitch.onCase(1, nodeB).then(myMerge.input(1));
+
+			const wf = workflow('test-id', 'Test').add(t).then(mySwitch).add(myMerge);
 
 			const json = wf.toJSON();
 
-			// Should have: trigger, switch, case0, case2 (case1 is skipped)
-			expect(json.nodes).toHaveLength(4);
+			// Should have: trigger, switch, nodeA, nodeB, merge
+			expect(json.nodes).toHaveLength(5);
 
-			// Switch should connect to case0 and case2 only
-			const switchConns = json.connections['My Switch'];
-			expect(switchConns).toBeDefined();
+			// nodeA should connect to merge input 0
+			const nodeAConns = json.connections['Node A'];
+			expect(nodeAConns).toBeDefined();
+			expect(nodeAConns.main[0]![0]!.node).toBe('Combine');
+			expect(nodeAConns.main[0]![0]!.index).toBe(0);
 
-			// case0 at output 0
-			expect(switchConns.main[0]![0]!.node).toBe('Case 0');
-			// case1 at output 1 - should be empty or undefined (skipped)
-			expect(switchConns.main[1] === undefined || switchConns.main[1]!.length === 0).toBe(true);
-			// case2 at output 2
-			expect(switchConns.main[2]![0]!.node).toBe('Case 2');
+			// nodeB should connect to merge input 1
+			const nodeBConns = json.connections['Node B'];
+			expect(nodeBConns).toBeDefined();
+			expect(nodeBConns.main[0]![0]!.node).toBe('Combine');
+			expect(nodeBConns.main[0]![0]!.index).toBe(1);
 		});
 
-		it('should support fanOut() for multiple targets from one case', () => {
+		it('should support arrays for fan-out in onCase', () => {
 			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
@@ -181,10 +173,11 @@ describe('Switch Case fluent API', () => {
 				config: { name: 'Target C' },
 			});
 
-			// Fluent syntax with fanOut
-			const wf = workflow('test-id', 'Test')
-				.add(t)
-				.then(switchNode.onCase!(0, fanOut(targetA, targetB)).onCase(1, targetC));
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, [targetA, targetB]); // fan-out
+			mySwitch.onCase(1, targetC);
+
+			const wf = workflow('test-id', 'Test').add(t).then(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -204,21 +197,50 @@ describe('Switch Case fluent API', () => {
 			expect(switchConns.main[1]![0]!.node).toBe('Target C');
 		});
 
-		it('should identify builder with isSwitchCaseBuilder', () => {
+		it('should support chained cases with downstream connections', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
 				version: 3.4,
 				config: { name: 'My Switch' },
 			}) as SwitchNode;
-			const case0 = node({
+			const processA = node({
 				type: 'n8n-nodes-base.set',
 				version: 3,
-				config: { name: 'Case 0' },
+				config: { name: 'Process A' },
+			});
+			const processB = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process B' },
+			});
+			const finalize = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Finalize' },
 			});
 
-			// Fluent syntax
-			const builder = switchNode.onCase!(0, case0);
-			expect(isSwitchCaseBuilder(builder)).toBe(true);
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, processA).then(processB).then(finalize);
+
+			const wf = workflow('test-id', 'Test').add(t).then(mySwitch);
+
+			const json = wf.toJSON();
+
+			// Should have: trigger, switch, processA, processB, finalize
+			expect(json.nodes).toHaveLength(5);
+
+			// Switch -> processA
+			const switchConns = json.connections['My Switch'];
+			expect(switchConns.main[0]![0]!.node).toBe('Process A');
+
+			// processA -> processB
+			const processAConns = json.connections['Process A'];
+			expect(processAConns.main[0]![0]!.node).toBe('Process B');
+
+			// processB -> finalize
+			const processBConns = json.connections['Process B'];
+			expect(processBConns.main[0]![0]!.node).toBe('Finalize');
 		});
 	});
 });

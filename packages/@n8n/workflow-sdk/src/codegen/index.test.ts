@@ -77,7 +77,10 @@ describe('codegen index', () => {
 
 			const code = generateWorkflowCode(json);
 
-			expect(code).toContain('iF.onTrue(true_node).onFalse(false_node)');
+			// Should use new builder syntax with ifElse().onTrue()/onFalse()
+			expect(code).toContain('ifElse(iF)');
+			expect(code).toContain('.onTrue(');
+			expect(code).toContain('.onFalse(');
 		});
 
 		it('generates code with merge', () => {
@@ -118,8 +121,10 @@ describe('codegen index', () => {
 
 			const code = generateWorkflowCode(json);
 
+			// Should use new builder syntax with merge().input(n)
 			expect(code).toContain('merge(');
-			expect(code).toContain('{ input0:');
+			expect(code).toContain('.input(0)');
+			expect(code).toContain('.input(1)');
 		});
 
 		it('handles empty workflow', () => {

@@ -1,6 +1,9 @@
 import { workflow } from '../workflow-builder';
 import { node, trigger, sticky } from '../node-builder';
 import { languageModel, memory, tool } from '../subnode-builders';
+import { merge } from '../merge';
+import { ifElse } from '../if-else';
+import { switchCase } from '../switch-case';
 import type { NodeInstance, WorkflowJSON } from '../types/base';
 
 describe('Workflow Builder', () => {
@@ -142,9 +145,13 @@ describe('Workflow Builder', () => {
 				},
 			}) as NodeInstance<'n8n-nodes-base.switch', string, unknown>;
 
-			// Pass fluent builder directly to add() - runtime supports this but types don't
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const wf = workflow('test', 'Test').add(switchNode.onCase!(0, case0).onCase(1, case1) as any);
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, case1);
+
+			// Pass switchCase directly to add() instead of through then()
+			const wf = workflow('test', 'Test').add(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -186,9 +193,11 @@ describe('Workflow Builder', () => {
 				},
 			}) as NodeInstance<'n8n-nodes-base.if', string, unknown>;
 
-			// Pass fluent builder directly to add() - runtime supports this but types don't
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const wf = workflow('test', 'Test').add(ifNode.onTrue!(trueNode).onFalse(falseNode) as any);
+			// Pass ifElse builder directly to add() instead of through then()
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(trueNode);
+			myIf.onFalse(falseNode);
+			const wf = workflow('test', 'Test').add(myIf);
 
 			const json = wf.toJSON();
 
@@ -200,7 +209,7 @@ describe('Workflow Builder', () => {
 			expect(json.connections['Direct IF']?.main[1]?.[0]?.node).toBe('False Path');
 		});
 
-		it('should add merge pattern using .input(n) syntax', () => {
+		it('should add MergeBuilder directly', () => {
 			const source1 = node({
 				type: 'n8n-nodes-base.noOp',
 				version: 1,
@@ -211,19 +220,13 @@ describe('Workflow Builder', () => {
 				version: 1,
 				config: { name: 'Source 2' },
 			});
-			const mergeNode = node({
-				type: 'n8n-nodes-base.merge',
-				version: 3,
-				config: {
-					name: 'Merge',
-					parameters: { mode: 'append' },
-				},
-			}) as NodeInstance<'n8n-nodes-base.merge', string, unknown>;
 
-			// Use .input(n) syntax to connect sources to merge inputs
-			const wf = workflow('test', 'Test')
-				.add(source1.then(mergeNode.input(0)))
-				.add(source2.then(mergeNode.input(1)));
+			// Use new builder syntax
+			const myMerge = merge({ name: 'Merge', parameters: { mode: 'append' } });
+			source1.then(myMerge.input(0));
+			source2.then(myMerge.input(1));
+
+			const wf = workflow('test', 'Test').add(source1).add(source2).add(myMerge);
 
 			const json = wf.toJSON();
 
@@ -682,21 +685,13 @@ describe('Workflow Builder', () => {
 		});
 	});
 
-	describe('merge with .input(n) syntax', () => {
+	describe('merge() with correct input indices', () => {
 		it('should connect branches to different merge inputs', () => {
 			const triggerNode = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
 				version: 1,
 				config: {},
 			});
-			const mergeNode = node({
-				type: 'n8n-nodes-base.merge',
-				version: 3,
-				config: {
-					name: 'Merge',
-					parameters: { mode: 'append' },
-				},
-			}) as NodeInstance<'n8n-nodes-base.merge', string, unknown>;
 			const source1 = node({
 				type: 'n8n-nodes-base.httpRequest',
 				version: 4.2,
@@ -713,12 +708,22 @@ describe('Workflow Builder', () => {
 				config: { name: 'Source 3' },
 			});
 
-			// Use .input(n) syntax instead of merge composite
+			// Use new builder syntax
+			const myMerge = merge({ name: 'Merge', parameters: { mode: 'append' } });
+			source1.then(myMerge.input(0));
+			source2.then(myMerge.input(1));
+			source3.then(myMerge.input(2));
+
+			// Fan-out from trigger to sources
+			triggerNode.then([source1, source2, source3]);
+
+			// Add all nodes explicitly
 			const wf = workflow('test', 'Test')
-				.add(triggerNode.then([source1, source2, source3]))
-				.add(source1.then(mergeNode.input(0)))
-				.add(source2.then(mergeNode.input(1)))
-				.add(source3.then(mergeNode.input(2)));
+				.add(triggerNode)
+				.add(source1)
+				.add(source2)
+				.add(source3)
+				.add(myMerge);
 
 			const json = wf.toJSON();
 
@@ -746,17 +751,6 @@ describe('Workflow Builder', () => {
 				version: 1,
 				config: {},
 			});
-			const mergeNode = node({
-				type: 'n8n-nodes-base.merge',
-				version: 3,
-				config: {
-					name: 'Combine Branches',
-					parameters: {
-						mode: 'combine',
-						combineBy: 'combineByPosition',
-					},
-				},
-			}) as NodeInstance<'n8n-nodes-base.merge', string, unknown>;
 			const source1 = node({
 				type: 'n8n-nodes-base.noOp',
 				version: 1,
@@ -768,11 +762,22 @@ describe('Workflow Builder', () => {
 				config: { name: 'Branch B' },
 			});
 
-			// Use .input(n) syntax instead of merge composite
-			const wf = workflow('test', 'Test')
-				.add(triggerNode.then([source1, source2]))
-				.add(source1.then(mergeNode.input(0)))
-				.add(source2.then(mergeNode.input(1)));
+			// Use new builder syntax
+			const myMerge = merge({
+				name: 'Combine Branches',
+				parameters: {
+					mode: 'combine',
+					combineBy: 'combineByPosition',
+				},
+			});
+			source1.then(myMerge.input(0));
+			source2.then(myMerge.input(1));
+
+			// Fan-out from trigger to sources
+			triggerNode.then([source1, source2]);
+
+			// Add all nodes explicitly
+			const wf = workflow('test', 'Test').add(triggerNode).add(source1).add(source2).add(myMerge);
 
 			const json = wf.toJSON();
 
@@ -891,7 +896,7 @@ describe('Workflow Builder', () => {
 		});
 	});
 
-	describe('IF fluent API', () => {
+	describe('ifElse()', () => {
 		it('should create IF node with true and false branches', () => {
 			const triggerNode = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -927,9 +932,11 @@ describe('Workflow Builder', () => {
 				config: { name: 'False Path' },
 			});
 
-			const wf = workflow('test', 'Test')
-				.add(triggerNode)
-				.then(ifNode.onTrue!(trueNode).onFalse(falseNode));
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(trueNode);
+			myIf.onFalse(falseNode);
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(myIf);
 
 			const json = wf.toJSON();
 
@@ -964,7 +971,11 @@ describe('Workflow Builder', () => {
 				config: { name: 'False' },
 			});
 
-			const wf = workflow('test', 'Test').then(ifNode.onTrue!(trueNode).onFalse(falseNode));
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(trueNode);
+			myIf.onFalse(falseNode);
+
+			const wf = workflow('test', 'Test').then(myIf);
 
 			const json = wf.toJSON();
 
@@ -995,9 +1006,11 @@ describe('Workflow Builder', () => {
 				config: { name: 'After' },
 			});
 
-			const wf = workflow('test', 'Test')
-				.then(ifNode.onTrue!(trueNode).onFalse(falseNode))
-				.then(afterNode);
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(trueNode);
+			myIf.onFalse(falseNode);
+
+			const wf = workflow('test', 'Test').then(myIf).then(afterNode);
 
 			const json = wf.toJSON();
 
@@ -1009,7 +1022,7 @@ describe('Workflow Builder', () => {
 			expect(json.nodes.find((n) => n.name === 'After')).toBeDefined();
 		});
 
-		it('should handle only false branch connected (no true branch)', () => {
+		it('should handle null true branch (only false branch connected)', () => {
 			const triggerNode = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
 				version: 1,
@@ -1038,8 +1051,12 @@ describe('Workflow Builder', () => {
 				config: { name: 'False Path' },
 			});
 
-			// Only false branch is connected using onFalse()
-			const wf = workflow('test', 'Test').add(triggerNode).then(ifNode.onFalse!(falseNode));
+			// Don't configure true branch - only false branch is connected
+			const myIf = ifElse(ifNode);
+			myIf.onFalse(falseNode);
+			// onTrue not called - null true branch
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(myIf);
 
 			const json = wf.toJSON();
 
@@ -1054,7 +1071,7 @@ describe('Workflow Builder', () => {
 			expect(json.connections['IF Check']?.main[1]?.[0]?.node).toBe('False Path');
 		});
 
-		it('should handle only true branch connected (no false branch)', () => {
+		it('should handle null false branch (only true branch connected)', () => {
 			const triggerNode = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
 				version: 1,
@@ -1083,8 +1100,12 @@ describe('Workflow Builder', () => {
 				config: { name: 'True Path' },
 			});
 
-			// Only true branch is connected using onTrue()
-			const wf = workflow('test', 'Test').add(triggerNode).then(ifNode.onTrue!(trueNode));
+			// Don't configure false branch - only true branch is connected
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(trueNode);
+			// onFalse not called - null false branch
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(myIf);
 
 			const json = wf.toJSON();
 
@@ -1096,6 +1117,62 @@ describe('Workflow Builder', () => {
 			// IF should only have output 0 (true) connected
 			expect(json.connections['IF Check']?.main[0]?.[0]?.node).toBe('True Path');
 			expect(json.connections['IF Check']?.main[1]).toBeUndefined();
+		});
+
+		it('should capture error handlers from nodes in ifElse branches', () => {
+			// BUG FIX TEST: When a node inside an ifElse branch has an .onError() handler,
+			// the error handler nodes (and any chains from them) should be included in the workflow
+			const triggerNode = trigger({
+				type: 'n8n-nodes-base.manualTrigger',
+				version: 1,
+				config: { name: 'Start' },
+			});
+			const ifNode = node({
+				type: 'n8n-nodes-base.if',
+				version: 2.3,
+				config: { name: 'Check Value' },
+			}) as NodeInstance<'n8n-nodes-base.if', string, unknown>;
+
+			// Node with error handler on true branch
+			const httpNode = node({
+				type: 'n8n-nodes-base.httpRequest',
+				version: 4.2,
+				config: { name: 'Fetch Data', onError: 'continueErrorOutput' },
+			});
+			const errorHandler = node({
+				type: 'n8n-nodes-base.slack',
+				version: 2.4,
+				config: { name: 'Send Error Alert' },
+			});
+			const chainedAfterError = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'Log Error' },
+			});
+
+			const falseNode = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'False Path' },
+			});
+
+			// Set up: httpNode.onError(errorHandler.then(chainedAfterError)) on true branch
+			const myIf = ifElse(ifNode);
+			myIf.onTrue(httpNode.onError(errorHandler.then(chainedAfterError)));
+			myIf.onFalse(falseNode);
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(myIf);
+			const json = wf.toJSON();
+
+			// All 6 nodes should be present: trigger, IF, httpNode, errorHandler, chainedAfterError, falseNode
+			expect(json.nodes).toHaveLength(6);
+			const nodeNames = json.nodes.map((n) => n.name);
+			expect(nodeNames).toContain('Send Error Alert');
+			expect(nodeNames).toContain('Log Error');
+
+			// Error handler chain should be connected
+			expect(json.connections['Fetch Data']?.main[1]?.[0]?.node).toBe('Send Error Alert');
+			expect(json.connections['Send Error Alert']?.main[0]?.[0]?.node).toBe('Log Error');
 		});
 	});
 
@@ -1188,9 +1265,9 @@ describe('Workflow Builder', () => {
 		});
 	});
 
-	describe('Switch fluent API', () => {
+	describe('switchCase()', () => {
 		it('should connect all switch outputs including fallback (output 2)', () => {
-			// BUG: When using workflow.add(chain).then(switchNode.onCase(...)),
+			// BUG: When using workflow.add(chain).then(switchCase(...)),
 			// output 2 (fallback) was not being connected
 			const t = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -1234,10 +1311,15 @@ describe('Workflow Builder', () => {
 				config: { name: 'Update as Other' },
 			});
 
-			// Using fluent syntax
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, case1);
+			mySwitch.onCase(2, case2);
+
 			const wf = workflow('test', 'Test')
 				.add(t.then(linearNode.onError(errorHandler)))
-				.then(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2));
+				.then(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -1259,7 +1341,7 @@ describe('Workflow Builder', () => {
 		});
 
 		it('should connect previous node to switch when using chain with add()', () => {
-			// BUG FIX TEST: When using .add() with a chain containing switchNode.onCase(),
+			// BUG FIX TEST: When using .add() with a chain containing switchCase(),
 			// the connection from the previous node to the switch was not being created
 			const t = trigger({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -1290,9 +1372,15 @@ describe('Workflow Builder', () => {
 				config: { name: 'Feature Handler' },
 			});
 
-			// This pattern is what causes the bug: chain with fluent builder inside add()
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, case1);
+
+			// This pattern is what causes the bug: chain with switchCase inside add()
+			// Type cast needed because NodeChain.then() types don't include composites
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const chain = t.then(linearNode).then(switchNode.onCase!(0, case0).onCase(1, case1) as any);
+			const chain = t.then(linearNode).then(mySwitch as any);
 
 			const wf = workflow('test', 'Test').add(chain);
 			const json = wf.toJSON();
@@ -1343,9 +1431,13 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 2' },
 			});
 
-			const wf = workflow('test', 'Test')
-				.add(triggerNode)
-				.then(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2));
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, case1);
+			mySwitch.onCase(2, case2);
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -1358,7 +1450,7 @@ describe('Workflow Builder', () => {
 			expect(json.nodes).toHaveLength(5);
 		});
 
-		it('should include fallback as last case', () => {
+		it('should include fallback as last case in array', () => {
 			const switchNode = node({
 				type: 'n8n-nodes-base.switch',
 				version: 3.4,
@@ -1378,7 +1470,12 @@ describe('Workflow Builder', () => {
 				config: { name: 'Fallback' },
 			});
 
-			const wf = workflow('test', 'Test').then(switchNode.onCase!(0, case0).onCase(1, fallback));
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+			mySwitch.onCase(1, fallback);
+
+			const wf = workflow('test', 'Test').then(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -1405,7 +1502,11 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 0' },
 			});
 
-			const wf = workflow('test', 'Test').then(switchNode.onCase!(0, case0));
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+
+			const wf = workflow('test', 'Test').then(mySwitch);
 
 			const json = wf.toJSON();
 
@@ -1430,7 +1531,11 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 0' },
 			});
 
-			const wf = workflow('test', 'Test').add(triggerNode).then(switchNode.onCase!(0, case0));
+			// Use builder syntax
+			const mySwitch = switchCase(switchNode);
+			mySwitch.onCase(0, case0);
+
+			const wf = workflow('test', 'Test').add(triggerNode).then(mySwitch);
 
 			const json = wf.toJSON();
 

@@ -11,8 +11,7 @@ import {
 } from './fixtures-download';
 
 // Workflows with known issues that need to be skipped
-// 5979: Code generator creates duplicate inline nodes, causing duplicate detection to rename them
-const SKIP_WORKFLOWS = new Set<string>(['5979']);
+const SKIP_WORKFLOWS = new Set<string>([]);
 
 interface TestWorkflow {
 	id: string;
@@ -774,11 +773,11 @@ return workflow('test-id', 'AI Agent')
 		});
 	});
 
-	describe('parses Switch fluent API with pinData', () => {
-		it('should parse workflow with Switch fluent API and pinData without errors', () => {
-			// This code reproduces a bug where Switch with pinData fails with
+	describe('parses switchCase composite with pinData', () => {
+		it('should parse workflow with switchCase and pinData without errors', () => {
+			// This code reproduces a bug where switchCase with pinData fails with
 			// "Cannot read properties of undefined (reading 'subnodes')"
-			// Uses fluent syntax: switchNode.onCase(0, case0).onCase(1, case1)
+			// Uses the onCase() syntax: switchCase(switchNode).onCase(0, handler)
 			const code = `
 // Declare the switch node first
 const triageSwitch = node({
@@ -867,6 +866,11 @@ const tagAsFeature = node({
   }
 });
 
+// Build the switch with onCase() syntax
+const triageBuilder = switchCase(triageSwitch);
+triageBuilder.onCase(0, tagAsBug);
+triageBuilder.onCase(1, tagAsFeature);
+
 return workflow('AlNAxHXOpfimqHPOGVuNg', 'My workflow 23')
   .add(
     trigger({
@@ -929,7 +933,7 @@ return workflow('AlNAxHXOpfimqHPOGVuNg', 'My workflow 23')
         })
       )
     )
-    .then(triageSwitch.onCase(0, tagAsBug).onCase(1, tagAsFeature))
+    .then(triageBuilder)
   );`;
 
 			// This should not throw an error
@@ -1701,9 +1705,7 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					}
 
 					// Filter connections from non-existent nodes (orphaned connections in original workflow)
-					const validNodeNames = new Set(
-						json.nodes.map((n) => n.name).filter((name): name is string => !!name),
-					);
+					const validNodeNames = new Set(json.nodes.map((n) => n.name));
 					const filteredOriginal = filterEmptyConnections(json.connections, validNodeNames);
 					const filteredParsed = filterEmptyConnections(parsedJson.connections);
 					expect(Object.keys(filteredParsed).sort()).toEqual(Object.keys(filteredOriginal).sort());

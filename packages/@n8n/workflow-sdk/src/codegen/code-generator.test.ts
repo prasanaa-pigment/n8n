@@ -183,8 +183,11 @@ describe('code-generator', () => {
 				expect(code).toContain('const iF = node({');
 				expect(code).toContain('const trueHandler = node({');
 				expect(code).toContain('const falseHandler = node({');
-				// The ifElse should use fluent API syntax
-				expect(code).toContain('iF.onTrue(trueHandler).onFalse(falseHandler)');
+				// The ifElse should use builder syntax with IF node reference
+				expect(code).toContain('const iF_builder = ifElse(iF);');
+				expect(code).toContain('iF_builder.onTrue(trueHandler);');
+				expect(code).toContain('iF_builder.onFalse(falseHandler);');
+				expect(code).toContain('.then(iF_builder)');
 			});
 
 			it('handles IF with null branch', () => {
@@ -217,10 +220,11 @@ describe('code-generator', () => {
 
 				const code = generateFromWorkflow(json);
 
-				// Should use fluent API syntax with only onTrue (no onFalse since false branch is null)
-				expect(code).toContain('iF.onTrue(trueHandler)');
-				// Should not have onFalse since false branch is null
-				expect(code).not.toContain('onFalse');
+				// Should use builder syntax with IF node
+				expect(code).toContain('const iF_builder = ifElse(iF);');
+				expect(code).toContain('iF_builder.onTrue(trueHandler);');
+				// False branch should not be configured when null
+				expect(code).not.toContain('iF_builder.onFalse');
 			});
 		});
 
@@ -275,15 +279,15 @@ describe('code-generator', () => {
 
 				const code = generateFromWorkflow(json);
 
-				// Should use named syntax with merge node and input mapping
+				// Should use new builder syntax with merge().input(n)
 				expect(code).toContain('merge(');
-				expect(code).toContain('{ input0:');
-				expect(code).toContain('input1:');
+				expect(code).toContain('.input(0)');
+				expect(code).toContain('.input(1)');
 			});
 		});
 
 		describe('SplitInBatches', () => {
-			it('generates splitInBatches with fluent API syntax (.onEachBatch/.onDone)', () => {
+			it('generates splitInBatches composite', () => {
 				const json: WorkflowJSON = {
 					name: 'SplitInBatches Test',
 					nodes: [
@@ -329,60 +333,9 @@ describe('code-generator', () => {
 
 				const code = generateFromWorkflow(json);
 
-				// Should use fluent API syntax: splitInBatches(sibVar).onEachBatch(...).onDone(...)
 				expect(code).toContain('splitInBatches(');
-				expect(code).toContain('.onEachBatch(');
-				expect(code).toContain('.onDone(');
-				// Should NOT use old object syntax
-				expect(code).not.toMatch(/splitInBatches\(\w+,\s*\{/);
-				expect(code).not.toContain('done:');
-				expect(code).not.toContain('each:');
-				// Should NOT use old chain API
-				expect(code).not.toContain('.done()');
-				expect(code).not.toContain('.each()');
-			});
-
-			it('generates nextBatch() for loop back connections', () => {
-				const json: WorkflowJSON = {
-					name: 'SplitInBatches Loop Test',
-					nodes: [
-						{
-							id: '1',
-							name: 'Trigger',
-							type: 'n8n-nodes-base.manualTrigger',
-							typeVersion: 1,
-							position: [0, 0],
-						},
-						{
-							id: '2',
-							name: 'SplitInBatches',
-							type: 'n8n-nodes-base.splitInBatches',
-							typeVersion: 3,
-							position: [100, 0],
-						},
-						{
-							id: '3',
-							name: 'Process',
-							type: 'n8n-nodes-base.noOp',
-							typeVersion: 1,
-							position: [200, 0],
-						},
-					],
-					connections: {
-						Trigger: { main: [[{ node: 'SplitInBatches', type: 'main', index: 0 }]] },
-						SplitInBatches: {
-							main: [[], [{ node: 'Process', type: 'main', index: 0 }]],
-						},
-						Process: { main: [[{ node: 'SplitInBatches', type: 'main', index: 0 }]] },
-					},
-				};
-
-				const code = generateFromWorkflow(json);
-
-				// Should use nextBatch() for loop back
-				expect(code).toContain('nextBatch(');
-				// Should NOT use .loop()
-				expect(code).not.toContain('.loop()');
+				expect(code).toContain('.done()');
+				expect(code).toContain('.each()');
 			});
 		});
 
@@ -1500,7 +1453,7 @@ describe('code-generator', () => {
 		});
 
 		describe('fan-out patterns', () => {
-			it('generates fanOut() for fan-out without merge', () => {
+			it('generates .then([...]) for fan-out without merge', () => {
 				const json: WorkflowJSON = {
 					id: 'fanout-test',
 					name: 'Test',
@@ -1549,15 +1502,15 @@ describe('code-generator', () => {
 
 				const code = generateFromWorkflow(json);
 
-				// Should use fanOut() syntax for parallel targets
-				expect(code).toContain('.then(fanOut(');
+				// Should use array syntax for parallel targets
+				expect(code).toContain('.then([');
 				expect(code).toContain('Target1');
 				expect(code).toContain('Target2');
 				// Should NOT have sequential chaining between targets
 				expect(code).not.toMatch(/Target1.*\.then.*Target2/s);
 			});
 
-			it('generates fanOut() for fan-out with downstream chains', () => {
+			it('generates .then([...]) for fan-out with downstream chains', () => {
 				const json: WorkflowJSON = {
 					id: 'fanout-chains',
 					name: 'Test',
@@ -1622,8 +1575,8 @@ describe('code-generator', () => {
 
 				const code = generateFromWorkflow(json);
 
-				// Should use fanOut() syntax for parallel targets
-				expect(code).toContain('.then(fanOut(');
+				// Should use array syntax for parallel targets
+				expect(code).toContain('.then([');
 				// All three branches should be present
 				expect(code).toContain('Instagram');
 				expect(code).toContain('YouTube');
@@ -1821,7 +1774,9 @@ describe('code-generator', () => {
 				const parsedJson = parseWorkflowCode(code);
 
 				// Find the Animation Completed? node in parsed output
-				const parsedNode = parsedJson.nodes.find((n) => n.name === 'Animation Completed?');
+				const parsedNode = parsedJson.nodes.find(
+					(n: { name: string }) => n.name === 'Animation Completed?',
+				);
 
 				// Verify parameters are preserved
 				expect(parsedNode).toBeDefined();

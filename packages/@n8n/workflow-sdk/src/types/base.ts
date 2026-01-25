@@ -23,9 +23,6 @@ export type {
 	MergeMode,
 } from './sdk-api';
 
-// Import FanOutTargets for type definitions
-import type { FanOutTargets } from '../fan-out';
-
 // Import for internal use
 import type {
 	IDataObject,
@@ -106,7 +103,7 @@ export interface IConnections {
  */
 export interface NodeJSON {
 	id: string;
-	name?: string; // Optional - some nodes like sticky notes may not have a name
+	name: string;
 	type: string;
 	typeVersion: number;
 	position: [number, number];
@@ -159,41 +156,12 @@ export interface GraphNode {
 }
 
 /**
- * Declared connection from a node to a target
+ * Declared connection from a node to a target.
+ * Target can be a NodeInstance or MergeInputTarget (terminal).
  */
 export interface DeclaredConnection {
-	target: NodeInstance<string, string, unknown> | InputTarget;
+	target: NodeInstance<string, string, unknown> | MergeInputTarget;
 	outputIndex: number;
-	targetInputIndex?: number;
-}
-
-/**
- * Terminal input target marker for connecting to a specific input index.
- * Created by calling .input(n) on a NodeInstance.
- * Cannot be chained further (no .then() method).
- */
-export interface InputTarget {
-	readonly _isInputTarget: true;
-	readonly node: NodeInstance<string, string, unknown>;
-	readonly inputIndex: number;
-}
-
-/**
- * Output selector for connecting from a specific output index.
- * Created by calling .output(n) on a NodeInstance.
- * Can chain .then() to connect to targets from this specific output.
- */
-export interface OutputSelector<TType extends string, TVersion extends string, TOutput = unknown> {
-	readonly _isOutputSelector: true;
-	readonly node: NodeInstance<TType, TVersion, TOutput>;
-	readonly outputIndex: number;
-
-	/**
-	 * Connect from this output to a target node.
-	 */
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
-	): NodeChain<NodeInstance<TType, TVersion, TOutput>, T>;
 }
 
 // =============================================================================
@@ -342,57 +310,14 @@ export interface NodeInstance<TType extends string, TVersion extends string, TOu
 
 	update(config: Partial<NodeConfig>): NodeInstance<TType, TVersion, TOutput>;
 
+	/** Chain to merge input (terminal - returns void) */
+	then(target: MergeInputTarget): void;
+
+	/** Chain to another node */
 	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
+		target: T | T[],
 		outputIndex?: number,
 	): NodeChain<NodeInstance<TType, TVersion, TOutput>, T>;
-
-	/**
-	 * Create a terminal input target for connecting to a specific input index.
-	 * Use this to connect a node to a specific input of a multi-input node like Merge.
-	 *
-	 * @example
-	 * // Connect to input 1 of a merge node
-	 * nodeA.then(mergeNode.input(1))
-	 */
-	input(index: number): InputTarget;
-
-	/**
-	 * Create an output selector for connecting from a specific output index.
-	 * Use this for multi-output nodes (like text classifiers) to connect from specific outputs.
-	 *
-	 * @example
-	 * // Connect from output 1 of a classifier
-	 * classifier.output(1).then(categoryB)
-	 */
-	output(index: number): OutputSelector<TType, TVersion, TOutput>;
-
-	/**
-	 * Start building an IF branch with the true branch target.
-	 * Only available on IF nodes (n8n-nodes-base.if).
-	 *
-	 * @example
-	 * ifNode.onTrue(trueHandler).onFalse(falseHandler)
-	 */
-	onTrue?(target: IfElseTarget): IfElseBuilder<TOutput>;
-
-	/**
-	 * Start building an IF branch with the false branch target.
-	 * Only available on IF nodes (n8n-nodes-base.if).
-	 *
-	 * @example
-	 * ifNode.onFalse(falseHandler).onTrue(trueHandler)
-	 */
-	onFalse?(target: IfElseTarget): IfElseBuilder<TOutput>;
-
-	/**
-	 * Start building a Switch case with a case target.
-	 * Only available on Switch nodes (n8n-nodes-base.switch).
-	 *
-	 * @example
-	 * switchNode.onCase(0, caseA).onCase(1, caseB)
-	 */
-	onCase?(index: number, target: SwitchCaseTarget): SwitchCaseBuilder<TOutput>;
 
 	onError<T extends NodeInstance<string, string, unknown>>(handler: T): this;
 
@@ -420,7 +345,7 @@ export interface NodeChain<
 	readonly allNodes: NodeInstance<string, string, unknown>[];
 
 	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
+		target: T | T[],
 		outputIndex?: number,
 	): NodeChain<THead, T>;
 
@@ -597,113 +522,6 @@ export interface SwitchCaseComposite {
 }
 
 // =============================================================================
-// Fluent API builders for IF and Switch nodes
-// =============================================================================
-
-/**
- * Target type for IF else branches - can be a node, chain, null, or fanOut
- */
-export type IfElseTarget =
-	| null
-	| NodeInstance<string, string, unknown>
-	| NodeChain<NodeInstance<string, string, unknown>, NodeInstance<string, string, unknown>>
-	| FanOutTargets;
-
-/**
- * Target type for Switch case branches - can be a node, chain, null, or fanOut
- */
-export type SwitchCaseTarget =
-	| null
-	| NodeInstance<string, string, unknown>
-	| NodeChain<NodeInstance<string, string, unknown>, NodeInstance<string, string, unknown>>
-	| FanOutTargets;
-
-/**
- * Fluent builder for IF nodes with onTrue/onFalse methods.
- * Created by calling .onTrue() or .onFalse() on an IF node instance.
- *
- * @example
- * ```typescript
- * const ifNode = node({ type: 'n8n-nodes-base.if', version: 2.2, config: {...} });
- * workflow('id', 'Test')
- *   .add(trigger)
- *   .then(ifNode.onTrue(trueHandler).onFalse(falseHandler))
- * ```
- */
-export interface IfElseBuilder<TOutput = unknown> {
-	/** Marker for workflow-builder detection */
-	readonly _isIfElseBuilder: true;
-	/** The IF node this builder wraps */
-	readonly ifNode: NodeInstance<'n8n-nodes-base.if', string, TOutput>;
-	/** The true branch target (set via .onTrue()) */
-	readonly trueBranch: IfElseTarget;
-	/** The false branch target (set via .onFalse()) */
-	readonly falseBranch: IfElseTarget;
-
-	/**
-	 * Set the target for the true branch (output 0).
-	 * Can be called in any order with onFalse().
-	 *
-	 * @param target - The node, chain, or fanOut to execute when condition is true
-	 */
-	onTrue(target: IfElseTarget): IfElseBuilder<TOutput>;
-
-	/**
-	 * Set the target for the false branch (output 1).
-	 * Can be called in any order with onTrue().
-	 *
-	 * @param target - The node, chain, or fanOut to execute when condition is false
-	 */
-	onFalse(target: IfElseTarget): IfElseBuilder<TOutput>;
-
-	/**
-	 * Chain a target node after the IF branches.
-	 */
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[],
-		outputIndex?: number,
-	): NodeChain<NodeInstance<'n8n-nodes-base.if', string, TOutput>, T>;
-}
-
-/**
- * Fluent builder for Switch nodes with onCase method.
- * Created by calling .onCase() on a Switch node instance.
- *
- * @example
- * ```typescript
- * const switchNode = node({ type: 'n8n-nodes-base.switch', version: 3.4, config: {...} });
- * workflow('id', 'Test')
- *   .add(trigger)
- *   .then(switchNode.onCase(0, caseA).onCase(1, caseB).onCase(2, caseC))
- * ```
- */
-export interface SwitchCaseBuilder<TOutput = unknown> {
-	/** Marker for workflow-builder detection */
-	readonly _isSwitchCaseBuilder: true;
-	/** The Switch node this builder wraps */
-	readonly switchNode: NodeInstance<'n8n-nodes-base.switch', string, TOutput>;
-	/** Map from output index to case target */
-	readonly caseMapping: Map<number, SwitchCaseTarget>;
-
-	/**
-	 * Set the target for a specific case (output index).
-	 * Can be called multiple times for different cases.
-	 *
-	 * @param index - The output index (0-based)
-	 * @param target - The node, chain, or fanOut to execute for this case
-	 */
-	onCase(index: number, target: SwitchCaseTarget): SwitchCaseBuilder<TOutput>;
-
-	/**
-	 * Chain a target node after the Switch branches.
-	 */
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[],
-		outputIndex?: number,
-	): NodeChain<NodeInstance<'n8n-nodes-base.switch', string, TOutput>, T>;
-}
-
-// =============================================================================
 // Split in batches
 // =============================================================================
 
@@ -717,42 +535,126 @@ export interface SplitInBatchesConfig extends NodeConfig {
 
 export interface SplitInBatchesBuilder<TOutput = unknown> {
 	readonly sibNode: NodeInstance<'n8n-nodes-base.splitInBatches', string, unknown>;
+	done(): SplitInBatchesDoneChain<TOutput>;
+	each(): SplitInBatchesEachChain<TOutput>;
+}
 
-	/**
-	 * Fluent API: Set the "each batch" branch target (output 1).
-	 * This executes for each batch and can loop back to the SIB node.
-	 * Methods can be called in any order.
-	 *
-	 * @example
-	 * splitInBatches(sibNode)
-	 *   .onEachBatch(processNode.then(sibNode))
-	 *   .onDone(finalizeNode)
-	 */
-	onEachBatch(
-		target:
-			| null
-			| NodeInstance<string, string, unknown>
-			| NodeChain<NodeInstance<string, string, unknown>, NodeInstance<string, string, unknown>>
-			| FanOutTargets,
-	): SplitInBatchesBuilder<TOutput>;
+/**
+ * BranchChain - returned by onTrue/onFalse, IS chainable
+ */
+export interface BranchChain {
+	/** Chain to another node */
+	then<T extends NodeInstance<string, string, unknown>>(target: T): BranchChain;
+	/** Chain to merge input (terminal) */
+	then(target: MergeInputTarget): void;
+	/** The branch output index (0 for true, 1 for false) */
+	readonly branchOutput: number;
+	/** Reference to the parent IfElseBuilder */
+	readonly ifElseBuilder: IfElseBuilder;
+	/** All nodes in this branch chain */
+	readonly nodes: NodeInstance<string, string, unknown>[];
+	/** Terminal target if chain ends at merge input */
+	readonly _terminalTarget: MergeInputTarget | null;
+	/** Fan-out targets if branch was created with an array */
+	readonly _fanOutTargets: NodeInstance<string, string, unknown>[] | null;
+	/** Original NodeChain if branch target was a chain (for proper connection handling) */
+	readonly _originalChain: NodeChain<
+		NodeInstance<string, string, unknown>,
+		NodeInstance<string, string, unknown>
+	> | null;
+	/** Marker to identify this as a BranchChain */
+	readonly _isBranchChain: true;
+}
 
-	/**
-	 * Fluent API: Set the "done" branch target (output 0).
-	 * This executes when all batches are processed.
-	 * Methods can be called in any order.
-	 *
-	 * @example
-	 * splitInBatches(sibNode)
-	 *   .onDone(finalizeNode)
-	 *   .onEachBatch(processNode.then(sibNode))
-	 */
-	onDone(
-		target:
-			| null
-			| NodeInstance<string, string, unknown>
-			| NodeChain<NodeInstance<string, string, unknown>, NodeInstance<string, string, unknown>>
-			| FanOutTargets,
-	): SplitInBatchesBuilder<TOutput>;
+/**
+ * IfElseBuilder - new builder syntax for ifElse
+ */
+export interface IfElseBuilder {
+	/** Configure the true branch (output 0) - returns chainable BranchChain */
+	onTrue(target: unknown): BranchChain;
+	/** Configure the false branch (output 1) - returns chainable BranchChain */
+	onFalse(target: unknown): BranchChain;
+	/** The IF node */
+	readonly ifNode: NodeInstance<'n8n-nodes-base.if', string, unknown>;
+	/** True branch chain */
+	readonly _trueBranch: BranchChain | null;
+	/** False branch chain */
+	readonly _falseBranch: BranchChain | null;
+	/** Marker to identify this as an IfElseBuilder */
+	readonly _isIfElseBuilder: true;
+}
+
+/**
+ * MergeBuilder - new builder syntax for merge
+ */
+export interface MergeBuilder {
+	readonly mergeNode: NodeInstance<'n8n-nodes-base.merge', string, unknown>;
+	readonly _inputTargets: Map<number, MergeInputTarget>;
+	readonly _isMergeBuilder: true;
+	input(index: number): MergeInputTarget;
+	then<T extends NodeInstance<string, string, unknown>>(
+		target: T,
+	): NodeChain<NodeInstance<'n8n-nodes-base.merge', string, unknown>, T>;
+}
+
+/**
+ * MergeInputTarget - terminal target for merge input
+ */
+export interface MergeInputTarget {
+	readonly _isMergeInput: true;
+	readonly mergeBuilder: MergeBuilder;
+	readonly inputIndex: number;
+}
+
+/**
+ * CaseChain - returned by SwitchCaseBuilder.onCase(), IS chainable
+ */
+export interface CaseChain {
+	/** Chain to another node */
+	then<T extends NodeInstance<string, string, unknown>>(target: T): CaseChain;
+	/** Chain to merge input (terminal) */
+	then(target: MergeInputTarget): void;
+	/** The case output index */
+	readonly caseOutput: number;
+	/** Reference to the parent SwitchCaseBuilder */
+	readonly switchCaseBuilder: SwitchCaseBuilder;
+	/** All nodes in this case chain */
+	readonly nodes: NodeInstance<string, string, unknown>[];
+	/** Terminal target if chain ends at merge input */
+	readonly _terminalTarget: MergeInputTarget | null;
+	/** Fan-out targets if case was created with an array */
+	readonly _fanOutTargets: NodeInstance<string, string, unknown>[] | null;
+	/** Original NodeChain if case target was a chain (for proper connection handling) */
+	readonly _originalChain: NodeChain<
+		NodeInstance<string, string, unknown>,
+		NodeInstance<string, string, unknown>
+	> | null;
+	/** Marker to identify this as a CaseChain */
+	readonly _isCaseChain: true;
+}
+
+/**
+ * SwitchCaseBuilder - new builder syntax for switchCase
+ */
+export interface SwitchCaseBuilder {
+	readonly switchNode: NodeInstance<'n8n-nodes-base.switch', string, unknown>;
+	readonly _cases: Map<number, CaseChain>;
+	readonly _isSwitchCaseBuilder: true;
+	onCase(index: number, target: unknown): CaseChain;
+}
+
+export interface SplitInBatchesDoneChain<_TOutput> {
+	then<N extends NodeInstance<string, string, unknown>>(
+		nodeOrNodes: N | N[],
+	): SplitInBatchesDoneChain<N extends NodeInstance<string, string, infer O> ? O : unknown>;
+	each(): SplitInBatchesEachChain<unknown>;
+}
+
+export interface SplitInBatchesEachChain<TOutput> {
+	then<N extends NodeInstance<string, string, unknown>>(
+		nodeOrNodes: N | N[],
+	): SplitInBatchesEachChain<N extends NodeInstance<string, string, infer O> ? O : unknown>;
+	loop(): SplitInBatchesBuilder<TOutput>;
 }
 
 // =============================================================================
@@ -770,16 +672,21 @@ export interface WorkflowBuilder {
 		N extends
 			| NodeInstance<string, string, unknown>
 			| TriggerInstance<string, string, unknown>
-			| NodeChain,
+			| NodeChain
+			| MergeBuilder
+			| IfElseBuilder
+			| SwitchCaseBuilder,
 	>(node: N): WorkflowBuilder;
 
 	then<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
 	then<M extends MergeComposite>(merge: M): WorkflowBuilder;
 	then(ifElse: IfElseComposite): WorkflowBuilder;
-	then(switchCase: SwitchCaseComposite): WorkflowBuilder;
+	then(ifElseBuilder: IfElseBuilder): WorkflowBuilder;
+	then(mergeBuilder: MergeBuilder): WorkflowBuilder;
+	then(switchCaseBuilder: SwitchCaseBuilder): WorkflowBuilder;
 	then<T>(splitInBatches: SplitInBatchesBuilder<T>): WorkflowBuilder;
-	then<T>(ifElseBuilder: IfElseBuilder<T>): WorkflowBuilder;
-	then<T>(switchCaseBuilder: SwitchCaseBuilder<T>): WorkflowBuilder;
+	then<T>(splitInBatchesDone: SplitInBatchesDoneChain<T>): WorkflowBuilder;
+	then<T>(splitInBatchesEach: SplitInBatchesEachChain<T>): WorkflowBuilder;
 
 	settings(settings: WorkflowSettings): WorkflowBuilder;
 
