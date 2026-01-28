@@ -26,6 +26,7 @@ import {
 	type GenerationError,
 	type TokenUsage,
 } from './harness-types.js';
+import { WorkflowGenerationError } from '../errors';
 import type { EvalLogger } from './logger';
 import { createArtifactSaver, type ArtifactSaver } from './output';
 import {
@@ -568,6 +569,7 @@ async function runLocalExample(args: {
 	} catch (error) {
 		const durationMs = Date.now() - startTime;
 		const errorMessage = error instanceof Error ? error.message : String(error);
+		const logs = error instanceof WorkflowGenerationError ? error.logs : undefined;
 		const result: ExampleResult = {
 			index,
 			prompt: testCase.prompt,
@@ -584,6 +586,7 @@ async function runLocalExample(args: {
 			],
 			durationMs,
 			error: errorMessage,
+			logs,
 			dos: testCase.context?.dos,
 			donts: testCase.context?.donts,
 		};
@@ -1236,6 +1239,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			const logs = error instanceof WorkflowGenerationError ? error.logs : undefined;
 			const workflow: SimpleWorkflow = { name: 'Evaluation Error', nodes: [], connections: {} };
 			const feedback: Feedback[] = [
 				{
@@ -1262,6 +1266,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 				generationDurationMs: genDurationMs,
 				workflow,
 				error: errorMessage,
+				logs,
 			};
 
 			artifactSaver?.saveExample(result);

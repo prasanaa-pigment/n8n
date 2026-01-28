@@ -51,6 +51,7 @@ import {
 	type EvaluationContext,
 	type GenerationResult,
 } from '../index';
+import { WorkflowGenerationError } from '../errors';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { AGENT_TYPES, EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
@@ -239,12 +240,12 @@ function createOneShotWorkflowGenerator(
 			}
 		}
 
-		if (!workflow) {
-			throw new Error('One-shot agent did not produce a workflow');
-		}
-
 		// Get captured logs if log capture was enabled
 		const logs = captureLog ? agent.getCapturedLogs() : undefined;
+
+		if (!workflow) {
+			throw new WorkflowGenerationError('One-shot agent did not produce a workflow', logs);
+		}
 
 		return { workflow, generatedCode, tokenUsage, iterationCount, generationErrors, logs };
 	};
