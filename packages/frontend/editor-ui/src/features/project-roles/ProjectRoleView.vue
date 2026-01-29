@@ -322,10 +322,9 @@ const displayNameValidationRules = [
 <template>
 	<div class="pb-xl" :class="$style.container">
 		<N8nButton
+			variant="ghost"
 			icon="arrow-left"
-			type="secondary"
 			:class="$style.backButton"
-			text
 			@click="() => router.back()"
 		>
 			{{ i18n.baseText('projectRoles.backToRoleList') }}
@@ -336,7 +335,7 @@ const displayNameValidationRules = [
 			</N8nHeading>
 			<div v-if="initialState && !isReadOnly">
 				<N8nButton
-					type="secondary"
+					variant="subtle"
 					:disabled="!hasUnsavedChanges"
 					class="mr-xs"
 					@click="resetForm(initialState)"
