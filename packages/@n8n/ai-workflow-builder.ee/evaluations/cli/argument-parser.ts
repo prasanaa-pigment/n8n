@@ -2,11 +2,6 @@
 import { z } from 'zod';
 
 import { AVAILABLE_MODELS, DEFAULT_MODEL, type ModelId } from '@/llm-config';
-import {
-	AVAILABLE_PROMPT_VERSIONS,
-	DEFAULT_PROMPT_VERSION,
-	type PromptVersionId,
-} from '@/prompts/builder/one-shot';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
 import type { LangsmithExampleFilters } from '../harness/harness-types';
@@ -43,18 +38,6 @@ export interface EvaluationArgs {
 
 	featureFlags?: BuilderFeatureFlags;
 
-	/** URL to POST evaluation results to when complete */
-	webhookUrl?: string;
-	/** Secret for HMAC-SHA256 signature of webhook payload */
-	webhookSecret?: string;
-
-	/** CSV file path for evaluation results */
-	outputCsv?: string;
-
-	// Prompt version configuration
-	/** Prompt version to use for generation */
-	promptVersion: PromptVersionId;
-
 	// Model configuration
 	/** Default model for all stages */
 	model: ModelId;
@@ -66,9 +49,11 @@ export interface EvaluationArgs {
 	responderModel?: ModelId;
 	/** Model for discovery stage */
 	discoveryModel?: ModelId;
-	/** Model for builder stage (structure and configuration) */
+	/** Model for builder stage */
 	builderModel?: ModelId;
-	/** Model for parameter updater (within builder) */
+	/** Model for configurator stage */
+	configuratorModel?: ModelId;
+	/** Model for parameter updater (within configurator) */
 	parameterUpdaterModel?: ModelId;
 }
 
@@ -98,7 +83,6 @@ const cliSchema = z
 		timeoutMs: z.coerce.number().int().positive().default(DEFAULTS.TIMEOUT_MS),
 		experimentName: z.string().min(1).optional(),
 		outputDir: z.string().min(1).optional(),
-		outputCsv: z.string().min(1).optional(),
 		datasetName: z.string().min(1).optional(),
 		maxExamples: z.coerce.number().int().positive().optional(),
 		filter: z.array(z.string().min(1)).default([]),
@@ -116,13 +100,6 @@ const cliSchema = z
 
 		langsmith: z.boolean().optional(),
 		templateExamples: z.boolean().default(false),
-		webhookUrl: z.string().url().optional(),
-		webhookSecret: z.string().min(16).optional(),
-
-		// Prompt version configuration
-		promptVersion: z
-			.enum(AVAILABLE_PROMPT_VERSIONS as [PromptVersionId, ...PromptVersionId[]])
-			.default(DEFAULT_PROMPT_VERSION),
 
 		// Model configuration
 		model: modelIdSchema.default(DEFAULT_MODEL),
@@ -131,6 +108,7 @@ const cliSchema = z
 		responderModel: modelIdSchema.optional(),
 		discoveryModel: modelIdSchema.optional(),
 		builderModel: modelIdSchema.optional(),
+		configuratorModel: modelIdSchema.optional(),
 		parameterUpdaterModel: modelIdSchema.optional(),
 	})
 	.strict();
@@ -248,25 +226,7 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		group: 'output',
 		desc: 'Directory for artifacts',
 	},
-	'--output-csv': {
-		key: 'outputCsv',
-		kind: 'string',
-		group: 'output',
-		desc: 'CSV file for evaluation results - if pre-existing file found it will be overwritten',
-	},
 	'--verbose': { key: 'verbose', kind: 'boolean', group: 'output', desc: 'Verbose logging' },
-	'--webhook-url': {
-		key: 'webhookUrl',
-		kind: 'string',
-		group: 'output',
-		desc: 'URL to POST results to when complete',
-	},
-	'--webhook-secret': {
-		key: 'webhookSecret',
-		kind: 'string',
-		group: 'output',
-		desc: 'Secret for HMAC-SHA256 signature (min 16 chars)',
-	},
 
 	// Feature flags
 	'--template-examples': {
@@ -274,14 +234,6 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		kind: 'boolean',
 		group: 'feature',
 		desc: 'Enable template examples phase',
-	},
-
-	// Prompt version configuration
-	'--prompt-version': {
-		key: 'promptVersion',
-		kind: 'string',
-		group: 'model',
-		desc: `Prompt version (${AVAILABLE_PROMPT_VERSIONS.join('|')}, default: ${DEFAULT_PROMPT_VERSION})`,
 	},
 
 	// Model configuration
@@ -319,7 +271,13 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		key: 'builderModel',
 		kind: 'string',
 		group: 'model',
-		desc: 'Model for builder stage (structure and configuration)',
+		desc: 'Model for builder stage',
+	},
+	'--configurator-model': {
+		key: 'configuratorModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for configurator stage',
 	},
 	'--parameter-updater-model': {
 		key: 'parameterUpdaterModel',
@@ -567,7 +525,6 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		timeoutMs: parsed.timeoutMs,
 		experimentName: parsed.experimentName,
 		outputDir: parsed.outputDir,
-		outputCsv: parsed.outputCsv,
 		datasetName: parsed.datasetName,
 		maxExamples: parsed.maxExamples,
 		filters,
@@ -578,10 +535,6 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		donts: parsed.donts,
 		numJudges: parsed.numJudges,
 		featureFlags,
-		webhookUrl: parsed.webhookUrl,
-		webhookSecret: parsed.webhookSecret,
-		// Prompt version configuration
-		promptVersion: parsed.promptVersion,
 		// Model configuration
 		model: parsed.model,
 		judgeModel: parsed.judgeModel,
@@ -589,6 +542,7 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		responderModel: parsed.responderModel,
 		discoveryModel: parsed.discoveryModel,
 		builderModel: parsed.builderModel,
+		configuratorModel: parsed.configuratorModel,
 		parameterUpdaterModel: parsed.parameterUpdaterModel,
 	};
 }
@@ -603,6 +557,7 @@ export function argsToStageModels(args: EvaluationArgs): StageModels {
 		responder: args.responderModel,
 		discovery: args.discoveryModel,
 		builder: args.builderModel,
+		configurator: args.configuratorModel,
 		parameterUpdater: args.parameterUpdaterModel,
 		judge: args.judgeModel,
 	};
