@@ -21,6 +21,12 @@ const flagsSchema = z.object({
 	'batch-size': z.number().int().default(100).describe('Number of vectors to add in each batch'),
 	'search-count': z.number().int().default(10).describe('Number of similarity searches to perform'),
 	'search-k': z.number().int().default(5).describe('Number of results to return per search'),
+	'num-tables': z.number().int().default(1).describe('Number of tables to create for benchmarking'),
+	'random-access-count': z
+		.number()
+		.int()
+		.default(100)
+		.describe('Number of random table accesses to perform'),
 	iterations: z.number().int().default(3).describe('Number of iterations to run for averaging'),
 });
 
@@ -39,6 +45,7 @@ interface BenchmarkResults {
 		'',
 		'--num-vectors=5000 --vector-dimension=768',
 		'--batch-size=500 --search-count=100',
+		'--num-tables=10 --random-access-count=1000',
 		'--iterations=5',
 	],
 	flagsSchema,
@@ -46,6 +53,7 @@ interface BenchmarkResults {
 export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema>> {
 	private readonly testProjectId = `benchmark-${nanoid()}`;
 	private readonly testMemoryKey = 'benchmark-test';
+	private tableIdentifiers: Array<{ memoryKey: string; projectId: string }> = [];
 
 	async run() {
 		const { flags } = this;
@@ -57,6 +65,8 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 		this.log(`  Batch size: ${flags['batch-size']}`);
 		this.log(`  Searches: ${flags['search-count']}`);
 		this.log(`  Results per search (k): ${flags['search-k']}`);
+		this.log(`  Tables: ${flags['num-tables']}`);
+		this.log(`  Random accesses: ${flags['random-access-count']}`);
 		this.log(`  Iterations: ${flags.iterations}`);
 		this.log('');
 
@@ -68,12 +78,15 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 		const results: BenchmarkResults[] = [];
 
 		try {
+			// Generate table identifiers
+			this.tableIdentifiers = this.generateTableIdentifiers(flags['num-tables']);
+
 			// Run benchmark iterations
 			for (let iteration = 1; iteration <= flags.iterations; iteration++) {
 				this.log(`\nIteration ${iteration}/${flags.iterations}`);
 				this.log('='.repeat(50));
 
-				// Benchmark: Add vectors in batches
+				// Benchmark: Add vectors in batches (single table)
 				const addResults = await this.benchmarkAddVectors(
 					repository,
 					flags['num-vectors'],
@@ -82,11 +95,11 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 				);
 				results.push(addResults);
 
-				// Benchmark: Count vectors
+				// Benchmark: Count vectors (single table)
 				const countResults = await this.benchmarkCountVectors(repository);
 				results.push(countResults);
 
-				// Benchmark: Similarity search
+				// Benchmark: Similarity search (single table)
 				const searchResults = await this.benchmarkSimilaritySearch(
 					repository,
 					flags['vector-dimension'],
@@ -94,6 +107,26 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 					flags['search-k'],
 				);
 				results.push(searchResults);
+
+				// Benchmark: Random table access (if multiple tables)
+				if (flags['num-tables'] > 1) {
+					// First, populate all tables with data
+					await this.populateTables(
+						repository,
+						flags['num-vectors'],
+						flags['vector-dimension'],
+						flags['batch-size'],
+					);
+
+					// Then benchmark random access
+					const randomAccessResults = await this.benchmarkRandomTableAccess(
+						repository,
+						flags['vector-dimension'],
+						flags['random-access-count'],
+						flags['search-k'],
+					);
+					results.push(randomAccessResults);
+				}
 
 				// Benchmark: Clear store
 				const clearResults = await this.benchmarkClearStore(repository);
@@ -214,6 +247,12 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 
 		const startTime = performance.now();
 		await repository.clearStore(this.testMemoryKey, this.testProjectId);
+
+		// Clear all additional tables
+		for (const table of this.tableIdentifiers) {
+			await repository.clearStore(table.memoryKey, table.projectId);
+		}
+
 		const endTime = performance.now();
 		const totalTime = endTime - startTime;
 
@@ -224,6 +263,76 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 			totalTime,
 			avgTime: totalTime,
 		};
+	}
+
+	private async benchmarkRandomTableAccess(
+		repository: VectorStoreDataRepository,
+		dimension: number,
+		accessCount: number,
+		k: number,
+	): Promise<BenchmarkResults> {
+		this.log(
+			`\nBenchmark: Random table access (${accessCount} accesses across ${this.tableIdentifiers.length} tables)`,
+		);
+
+		const startTime = performance.now();
+
+		for (let i = 0; i < accessCount; i++) {
+			// Randomly select a table
+			const randomTable =
+				this.tableIdentifiers[Math.floor(Math.random() * this.tableIdentifiers.length)];
+			const queryEmbedding = this.generateRandomEmbedding(dimension);
+
+			// Perform similarity search on random table
+			await repository.similaritySearch(
+				randomTable.memoryKey,
+				randomTable.projectId,
+				queryEmbedding,
+				k,
+			);
+		}
+
+		const endTime = performance.now();
+		const totalTime = endTime - startTime;
+		const avgTime = totalTime / accessCount;
+		const throughput = (accessCount / totalTime) * 1000; // accesses per second
+
+		this.log(`  Total time: ${totalTime.toFixed(2)}ms`);
+		this.log(`  Avg per access: ${avgTime.toFixed(2)}ms`);
+		this.log(`  Throughput: ${throughput.toFixed(1)} accesses/sec`);
+
+		return {
+			operation: 'random_table_access',
+			totalTime,
+			avgTime,
+			throughput,
+			unit: 'accesses/sec',
+		};
+	}
+
+	private async populateTables(
+		repository: VectorStoreDataRepository,
+		numVectors: number,
+		dimension: number,
+		batchSize: number,
+	): Promise<void> {
+		this.log(
+			`\nPopulating ${this.tableIdentifiers.length} tables with ${numVectors} vectors each...`,
+		);
+
+		for (let tableIdx = 0; tableIdx < this.tableIdentifiers.length; tableIdx++) {
+			const table = this.tableIdentifiers[tableIdx];
+
+			for (let i = 0; i < numVectors; i += batchSize) {
+				const currentBatchSize = Math.min(batchSize, numVectors - i);
+				const documents = this.generateTestDocuments(currentBatchSize);
+				const embeddings = this.generateRandomEmbeddings(currentBatchSize, dimension);
+
+				await repository.addVectors(table.memoryKey, table.projectId, documents, embeddings, false);
+			}
+
+			this.log(`  Table ${tableIdx + 1}/${this.tableIdentifiers.length} populated`);
+		}
 	}
 
 	private displayAggregateResults(results: BenchmarkResults[], iterations: number) {
@@ -267,10 +376,29 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 		this.log('\nCleaning up test data...');
 		try {
 			await repository.deleteStore(this.testMemoryKey, this.testProjectId);
+
+			// Clean up all additional tables
+			for (const table of this.tableIdentifiers) {
+				await repository.deleteStore(table.memoryKey, table.projectId);
+			}
+
 			this.log('Cleanup complete');
 		} catch (error) {
 			this.logger.error('Error during cleanup', { error: error as Error });
 		}
+	}
+
+	private generateTableIdentifiers(
+		numTables: number,
+	): Array<{ memoryKey: string; projectId: string }> {
+		const tables = [];
+		for (let i = 0; i < numTables; i++) {
+			tables.push({
+				memoryKey: `benchmark-table-${i}`,
+				projectId: `benchmark-project-${nanoid()}`,
+			});
+		}
+		return tables;
 	}
 
 	private generateTestDocuments(count: number) {
