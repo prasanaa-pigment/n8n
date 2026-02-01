@@ -16,6 +16,7 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import { PlanningAgent, type PlanningAgentResponse } from './planning-agent';
 import { CodingAgent } from './coding-agent';
 import { NodeTypeParser } from './utils/node-type-parser';
+import type { EvaluationLogger } from './utils/evaluation-logger';
 import type { StreamOutput, AgentMessageChunk } from './types/streaming';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
@@ -42,6 +43,8 @@ export interface OrchestratorConfig {
 	 * If not provided, falls back to workflow-sdk static types.
 	 */
 	generatedTypesDir?: string;
+	/** Optional evaluation logger for capturing debug info during evals */
+	evalLogger?: EvaluationLogger;
 }
 
 /**
@@ -62,20 +65,25 @@ export class Orchestrator {
 	private planningAgent: PlanningAgent;
 	private codingAgent: CodingAgent;
 	private logger?: Logger;
+	private evalLogger?: EvaluationLogger;
 
 	constructor(config: OrchestratorConfig) {
 		const nodeTypeParser = new NodeTypeParser(config.nodeTypes);
+
+		this.evalLogger = config.evalLogger;
 
 		this.planningAgent = new PlanningAgent({
 			llm: config.planningLLM,
 			nodeTypeParser,
 			logger: config.logger,
+			evalLogger: config.evalLogger,
 		});
 
 		this.codingAgent = new CodingAgent({
 			llm: config.codingLLM,
 			logger: config.logger,
 			generatedTypesDir: config.generatedTypesDir,
+			evalLogger: config.evalLogger,
 		});
 
 		this.logger = config.logger;
@@ -87,20 +95,24 @@ export class Orchestrator {
 	 * Debug logging helper
 	 */
 	private debugLog(context: string, message: string, data?: Record<string, unknown>): void {
-		const timestamp = new Date().toISOString();
-		const prefix = `[ORCHESTRATOR][${timestamp}][${context}]`;
-
-		if (data) {
-			const formatted = inspect(data, {
-				depth: null,
-				colors: true,
-				maxStringLength: null,
-				maxArrayLength: null,
-				breakLength: 120,
-			});
-			console.log(`${prefix} ${message}\n${formatted}`);
+		if (this.evalLogger) {
+			this.evalLogger.log(`ORCHESTRATOR:${context}`, message, data);
 		} else {
-			console.log(`${prefix} ${message}`);
+			const timestamp = new Date().toISOString();
+			const prefix = `[ORCHESTRATOR][${timestamp}][${context}]`;
+
+			if (data) {
+				const formatted = inspect(data, {
+					depth: null,
+					colors: true,
+					maxStringLength: null,
+					maxArrayLength: null,
+					breakLength: 120,
+				});
+				console.log(`${prefix} ${message}\n${formatted}`);
+			} else {
+				console.log(`${prefix} ${message}`);
+			}
 		}
 	}
 

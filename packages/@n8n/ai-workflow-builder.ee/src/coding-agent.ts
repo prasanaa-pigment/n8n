@@ -22,6 +22,7 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import { buildCodingAgentPrompt } from './prompts/coding';
 import { createCodeBuilderGetTool } from './tools/code-builder-get.tool';
 import { extractWorkflowCode } from './utils/extract-code';
+import type { EvaluationLogger } from './utils/evaluation-logger';
 import type {
 	StreamOutput,
 	AgentMessageChunk,
@@ -54,6 +55,8 @@ export interface CodingAgentConfig {
 	 * If not provided, falls back to workflow-sdk static types.
 	 */
 	generatedTypesDir?: string;
+	/** Optional evaluation logger for capturing debug info during evals */
+	evalLogger?: EvaluationLogger;
 }
 
 /**
@@ -64,12 +67,14 @@ export interface CodingAgentConfig {
 export class CodingAgent {
 	private llm: BaseChatModel;
 	private logger?: Logger;
+	private evalLogger?: EvaluationLogger;
 	private tools: StructuredToolInterface[];
 	private toolsMap: Map<string, StructuredToolInterface>;
 
 	constructor(config: CodingAgentConfig) {
 		this.llm = config.llm;
 		this.logger = config.logger;
+		this.evalLogger = config.evalLogger;
 
 		// Create tools for the coding agent
 		const getTool = createCodeBuilderGetTool({ generatedTypesDir: config.generatedTypesDir });
@@ -85,20 +90,24 @@ export class CodingAgent {
 	 * Debug logging helper
 	 */
 	private debugLog(context: string, message: string, data?: Record<string, unknown>): void {
-		const timestamp = new Date().toISOString();
-		const prefix = `[CODING-AGENT][${timestamp}][${context}]`;
-
-		if (data) {
-			const formatted = inspect(data, {
-				depth: null,
-				colors: true,
-				maxStringLength: null,
-				maxArrayLength: null,
-				breakLength: 120,
-			});
-			console.log(`${prefix} ${message}\n${formatted}`);
+		if (this.evalLogger) {
+			this.evalLogger.log(`CODING-AGENT:${context}`, message, data);
 		} else {
-			console.log(`${prefix} ${message}`);
+			const timestamp = new Date().toISOString();
+			const prefix = `[CODING-AGENT][${timestamp}][${context}]`;
+
+			if (data) {
+				const formatted = inspect(data, {
+					depth: null,
+					colors: true,
+					maxStringLength: null,
+					maxArrayLength: null,
+					breakLength: 120,
+				});
+				console.log(`${prefix} ${message}\n${formatted}`);
+			} else {
+				console.log(`${prefix} ${message}`);
+			}
 		}
 	}
 
@@ -272,20 +281,22 @@ export class CodingAgent {
 						);
 
 						if (newWarnings.length > 0) {
+							// Format warnings for logging and correction
+							const warningMessages = newWarnings
+								.slice(0, 5)
+								.map((w) => `- [${w.code}] ${w.message}`)
+								.join('\n');
+
 							this.debugLog('RUN', 'New validation warnings found', {
 								newWarningCount: newWarnings.length,
+								warnings: newWarnings.slice(0, 5),
+								warningMessages,
 							});
 
 							// Mark warnings as sent
 							for (const w of newWarnings) {
 								previousWarningCodes.add(`${w.code}:${w.message}`);
 							}
-
-							// Format warnings for correction
-							const warningMessages = newWarnings
-								.slice(0, 5)
-								.map((w) => `- [${w.code}] ${w.message}`)
-								.join('\n');
 
 							// Track as generation error
 							generationErrors.push({
@@ -454,15 +465,22 @@ export class CodingAgent {
 			const result = await tool.invoke(toolCall.args);
 			const toolDuration = Date.now() - toolStartTime;
 
+			// Serialize result for logging and message
+			const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+
 			this.debugLog('TOOL_CALL', `Tool ${toolCall.name} completed`, {
 				toolDurationMs: toolDuration,
-				resultLength: typeof result === 'string' ? result.length : JSON.stringify(result).length,
+				resultLength: resultStr.length,
+				result: resultStr,
 			});
+
+			// Log full tool output to evaluation logger
+			this.evalLogger?.logToolCall(toolCall.name, toolCall.args, resultStr, toolDuration);
 
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCall.id,
-					content: typeof result === 'string' ? result : JSON.stringify(result),
+					content: resultStr,
 				}),
 			);
 

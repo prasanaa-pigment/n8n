@@ -22,6 +22,7 @@ import { buildPlanningAgentPrompt } from './prompts/planning';
 import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
 import { createGetBestPracticesTool } from './tools/get-best-practices.tool';
 import type { NodeTypeParser } from './utils/node-type-parser';
+import type { EvaluationLogger } from './utils/evaluation-logger';
 import type { AgentMessageChunk, StreamOutput, ToolProgressChunk } from './types/streaming';
 
 /** Maximum iterations for the planning agent loop */
@@ -45,6 +46,8 @@ export interface PlanningAgentConfig {
 	nodeTypeParser: NodeTypeParser;
 	/** Optional logger */
 	logger?: Logger;
+	/** Optional evaluation logger for capturing debug info during evals */
+	evalLogger?: EvaluationLogger;
 }
 
 /**
@@ -57,6 +60,7 @@ export class PlanningAgent {
 	private llm: BaseChatModel;
 	private nodeTypeParser: NodeTypeParser;
 	private logger?: Logger;
+	private evalLogger?: EvaluationLogger;
 	private tools: StructuredToolInterface[];
 	private toolsMap: Map<string, StructuredToolInterface>;
 
@@ -64,6 +68,7 @@ export class PlanningAgent {
 		this.llm = config.llm;
 		this.nodeTypeParser = config.nodeTypeParser;
 		this.logger = config.logger;
+		this.evalLogger = config.evalLogger;
 
 		// Create tools for the planning agent
 		const searchTool = createCodeBuilderSearchTool(this.nodeTypeParser);
@@ -80,20 +85,24 @@ export class PlanningAgent {
 	 * Debug logging helper
 	 */
 	private debugLog(context: string, message: string, data?: Record<string, unknown>): void {
-		const timestamp = new Date().toISOString();
-		const prefix = `[PLANNING-AGENT][${timestamp}][${context}]`;
-
-		if (data) {
-			const formatted = inspect(data, {
-				depth: null,
-				colors: true,
-				maxStringLength: null,
-				maxArrayLength: null,
-				breakLength: 120,
-			});
-			console.log(`${prefix} ${message}\n${formatted}`);
+		if (this.evalLogger) {
+			this.evalLogger.log(`PLANNING-AGENT:${context}`, message, data);
 		} else {
-			console.log(`${prefix} ${message}`);
+			const timestamp = new Date().toISOString();
+			const prefix = `[PLANNING-AGENT][${timestamp}][${context}]`;
+
+			if (data) {
+				const formatted = inspect(data, {
+					depth: null,
+					colors: true,
+					maxStringLength: null,
+					maxArrayLength: null,
+					breakLength: 120,
+				});
+				console.log(`${prefix} ${message}\n${formatted}`);
+			} else {
+				console.log(`${prefix} ${message}`);
+			}
 		}
 	}
 
@@ -380,16 +389,23 @@ export class PlanningAgent {
 			const result = await tool.invoke(toolCall.args);
 			const toolDuration = Date.now() - toolStartTime;
 
+			// Serialize result for logging and message
+			const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+
 			this.debugLog('TOOL_CALL', `Tool ${toolCall.name} completed`, {
 				toolDurationMs: toolDuration,
-				resultLength: typeof result === 'string' ? result.length : JSON.stringify(result).length,
+				resultLength: resultStr.length,
+				result: resultStr,
 			});
+
+			// Log full tool output to evaluation logger
+			this.evalLogger?.logToolCall(toolCall.name, toolCall.args, resultStr, toolDuration);
 
 			// Add tool result to messages
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCall.id,
-					content: typeof result === 'string' ? result : JSON.stringify(result),
+					content: resultStr,
 				}),
 			);
 

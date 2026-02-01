@@ -15,6 +15,7 @@ import type { INodeTypeDescription } from 'n8n-workflow';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import { Orchestrator, type ConversationMessage } from './orchestrator';
+import type { EvaluationLogger } from './utils/evaluation-logger';
 import type { StreamOutput } from './types/streaming';
 import type { ChatPayload } from './workflow-builder-agent';
 
@@ -35,6 +36,8 @@ export interface CodeWorkflowBuilderConfig {
 	 * If not provided, falls back to workflow-sdk static types.
 	 */
 	generatedTypesDir?: string;
+	/** Optional evaluation logger for capturing debug info during evals */
+	evalLogger?: EvaluationLogger;
 }
 
 /**
@@ -55,6 +58,7 @@ export class CodeWorkflowBuilder {
 			nodeTypes: config.nodeTypes,
 			logger: config.logger,
 			generatedTypesDir: config.generatedTypesDir,
+			evalLogger: config.evalLogger,
 		});
 
 		this.logger = config.logger;
