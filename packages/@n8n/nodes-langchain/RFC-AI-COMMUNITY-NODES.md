@@ -438,9 +438,9 @@ export abstract class N8nChatHistory {
 
 ## Code Examples
 
-### Example 1: Custom Memory Node (Redis)
+### Example 1: Memory Node with SDK (Internal)
 
-This example shows how a community developer would create a Redis-backed memory node.
+This example shows how an **internal n8n node** would use the SDK. Internal nodes can use third-party packages like `ioredis`. Community nodes would need to use HTTP-based APIs (e.g., Upstash REST API) instead.
 
 ```typescript
 // nodes/MemoryRedis/MemoryRedis.node.ts
@@ -572,9 +572,9 @@ export class MemoryRedis implements INodeType {
 }
 ```
 
-### Example 2: Custom Chat Model (Anthropic-like API)
+### Example 2: Custom Chat Model (Community-Compatible)
 
-This example shows creating a chat model for a custom API endpoint.
+This example shows creating a chat model for a custom API endpoint. Uses only `fetch()` so it works for both internal and community nodes.
 
 ```typescript
 // nodes/LmChatCustomProvider/LmChatCustomProvider.node.ts
