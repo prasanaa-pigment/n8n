@@ -46,58 +46,6 @@ await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf-8');
 await executeNpmCommand(['install', ...this.getNpmInstallArgs()], { cwd: packageDirectory });
 ```
 
-#### The Development → Runtime Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  DEVELOPMENT TIME (on community developer's machine)                               │
-│                                                                                     │
-│  $ npm install                                                                      │
-│                                                                                     │
-│  package.json:                           node_modules/                              │
-│  ┌─────────────────────────────┐         ┌─────────────────────────────┐            │
-│  │ "peerDependencies": {       │  ───►   │ @n8n/ai-node-sdk/           │            │
-│  │   "@n8n/ai-node-sdk": "*"   │         │   ├── index.d.ts  ← Types  │            │
-│  │ }                           │         │   └── index.js    ← Impl   │            │
-│  └─────────────────────────────┘         └─────────────────────────────┘            │
-│                                                                                     │
-│  Developer gets: ✅ TypeScript types, ✅ IDE autocomplete, ✅ Type checking        │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          │  npm publish
-                                          ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  INSTALLATION TIME (on user's n8n instance)                                         │
-│                                                                                     │
-│  n8n downloads tarball, then:                                                       │
-│                                                                                     │
-│  Original package.json:                  Modified package.json:                     │
-│  ┌─────────────────────────────┐         ┌─────────────────────────────┐            │
-│  │ "peerDependencies": {       │  ───►   │ // peerDependencies         │            │
-│  │   "@n8n/ai-node-sdk": "*"   │ STRIP   │ // REMOVED by n8n           │            │
-│  │ }                           │         │                             │            │
-│  └─────────────────────────────┘         └─────────────────────────────┘            │
-│                                                                                     │
-│  npm install runs with NO peer deps → no duplicate packages installed              │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  RUNTIME (when workflow executes)                                                   │
-│                                                                                     │
-│  Community node imports:                 Node.js resolves to n8n's bundled copy:   │
-│  ┌─────────────────────────────┐         ┌─────────────────────────────┐            │
-│  │ import { createMemory }     │  ───►   │ n8n/node_modules/           │            │
-│  │   from '@n8n/ai-node-sdk';  │         │   @n8n/ai-node-sdk/         │            │
-│  └─────────────────────────────┘         │     └── (n8n's version)     │            │
-│                                          └─────────────────────────────┘            │
-│                                                                                     │
-│  Result: ✅ Always uses n8n's bundled version                                       │
-│          ✅ No version mismatch possible                                            │
-│          ✅ LangChain version controlled by n8n                                     │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-```
-
 #### Why This Pattern Works
 
 | Concern | Solution |
@@ -115,7 +63,7 @@ await executeNpmCommand(['install', ...this.getNpmInstallArgs()], { cwd: package
 2. TypeScript can resolve types for `import { ... } from '@n8n/ai-node-sdk'`
 3. IDE features (autocomplete, go-to-definition) work properly
 
-However, the **published version is only used for development**. At runtime, n8n's bundled version is always used, ensuring perfect version alignment
+However, the **published version is only used for development**. At runtime, n8n's bundled version is always used, ensuring perfect version alignment.
 
 ### 3. Minimal Surface Area
 
@@ -135,14 +83,14 @@ Use composable building blocks instead of monolithic configuration objects:
 
 ```typescript
 // ✅ Composable
-const memory = createMemory({
+const memory = createMemory(this, {
   type: 'bufferWindow',
   chatHistory: new MyChatHistory({ connectionString }),
   k: 10,
 });
 
 // ❌ Monolithic
-const memory = createMemory({
+const memory = createMemory(this, {
   type: 'postgres',
   host: '...',
   port: 5432,
@@ -157,7 +105,7 @@ Simple cases are simple. Complex cases are possible.
 
 ```typescript
 // Simple: OpenAI-compatible model
-const model = createChatModel({
+const model = createChatModel(this, {
   type: 'openaiCompatible',
   apiKey: credentials.apiKey,
   baseUrl: 'https://api.example.com/v1',
@@ -165,7 +113,7 @@ const model = createChatModel({
 });
 
 // Complex: Fully custom model
-const model = createChatModel({
+const model = createChatModel(this, {
   type: 'custom',
   invoke: async (messages, options) => { /* ... */ },
   stream: async function* (messages, options) { /* ... */ },
@@ -187,7 +135,7 @@ const model = createChatModel({
 │  │  class MyMemory extends N8nChatHistory { /* provider-specific logic */ }    │    │
 │  │                                                                             │    │
 │  │  supplyData() {                                                             │    │
-│  │    return { response: createMemory({ chatHistory: new MyMemory() }) };      │    │
+│  │    return { response: createMemory(this, { chatHistory: new MyMemory() }) };│    │
 │  │  }                                                                          │    │
 │  └─────────────────────────────────────────────────────────────────────────────┘    │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
@@ -788,7 +736,7 @@ export class LmChatCustomProvider implements INodeType {
 
 1. **Create `@n8n/ai-node-sdk` package**
    - Define all public types and interfaces
-   - Implement base class (`N8nChatHistory`)
+   - Implement `N8nChatHistory` base class (for memory nodes)
    - Create factory functions with LangChain adapters
 
 2. **Migrate internal nodes as proof-of-concept**
