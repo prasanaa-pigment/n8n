@@ -20,6 +20,9 @@ interface ReadOnlySettings {
 
 interface WritableSettings {
 	tunnelSubdomain?: string;
+
+	/** Whether `~/.n8n/binaryData` has been migrated to `~/.n8n/storage` */
+	fsStorageMigrated?: boolean;
 }
 
 type Settings = ReadOnlySettings & WritableSettings;
@@ -142,6 +145,14 @@ export class InstanceSettings {
 		return this.settings.tunnelSubdomain;
 	}
 
+	get fsStorageMigrated() {
+		return this.settings.fsStorageMigrated === true;
+	}
+
+	markFsStorageMigrated() {
+		this.update({ fsStorageMigrated: true });
+	}
+
 	/**
 	 * Whether this instance is running inside a Docker/Podman/Kubernetes container.
 	 */
@@ -189,7 +200,7 @@ export class InstanceSettings {
 
 			if (!inTest) this.logger.debug(`User settings loaded from: ${this.settingsFile}`);
 
-			const { encryptionKey, tunnelSubdomain } = settings;
+			const { encryptionKey, tunnelSubdomain, fsStorageMigrated } = settings;
 
 			if (encryptionKeyFromEnv && encryptionKey !== encryptionKeyFromEnv) {
 				throw new ApplicationError(
@@ -197,7 +208,7 @@ export class InstanceSettings {
 				);
 			}
 
-			return { encryptionKey, tunnelSubdomain };
+			return { encryptionKey, tunnelSubdomain, fsStorageMigrated };
 		}
 
 		if (!encryptionKeyFromEnv) {

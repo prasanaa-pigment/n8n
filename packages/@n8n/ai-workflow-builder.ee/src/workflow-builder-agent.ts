@@ -21,6 +21,7 @@ import { CodeWorkflowBuilder } from './code-workflow-builder';
 import { ValidationError } from './errors';
 import { createMultiAgentWorkflowWithSubgraphs } from './multi-agent-workflow-subgraphs';
 import { SessionManagerService } from './session-manager.service';
+import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SimpleWorkflow } from './types/workflow';
 import { createStreamProcessor, type StreamEvent } from './utils/stream-processor';
 import type { WorkflowState } from './workflow-state';
@@ -70,6 +71,8 @@ export interface WorkflowBuilderAgentConfig {
 	 * If not provided, falls back to workflow-sdk static types.
 	 */
 	generatedTypesDir?: string;
+	/** Callback for fetching resource locator options */
+	resourceLocatorCallback?: ResourceLocatorCallback;
 }
 
 export interface ExpressionValue {
@@ -112,6 +115,7 @@ export class WorkflowBuilderAgent {
 	private runMetadata?: Record<string, unknown>;
 	private onGenerationSuccess?: () => Promise<void>;
 	private generatedTypesDir?: string;
+	private resourceLocatorCallback?: ResourceLocatorCallback;
 
 	constructor(config: WorkflowBuilderAgentConfig) {
 		this.parsedNodeTypes = config.parsedNodeTypes;
@@ -123,6 +127,7 @@ export class WorkflowBuilderAgent {
 		this.runMetadata = config.runMetadata;
 		this.onGenerationSuccess = config.onGenerationSuccess;
 		this.generatedTypesDir = config.generatedTypesDir;
+		this.resourceLocatorCallback = config.resourceLocatorCallback;
 	}
 
 	/**
@@ -138,6 +143,7 @@ export class WorkflowBuilderAgent {
 			checkpointer: this.checkpointer,
 			featureFlags,
 			onGenerationSuccess: this.onGenerationSuccess,
+			resourceLocatorCallback: this.resourceLocatorCallback,
 		});
 	}
 

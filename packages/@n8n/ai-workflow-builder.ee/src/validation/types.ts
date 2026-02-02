@@ -31,7 +31,7 @@ export const PROGRAMMATIC_VIOLATION_NAMES = [
 	'workflow-similarity-evaluation-failed',
 	'http-request-hardcoded-credentials',
 	'set-node-credential-field',
-	// Graph validation violations (from workflow-sdk validate())
+// Graph validation violations (from workflow-sdk validate())
 	'graph-no-nodes',
 	'graph-disconnected-node',
 	'graph-merge-single-input',
@@ -43,6 +43,9 @@ export const PROGRAMMATIC_VIOLATION_NAMES = [
 	'graph-tool-no-parameters',
 	'graph-missing-trigger',
 	'graph-parse-error',
+	'webhook-response-mode-missing-respond-node',
+	'webhook-response-mode-mismatch',
+	'data-table-missing-set-node',
 ] as const;
 
 export type ProgrammaticViolationName = (typeof PROGRAMMATIC_VIOLATION_NAMES)[number];
@@ -54,6 +57,7 @@ export interface ProgrammaticViolation {
 	type: ProgrammaticViolationType;
 	description: string;
 	pointsDeducted: number;
+	metadata?: Record<string, string>;
 }
 
 export interface SingleEvaluatorResult {
@@ -69,6 +73,7 @@ export interface ProgrammaticChecksResult {
 	tools: ProgrammaticViolation[];
 	fromAi: ProgrammaticViolation[];
 	credentials: ProgrammaticViolation[];
+	nodeUsage: ProgrammaticViolation[];
 }
 
 export interface ProgrammaticEvaluationResult {
@@ -80,6 +85,7 @@ export interface ProgrammaticEvaluationResult {
 	tools: SingleEvaluatorResult;
 	fromAi: SingleEvaluatorResult;
 	credentials: SingleEvaluatorResult;
+	nodeUsage: SingleEvaluatorResult;
 	similarity: SingleEvaluatorResult | null;
 	graphValidation: SingleEvaluatorResult;
 }

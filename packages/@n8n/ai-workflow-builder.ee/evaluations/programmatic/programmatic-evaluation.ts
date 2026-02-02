@@ -11,6 +11,7 @@ import {
 	evaluateAgentPrompt,
 	evaluateFromAi,
 	evaluateTrigger,
+	evaluateNodeUsage,
 } from './evaluators';
 import {
 	evaluateWorkflowSimilarity,
@@ -31,7 +32,8 @@ export async function programmaticEvaluation(
 	const toolsEvaluationResult = evaluateTools(generatedWorkflow, nodeTypes);
 	const fromAiEvaluationResult = evaluateFromAi(generatedWorkflow, nodeTypes);
 	const credentialsEvaluationResult = evaluateCredentials(generatedWorkflow);
-	const graphValidationResult = evaluateGraphValidation(generatedCode);
+const graphValidationResult = evaluateGraphValidation(generatedCode);
+	const nodeUsageEvaluationResult = evaluateNodeUsage(generatedWorkflow);
 
 	// Workflow similarity evaluation
 	let similarityEvaluationResult = null;
@@ -74,6 +76,7 @@ export async function programmaticEvaluation(
 		tools: toolsEvaluationResult,
 		fromAi: fromAiEvaluationResult,
 		credentials: credentialsEvaluationResult,
+		nodeUsage: nodeUsageEvaluationResult,
 		similarity: similarityEvaluationResult,
 		graphValidation: graphValidationResult,
 	});
@@ -87,6 +90,7 @@ export async function programmaticEvaluation(
 		tools: toolsEvaluationResult,
 		fromAi: fromAiEvaluationResult,
 		credentials: credentialsEvaluationResult,
+		nodeUsage: nodeUsageEvaluationResult,
 		similarity: similarityEvaluationResult,
 		graphValidation: graphValidationResult,
 	};

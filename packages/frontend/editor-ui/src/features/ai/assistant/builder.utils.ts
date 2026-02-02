@@ -19,7 +19,7 @@ export function generateMessageId(): string {
 	return `${Date.now()}-${generateShortId()}`;
 }
 
-export function createBuilderPayload(
+export async function createBuilderPayload(
 	text: string,
 	id: string,
 	options: {
@@ -30,7 +30,7 @@ export function createBuilderPayload(
 		promptVersion?: ChatRequest.PromptVersionId;
 		modelId?: ChatRequest.BuilderModelId;
 	} = {},
-): ChatRequest.UserChatMessage {
+): Promise<ChatRequest.UserChatMessage> {
 	const assistantHelpers = useAIAssistantHelpers();
 	const posthogStore = usePostHog();
 	const workflowContext: ChatRequest.WorkflowContext = {};
@@ -50,7 +50,7 @@ export function createBuilderPayload(
 		if (options.workflow) {
 			// Extract and include expression values with their resolved values
 			// Pass execution data to only extract from nodes that have executed
-			workflowContext.expressionValues = assistantHelpers.extractExpressionsFromWorkflow(
+			workflowContext.expressionValues = await assistantHelpers.extractExpressionsFromWorkflow(
 				options.workflow,
 				options.executionData,
 			);

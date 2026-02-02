@@ -60,6 +60,8 @@ export type WorkflowBuilderJourneyEventType =
 interface WorkflowBuilderJourneyEventProperties {
 	node_type?: string;
 	type?: string;
+	count?: number;
+	source?: string;
 	revert_user_message_id?: string;
 	revert_version_id?: string;
 	no_versions_reverted?: number;
@@ -82,7 +84,7 @@ interface EndOfStreamingTrackingPayload {
 interface UserSubmittedBuilderMessageTrackingPayload
 	extends ITelemetryTrackProperties,
 		TodosTrackingPayload {
-	source: 'chat' | 'canvas';
+	source: 'chat' | 'canvas' | 'empty-state';
 	message: string;
 	session_id: string;
 	start_workflow_json: string;
@@ -444,7 +446,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	 */
 	function trackUserSubmittedBuilderMessage(options: {
 		text: string;
-		source: 'chat' | 'canvas';
+		source: 'chat' | 'canvas' | 'empty-state';
 		type: 'message' | 'execution';
 		userMessageId: string;
 		currentWorkflowJson: string;
@@ -541,7 +543,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	 */
 	async function sendChatMessage(options: {
 		text: string;
-		source?: 'chat' | 'canvas';
+		source?: 'chat' | 'canvas' | 'empty-state';
 		quickReplyType?: string;
 		initialGeneration?: boolean;
 		type?: 'message' | 'execution';
@@ -602,7 +604,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		prepareForStreaming(text, userMessageId, revertVersion);
 
 		const executionResult = workflowsStore.workflowExecutionData?.data?.resultData;
-		const payload = createBuilderPayload(text, userMessageId, {
+		const payload = await createBuilderPayload(text, userMessageId, {
 			quickReplyType,
 			workflow: workflowsStore.workflow,
 			executionData: executionResult,

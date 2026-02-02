@@ -6,11 +6,12 @@ export function calculateOverallScore(
 	// Base weights for when similarity is not available
 	// graphValidation gets 10% weight as it validates code structure
 	const baseWeights = {
-		connections: 0.22,
-		trigger: 0.22,
-		agentPrompt: 0.18,
-		tools: 0.18,
-		fromAi: 0.1,
+		connections: 0.2,
+		trigger: 0.2,
+		agentPrompt: 0.16,
+		tools: 0.16,
+		fromAi: 0.08,
+		nodeUsage: 0.1,
 		graphValidation: 0.1,
 	};
 
@@ -21,13 +22,14 @@ export function calculateOverallScore(
 	if (evaluatorResults.similarity) {
 		// Rebalance weights to include similarity (18% weight)
 		weights = {
-			connections: 0.18,
-			trigger: 0.18,
-			agentPrompt: 0.14,
-			tools: 0.14,
-			fromAi: 0.08,
+			connections: 0.16,
+			trigger: 0.16,
+			agentPrompt: 0.12,
+			tools: 0.12,
+			fromAi: 0.06,
+			nodeUsage: 0.08,
 			similarity: 0.18,
-			graphValidation: 0.1,
+			graphValidation: 0.12,
 		};
 		applicableCategories = Object.keys(evaluatorResults).filter(
 			(k) => k !== 'similarity' || evaluatorResults.similarity !== null,
