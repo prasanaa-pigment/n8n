@@ -9,6 +9,9 @@
  * discovery and code generation in a single, context-preserving agent.
  */
 
+import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { inspect } from 'node:util';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
@@ -140,6 +143,8 @@ export class CodeBuilderAgent {
 	private tools: StructuredToolInterface[];
 	private toolsMap: Map<string, StructuredToolInterface>;
 	private enableTextEditorConfig?: boolean;
+	/** Current session log file path (for temporary file-based logging) */
+	private currentLogFile: string | null = null;
 
 	constructor(config: CodeBuilderAgentConfig) {
 		this.debugLog('CONSTRUCTOR', 'Initializing CodeBuilderAgent...', {
@@ -165,25 +170,88 @@ export class CodeBuilderAgent {
 	}
 
 	/**
+	 * Initialize a log file for the current chat session.
+	 * Creates a file with timestamp, workflow ID, and prompt snippet in the name.
+	 */
+	private initLogFile(workflowId: string | undefined, prompt: string): void {
+		const logDir = join(tmpdir(), 'n8n-code-builder-logs');
+		if (!existsSync(logDir)) {
+			mkdirSync(logDir, { recursive: true });
+		}
+
+		const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+		const id = workflowId ?? `session-${Date.now()}`;
+		// Sanitize prompt for filename: take first 30 chars, replace non-alphanumeric with dash
+		const promptSnippet = prompt
+			.substring(0, 30)
+			.replace(/[^a-zA-Z0-9]/g, '-')
+			.replace(/-+/g, '-')
+			.replace(/^-|-$/g, '')
+			.toLowerCase();
+
+		const filename = `${timestamp}_${id}_${promptSnippet}.log`;
+		this.currentLogFile = join(logDir, filename);
+
+		// Write header to log file
+		const header = `=== Code Builder Agent Log ===
+Timestamp: ${new Date().toISOString()}
+Workflow ID: ${workflowId ?? 'N/A'}
+Prompt: ${prompt}
+Log File: ${this.currentLogFile}
+${'='.repeat(50)}
+
+`;
+		appendFileSync(this.currentLogFile, header);
+		console.log(`[CODE-BUILDER] Log file created: ${this.currentLogFile}`);
+	}
+
+	/**
 	 * Debug logging helper - logs to console with timestamp and prefix.
+	 * Also writes to file if a log file is initialized.
 	 * Uses util.inspect for terminal-friendly output with full depth.
 	 */
 	private debugLog(context: string, message: string, data?: Record<string, unknown>): void {
+		const timestamp = new Date().toISOString();
+		const prefix = `[CODE-BUILDER][${timestamp}][${context}]`;
+
+		// Format the log entry
+		let logEntry: string;
+		if (data) {
+			const formatted = inspect(data, {
+				depth: null,
+				colors: false, // No colors for file output
+				maxStringLength: null,
+				maxArrayLength: null,
+				breakLength: 120,
+			});
+			logEntry = `${prefix} ${message}\n${formatted}\n`;
+		} else {
+			logEntry = `${prefix} ${message}\n`;
+		}
+
+		// Write to file if initialized
+		if (this.currentLogFile) {
+			try {
+				appendFileSync(this.currentLogFile, logEntry);
+			} catch {
+				// Silently ignore file write errors
+			}
+		}
+
+		// Also log to eval logger or console
 		if (this.evalLogger) {
 			this.evalLogger.log(`CODE-BUILDER:${context}`, message, data);
 		} else {
-			const timestamp = new Date().toISOString();
-			const prefix = `[CODE-BUILDER][${timestamp}][${context}]`;
-
+			// Console version with colors
 			if (data) {
-				const formatted = inspect(data, {
+				const coloredFormatted = inspect(data, {
 					depth: null,
 					colors: true,
 					maxStringLength: null,
 					maxArrayLength: null,
 					breakLength: 120,
 				});
-				console.log(`${prefix} ${message}\n${formatted}`);
+				console.log(`${prefix} ${message}\n${coloredFormatted}`);
 			} else {
 				console.log(`${prefix} ${message}`);
 			}
@@ -253,6 +321,11 @@ export class CodeBuilderAgent {
 		historyContext?: HistoryContext,
 	): AsyncGenerator<StreamOutput, void, unknown> {
 		const startTime = Date.now();
+
+		// Initialize log file for this session
+		const workflowId = (payload.workflowContext?.currentWorkflow as WorkflowJSON | undefined)?.id;
+		this.initLogFile(workflowId, payload.message);
+
 		this.debugLog('CHAT', '========== STARTING CHAT ==========');
 		this.debugLog('CHAT', 'Input payload', {
 			userId,
