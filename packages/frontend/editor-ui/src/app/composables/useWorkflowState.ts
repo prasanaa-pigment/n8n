@@ -1,5 +1,4 @@
 import { DEFAULT_NEW_WORKFLOW_NAME, WorkflowStateKey, WorkflowIdKey } from '@/app/constants';
-import { injectStrict } from '@/app/utils/injectStrict';
 import type {
 	INewWorkflowData,
 	INodeUi,
@@ -526,8 +525,10 @@ export function injectWorkflowState() {
 	return inject(
 		WorkflowStateKey,
 		() => {
-			const workflowId = injectStrict(WorkflowIdKey);
-			return useWorkflowState(workflowId.value);
+			// Fallback for code paths that call injectWorkflowState outside of NodeView tree
+			// (e.g., useWorkflowHelpers called from useWorkflowsStore during store initialization)
+			const workflowId = inject(WorkflowIdKey);
+			return useWorkflowState(workflowId?.value ?? '');
 		},
 		true,
 	);
