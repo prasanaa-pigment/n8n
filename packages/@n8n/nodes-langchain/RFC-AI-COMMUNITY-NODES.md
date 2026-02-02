@@ -121,13 +121,13 @@ However, the **published version is only used for development**. At runtime, n8n
 
 Inspired by Vercel AI SDK's approach: expose few, powerful primitives rather than many specific options.
 
-| Component | Factory Function |
-|-----------|------------------|
-| Chat Models | `createChatModel()` |
-| Memory | `createMemory()` |
-| Embeddings | `createEmbeddings()` |
-| Vector Stores | `createVectorStore()` |
-| Tools | `createTool()` |
+| Component | Factory Function | Phase |
+|-----------|------------------|-------|
+| Chat Models | `createChatModel()` | Initial |
+| Memory | `createMemory()` | Initial |
+| Embeddings | `createEmbeddings()` | Future |
+| Vector Stores | `createVectorStore()` | Future |
+| Tools | `createTool()` | Future |
 
 ### 4. Composition Over Configuration
 
@@ -202,15 +202,9 @@ const model = createChatModel({
 │  │ // Factory Functions                                                         │   │
 │  │ export { createChatModel } from './factories/chatModel';                     │   │
 │  │ export { createMemory } from './factories/memory';                           │   │
-│  │ export { createEmbeddings } from './factories/embeddings';                   │   │
-│  │ export { createVectorStore } from './factories/vectorStore';                 │   │
-│  │ export { createTool } from './factories/tool';                               │   │
 │  │                                                                              │   │
 │  │ // Base Classes for Extension                                                │   │
 │  │ export { N8nChatHistory } from './bases/chatHistory';                        │   │
-│  │ export { N8nEmbeddingsProvider } from './bases/embeddings';                  │   │
-│  │ export { N8nVectorStoreProvider } from './bases/vectorStore';                │   │
-│  │ export { N8nToolProvider } from './bases/tool';                              │   │
 │  │                                                                              │   │
 │  │ // Types                                                                     │   │
 │  │ export type { N8nMessage, N8nChatModelOptions, ... } from './types';         │   │
@@ -223,8 +217,6 @@ const model = createChatModel({
 │  │                                                                              │   │
 │  │ // Bridges n8n types ↔ LangChain types                                       │   │
 │  │ class N8nChatHistoryAdapter extends BaseChatMessageHistory { }               │   │
-│  │ class N8nEmbeddingsAdapter extends Embeddings { }                            │   │
-│  │ class N8nVectorStoreAdapter extends VectorStore { }                          │   │
 │  └──────────────────────────────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
                                         │
@@ -252,25 +244,14 @@ packages/
 │   │   ├── types/
 │   │   │   ├── messages.ts        # N8nMessage, N8nMessageRole
 │   │   │   ├── chatModel.ts       # N8nChatModelOptions, etc.
-│   │   │   ├── memory.ts          # N8nMemoryOptions
-│   │   │   ├── embeddings.ts      # N8nEmbeddingsOptions
-│   │   │   ├── vectorStore.ts     # N8nVectorStoreOptions
-│   │   │   └── tool.ts            # N8nToolOptions
+│   │   │   └── memory.ts          # N8nMemoryOptions
 │   │   ├── bases/                 # Abstract classes for extension
-│   │   │   ├── chatHistory.ts     # N8nChatHistory
-│   │   │   ├── embeddings.ts      # N8nEmbeddingsProvider
-│   │   │   ├── vectorStore.ts     # N8nVectorStoreProvider
-│   │   │   └── tool.ts            # N8nToolProvider
+│   │   │   └── chatHistory.ts     # N8nChatHistory
 │   │   ├── factories/             # Factory functions
 │   │   │   ├── chatModel.ts       # createChatModel()
-│   │   │   ├── memory.ts          # createMemory()
-│   │   │   ├── embeddings.ts      # createEmbeddings()
-│   │   │   ├── vectorStore.ts     # createVectorStore()
-│   │   │   └── tool.ts            # createTool()
+│   │   │   └── memory.ts          # createMemory()
 │   │   └── adapters/              # Internal LangChain adapters
-│   │       ├── chatHistoryAdapter.ts
-│   │       ├── embeddingsAdapter.ts
-│   │       └── vectorStoreAdapter.ts
+│   │       └── chatHistoryAdapter.ts
 │   ├── package.json
 │   └── tsconfig.json
 │
@@ -461,71 +442,6 @@ export abstract class N8nChatHistory {
    * Clear all messages from storage.
    */
   abstract clear(): Promise<void>;
-}
-```
-
-```typescript
-// bases/embeddings.ts
-
-/**
- * Base class for custom embeddings providers.
- */
-export abstract class N8nEmbeddingsProvider {
-  abstract readonly name: string;
-  abstract readonly dimensions: number;
-
-  /**
-   * Generate embeddings for a batch of texts.
-   */
-  abstract embedDocuments(texts: string[]): Promise<number[][]>;
-
-  /**
-   * Generate embedding for a single query.
-   * Default: calls embedDocuments with single item.
-   */
-  async embedQuery(text: string): Promise<number[]> {
-    const [embedding] = await this.embedDocuments([text]);
-    return embedding;
-  }
-}
-```
-
-```typescript
-// bases/vectorStore.ts
-
-/**
- * Base class for custom vector store providers.
- */
-export abstract class N8nVectorStoreProvider {
-  abstract readonly name: string;
-
-  /**
-   * Add documents with their embeddings to the store.
-   */
-  abstract addVectors(
-    vectors: number[][],
-    documents: N8nDocument[],
-    options?: { ids?: string[] }
-  ): Promise<string[]>;
-
-  /**
-   * Similarity search by vector.
-   */
-  abstract similaritySearchVectorWithScore(
-    query: number[],
-    k: number,
-    filter?: Record<string, unknown>
-  ): Promise<Array<[N8nDocument, number]>>;
-
-  /**
-   * Delete documents by ID.
-   */
-  abstract delete(params: { ids: string[] }): Promise<void>;
-}
-
-export interface N8nDocument {
-  pageContent: string;
-  metadata: Record<string, unknown>;
 }
 ```
 
@@ -823,213 +739,6 @@ export class LmChatCustomProvider implements INodeType {
 }
 ```
 
-### Example 3: Custom Embeddings Provider
-
-```typescript
-// nodes/EmbeddingsCustom/EmbeddingsCustom.node.ts
-
-import {
-  NodeConnectionTypes,
-  type INodeType,
-  type INodeTypeDescription,
-  type ISupplyDataFunctions,
-  type SupplyData,
-} from 'n8n-workflow';
-import { createEmbeddings, N8nEmbeddingsProvider } from '@n8n/ai-node-sdk';
-
-class CustomEmbeddingsProvider extends N8nEmbeddingsProvider {
-  readonly name = 'custom-embeddings';
-  readonly dimensions = 1536;
-
-  private apiKey: string;
-  private baseUrl: string;
-
-  constructor(options: { apiKey: string; baseUrl: string }) {
-    super();
-    this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl;
-  }
-
-  async embedDocuments(texts: string[]): Promise<number[][]> {
-    const response = await fetch(`${this.baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ texts }),
-    });
-
-    const data = await response.json();
-    return data.embeddings;
-  }
-}
-
-export class EmbeddingsCustom implements INodeType {
-  description: INodeTypeDescription = {
-    displayName: 'Custom Embeddings',
-    name: 'embeddingsCustom',
-    group: ['transform'],
-    version: 1,
-    description: 'Generate embeddings with custom provider',
-    inputs: [],
-    outputs: [NodeConnectionTypes.AiEmbedding],
-    outputNames: ['Embeddings'],
-    credentials: [{ name: 'customEmbeddingsApi', required: true }],
-    properties: [],
-  };
-
-  async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
-    const credentials = await this.getCredentials('customEmbeddingsApi');
-
-    const provider = new CustomEmbeddingsProvider({
-      apiKey: credentials.apiKey as string,
-      baseUrl: credentials.baseUrl as string,
-    });
-
-    // Factory creates LangChain-compatible embeddings
-    const embeddings = createEmbeddings({ provider });
-
-    return { response: embeddings };
-  }
-}
-```
-
-### Example 4: Custom Vector Store
-
-```typescript
-// nodes/VectorStoreCustom/VectorStoreCustom.node.ts
-
-import {
-  NodeConnectionTypes,
-  type INodeType,
-  type INodeTypeDescription,
-  type ISupplyDataFunctions,
-  type SupplyData,
-} from 'n8n-workflow';
-import {
-  createVectorStore,
-  N8nVectorStoreProvider,
-  type N8nDocument,
-} from '@n8n/ai-node-sdk';
-
-class CustomVectorStoreProvider extends N8nVectorStoreProvider {
-  readonly name = 'custom-vectorstore';
-
-  private client: any;
-  private collection: string;
-
-  constructor(options: { client: any; collection: string }) {
-    super();
-    this.client = options.client;
-    this.collection = options.collection;
-  }
-
-  async addVectors(
-    vectors: number[][],
-    documents: N8nDocument[],
-    options?: { ids?: string[] }
-  ): Promise<string[]> {
-    const ids = options?.ids ?? documents.map(() => crypto.randomUUID());
-
-    await this.client.upsert({
-      collection: this.collection,
-      points: vectors.map((vector, i) => ({
-        id: ids[i],
-        vector,
-        payload: {
-          content: documents[i].pageContent,
-          ...documents[i].metadata,
-        },
-      })),
-    });
-
-    return ids;
-  }
-
-  async similaritySearchVectorWithScore(
-    query: number[],
-    k: number,
-    filter?: Record<string, unknown>
-  ): Promise<Array<[N8nDocument, number]>> {
-    const results = await this.client.search({
-      collection: this.collection,
-      vector: query,
-      limit: k,
-      filter,
-    });
-
-    return results.map((r: any) => [
-      {
-        pageContent: r.payload.content,
-        metadata: r.payload,
-      },
-      r.score,
-    ]);
-  }
-
-  async delete(params: { ids: string[] }): Promise<void> {
-    await this.client.delete({
-      collection: this.collection,
-      ids: params.ids,
-    });
-  }
-}
-
-export class VectorStoreCustom implements INodeType {
-  description: INodeTypeDescription = {
-    displayName: 'Custom Vector Store',
-    name: 'vectorStoreCustom',
-    group: ['transform'],
-    version: 1,
-    description: 'Store vectors in custom database',
-    inputs: [
-      { type: NodeConnectionTypes.AiEmbedding },
-    ],
-    outputs: [NodeConnectionTypes.AiVectorStore],
-    outputNames: ['Vector Store'],
-    credentials: [{ name: 'customVectorStoreApi', required: true }],
-    properties: [
-      {
-        displayName: 'Collection',
-        name: 'collection',
-        type: 'string',
-        default: 'default',
-        required: true,
-      },
-    ],
-  };
-
-  async supplyData(
-    this: ISupplyDataFunctions,
-    itemIndex: number
-  ): Promise<SupplyData> {
-    const credentials = await this.getCredentials('customVectorStoreApi');
-    const collection = this.getNodeParameter('collection', itemIndex) as string;
-
-    // Get embeddings from connected node
-    const embeddings = await this.getInputConnectionData(
-      NodeConnectionTypes.AiEmbedding,
-      0
-    );
-
-    // Create custom provider
-    const provider = new CustomVectorStoreProvider({
-      client: createClient(credentials),
-      collection,
-    });
-
-    // Factory creates LangChain-compatible vector store
-    const vectorStore = createVectorStore({
-      provider,
-      embeddings, // Pass through embeddings
-    });
-
-    return { response: vectorStore };
-  }
-}
-```
-
 ---
 
 ## Migration Strategy
@@ -1038,7 +747,7 @@ export class VectorStoreCustom implements INodeType {
 
 1. **Create `@n8n/ai-node-sdk` package**
    - Define all public types and interfaces
-   - Implement base classes (`N8nChatHistory`, `N8nEmbeddingsProvider`, etc.)
+   - Implement base class (`N8nChatHistory`)
    - Create factory functions with LangChain adapters
 
 2. **Migrate internal nodes as proof-of-concept**
@@ -1048,11 +757,9 @@ export class VectorStoreCustom implements INodeType {
 
 ### Phase 2: Core Adapters (Week 3-4)
 
-1. **Implement all factory functions**
+1. **Implement factory functions**
    - `createChatModel()` with OpenAI-compatible and custom paths
    - `createMemory()` with buffer, bufferWindow, tokenBuffer types
-   - `createEmbeddings()` with provider abstraction
-   - `createVectorStore()` with provider abstraction
 
 2. **Add comprehensive test coverage**
    - Unit tests for adapters
