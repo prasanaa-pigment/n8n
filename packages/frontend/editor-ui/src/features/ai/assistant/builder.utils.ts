@@ -27,8 +27,6 @@ export async function createBuilderPayload(
 		executionData?: IRunExecutionData['resultData'];
 		workflow?: IWorkflowDb;
 		nodesForSchema?: string[];
-		promptVersion?: ChatRequest.PromptVersionId;
-		modelId?: ChatRequest.BuilderModelId;
 	} = {},
 ): Promise<ChatRequest.UserChatMessage> {
 	const assistantHelpers = useAIAssistantHelpers();
@@ -71,8 +69,6 @@ export async function createBuilderPayload(
 			AI_BUILDER_TEMPLATE_EXAMPLES_EXPERIMENT.variant,
 		// One-shot agent: enabled by default (set to false to use old multi-agent system)
 		oneShotAgent: true,
-		promptVersion: options.promptVersion,
-		modelId: options.modelId,
 	};
 
 	return {

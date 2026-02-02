@@ -81,14 +81,10 @@ export interface ExpressionValue {
 	nodeType?: string;
 }
 
-import type { ModelId } from './llm-config';
-
 export interface BuilderFeatureFlags {
 	templateExamples?: boolean;
 	/** Enable CodeWorkflowBuilder (default: true). When false, uses legacy multi-agent system. */
 	codeWorkflowBuilder?: boolean;
-	/** Model ID to use for generation */
-	modelId?: ModelId;
 }
 
 export interface ChatPayload {
@@ -178,10 +174,9 @@ export class WorkflowBuilderAgent {
 		if (useCodeWorkflowBuilder) {
 			this.logger?.debug('Routing to CodeWorkflowBuilder', { userId });
 
-			// Use CodeWorkflowBuilder (planning + coding agents)
+			// Use CodeWorkflowBuilder (unified code builder agent)
 			const codeWorkflowBuilder = new CodeWorkflowBuilder({
-				planningLLM: this.stageLLMs.builder,
-				codingLLM: this.stageLLMs.builder,
+				llm: this.stageLLMs.builder,
 				nodeTypes: this.parsedNodeTypes,
 				logger: this.logger,
 				generatedTypesDir: this.generatedTypesDir,
