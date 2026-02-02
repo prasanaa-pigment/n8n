@@ -138,9 +138,9 @@ const model = createChatModel(this, {
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                               COMMUNITY NODE                                        │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │  import { createMemory, ChatHistory } from '@n8n/ai-node-sdk';              │    │
+│  │  import { createMemory, IChatHistory } from '@n8n/ai-node-sdk';             │    │
 │  │                                                                             │    │
-│  │  class MyChatHistory extends ChatHistory { /* storage logic */ }            │    │
+│  │  class MyChatHistory implements IChatHistory { /* storage logic */ }        │    │
 │  │                                                                             │    │
 │  │  supplyData() {                                                             │    │
 │  │    const memory = createMemory(this, { chatHistory: new MyChatHistory() }); │    │
@@ -160,8 +160,8 @@ const model = createChatModel(this, {
 │  │ export { createChatModel } from './factories/chatModel';                     │   │
 │  │ export { createMemory } from './factories/memory';                           │   │
 │  │                                                                              │   │
-│  │ // Base Classes for Extension                                                │   │
-│  │ export { ChatHistory } from './bases/chatHistory';                           │   │
+│  │ // Interfaces for Extension                                                  │   │
+│  │ export { IChatHistory } from './types/chatHistory';                          │   │
 │  │                                                                              │   │
 │  │ // Types                                                                     │   │
 │  │ export type { Message, ChatModelOptions, ... } from './types';               │   │
@@ -173,7 +173,7 @@ const model = createChatModel(this, {
 │  │ ADAPTERS (Internal - Hidden from Community)                                  │   │
 │  │                                                                              │   │
 │  │ // Bridges n8n types ↔ LangChain types                                       │   │
-│  │ class ChatHistoryAdapter extends BaseChatMessageHistory { }                  │   │
+│  │ class IChatHistoryAdapter extends BaseChatMessageHistory { }                 │   │
 │  └──────────────────────────────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
                                         │
@@ -201,9 +201,8 @@ packages/
 │   │   ├── types/
 │   │   │   ├── messages.ts        # Message, MessageRole
 │   │   │   ├── chatModel.ts       # ChatModelOptions, etc.
-│   │   │   └── memory.ts          # MemoryOptions
-│   │   ├── bases/                 # Abstract classes for extension
-│   │   │   └── chatHistory.ts     # ChatHistory
+│   │   │   ├── memory.ts          # MemoryOptions
+│   │   │   └── chatHistory.ts     # IChatHistory interface
 │   │   ├── factories/             # Factory functions
 │   │   │   ├── chatModel.ts       # createChatModel()
 │   │   │   └── memory.ts          # createMemory()
@@ -340,7 +339,7 @@ export type MemoryOptions =
   | TokenBufferMemoryOptions;
 
 interface BaseMemoryOptions {
-  chatHistory: ChatHistory;
+  chatHistory: IChatHistory;
   memoryKey?: string;       // Default: 'chat_history'
   inputKey?: string;        // Default: 'input'
   outputKey?: string;       // Default: 'output'
@@ -411,41 +410,41 @@ return { response: memory };  // Already wrapped - no manual logWrapper needed
 | `this` is always available in `supplyData` | No reason to make it optional |
 | Community devs shouldn't need internal details | Factory handles wrapping |
 
-#### Base Classes for Extension
+#### Interfaces for Extension
 
 ```typescript
-// bases/chatHistory.ts
+// types/chatHistory.ts
 
 /**
- * Base class for custom chat message storage.
- * Community nodes extend this to implement storage backends.
+ * Interface for custom chat message storage.
+ * Community nodes implement this for their storage backends.
  */
-export abstract class ChatHistory {
-  /**
-   * Retrieve all messages from storage.
-   */
-  abstract getMessages(): Promise<Message[]>;
+export interface IChatHistory {
+  /** Retrieve all messages from storage. */
+  getMessages(): Promise<Message[]>;
 
-  /**
-   * Add a single message to storage.
-   */
-  abstract addMessage(message: Message): Promise<void>;
+  /** Add a single message to storage. */
+  addMessage(message: Message): Promise<void>;
 
-  /**
+  /** 
    * Add multiple messages to storage.
-   * Default implementation calls addMessage in sequence.
+   * Optional - SDK provides default implementation if omitted.
    */
-  async addMessages(messages: Message[]): Promise<void> {
-    for (const message of messages) {
-      await this.addMessage(message);
-    }
-  }
+  addMessages?(messages: Message[]): Promise<void>;
 
-  /**
-   * Clear all messages from storage.
-   */
-  abstract clear(): Promise<void>;
+  /** Clear all messages from storage. */
+  clear(): Promise<void>;
 }
+```
+
+The SDK handles missing `addMessages` internally:
+
+```typescript
+// Inside createMemory() factory
+const addMessages = chatHistory.addMessages?.bind(chatHistory)
+  ?? async (msgs: Message[]) => {
+    for (const m of msgs) await chatHistory.addMessage(m);
+  };
 ```
 
 ---
@@ -468,19 +467,18 @@ import {
 } from 'n8n-workflow';
 import {
   createMemory,
-  ChatHistory,
+  IChatHistory,
   type Message,
 } from '@n8n/ai-node-sdk';
 import Redis from 'ioredis';
 
-// Step 1: Implement ChatHistory for Redis
-class RedisChatHistory extends ChatHistory {
+// Step 1: Implement IChatHistory for Redis
+class RedisChatHistory implements IChatHistory {
   private client: Redis;
   private sessionId: string;
   private ttl: number;
 
   constructor(options: { client: Redis; sessionId: string; ttl?: number }) {
-    super();
     this.client = options.client;
     this.sessionId = options.sessionId;
     this.ttl = options.ttl ?? 3600; // 1 hour default
@@ -716,7 +714,7 @@ export class LmChatCustomProvider implements INodeType {
 
 1. **Create `@n8n/ai-node-sdk` package**
    - Define all public types and interfaces
-   - Implement `ChatHistory` base class (for memory nodes)
+   - Implement `IChatHistory` base class (for memory nodes)
    - Create factory functions with LangChain adapters
 
 2. **Migrate internal nodes as proof-of-concept**
