@@ -1,7 +1,9 @@
-# Test fixtures downloaded from n8n.io API (run `pnpm fetch-workflows` to download)
-# Exclude workflow JSON files but keep manifest.json
+# Individual workflow JSON files (extracted from zip at test time)
+# Run `pnpm fetch-workflows` to download, `pnpm create-workflows-zip` to package
 test-fixtures/real-workflows/*.json
-!test-fixtures/real-workflows/manifest.json
+
+# Commit the zip file containing all workflows
+!test-fixtures/real-workflows/public_published_templates.zip
 
 # Generated TypeScript files from test runs
 test-fixtures/real-workflows/*.generated.ts
