@@ -345,11 +345,11 @@ describe('Schema Validation Integration', () => {
 			expect(typeof schema).toBe('function'); // Factory function for discriminated schemas
 		});
 
-		it('loads static schema for ChargebeeTrigger v1', () => {
+		it('loads schema factory for ChargebeeTrigger v1', () => {
 			const schema = loadSchema('n8n-nodes-base.chargebeeTrigger', 1);
 			expect(schema).not.toBeNull();
-			// Static schemas are ZodSchema objects with safeParse method
-			expect(typeof schema).toBe('object');
+			// All schemas are now factory functions
+			expect(typeof schema).toBe('function');
 		});
 	});
 

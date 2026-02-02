@@ -1407,7 +1407,7 @@ export function generateDiscriminatorSchemaFile(
 		}
 	}
 
-	lines.push(`${INDENT.repeat(2)}).optional(),`);
+	lines.push(`${INDENT.repeat(2)}}).optional(),`);
 
 	if (hasAiInputs) {
 		const subnodesOptional = !hasRequiredSubnodeFields(aiInputTypes);
