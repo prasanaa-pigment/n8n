@@ -8,7 +8,7 @@ Community nodes code against n8n-defined interfaces. Implementation details (Lan
 
 ```typescript
 // ✅ Community node imports
-import { createChatModel, N8nChatModelOptions } from '@n8n/ai-node-sdk';
+import { createChatModel, ChatModelOptions } from '@n8n/ai-node-sdk';
 
 // ❌ Community node NEVER imports
 import { ChatOpenAI } from '@langchain/openai';  // Forbidden
@@ -130,9 +130,9 @@ const model = createChatModel(this, {
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                               COMMUNITY NODE                                        │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │  import { createMemory, N8nChatHistory } from '@n8n/ai-node-sdk';           │    │
+│  │  import { createMemory, ChatHistory } from '@n8n/ai-node-sdk';           │    │
 │  │                                                                             │    │
-│  │  class MyMemory extends N8nChatHistory { /* provider-specific logic */ }    │    │
+│  │  class MyMemory extends ChatHistory { /* provider-specific logic */ }    │    │
 │  │                                                                             │    │
 │  │  supplyData() {                                                             │    │
 │  │    return { response: createMemory(this, { chatHistory: new MyMemory() }) };│    │
@@ -152,10 +152,10 @@ const model = createChatModel(this, {
 │  │ export { createMemory } from './factories/memory';                           │   │
 │  │                                                                              │   │
 │  │ // Base Classes for Extension                                                │   │
-│  │ export { N8nChatHistory } from './bases/chatHistory';                        │   │
+│  │ export { ChatHistory } from './bases/chatHistory';                        │   │
 │  │                                                                              │   │
 │  │ // Types                                                                     │   │
-│  │ export type { N8nMessage, N8nChatModelOptions, ... } from './types';         │   │
+│  │ export type { Message, ChatModelOptions, ... } from './types';         │   │
 │  └──────────────────────────────────────────────────────────────────────────────┘   │
 │                                        │                                            │
 │                                        │ Internal Implementation                    │
@@ -164,7 +164,7 @@ const model = createChatModel(this, {
 │  │ ADAPTERS (Internal - Hidden from Community)                                  │   │
 │  │                                                                              │   │
 │  │ // Bridges n8n types ↔ LangChain types                                       │   │
-│  │ class N8nChatHistoryAdapter extends BaseChatMessageHistory { }               │   │
+│  │ class ChatHistoryAdapter extends BaseChatMessageHistory { }               │   │
 │  └──────────────────────────────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
                                         │
@@ -190,11 +190,11 @@ packages/
 │   ├── src/
 │   │   ├── index.ts               # Public exports only
 │   │   ├── types/
-│   │   │   ├── messages.ts        # N8nMessage, N8nMessageRole
-│   │   │   ├── chatModel.ts       # N8nChatModelOptions, etc.
-│   │   │   └── memory.ts          # N8nMemoryOptions
+│   │   │   ├── messages.ts        # Message, MessageRole
+│   │   │   ├── chatModel.ts       # ChatModelOptions, etc.
+│   │   │   └── memory.ts          # MemoryOptions
 │   │   ├── bases/                 # Abstract classes for extension
-│   │   │   └── chatHistory.ts     # N8nChatHistory
+│   │   │   └── chatHistory.ts     # ChatHistory
 │   │   ├── factories/             # Factory functions
 │   │   │   ├── chatModel.ts       # createChatModel()
 │   │   │   └── memory.ts          # createMemory()
@@ -218,25 +218,25 @@ packages/
 ```typescript
 // types/messages.ts
 
-export type N8nMessageRole = 'human' | 'ai' | 'system' | 'function' | 'tool';
+export type MessageRole = 'human' | 'ai' | 'system' | 'function' | 'tool';
 
-export interface N8nMessage {
-  role: N8nMessageRole;
+export interface Message {
+  role: MessageRole;
   content: string;
   name?: string;
   toolCallId?: string;
   additionalKwargs?: Record<string, unknown>;
 }
 
-export interface N8nToolCall {
+export interface ToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
 }
 
-export interface N8nAiMessage extends N8nMessage {
+export interface AiMessage extends Message {
   role: 'ai';
-  toolCalls?: N8nToolCall[];
+  toolCalls?: ToolCall[];
 }
 ```
 
@@ -245,15 +245,15 @@ export interface N8nAiMessage extends N8nMessage {
 ```typescript
 // types/chatModel.ts
 
-export type N8nChatModelOptions =
-  | N8nOpenAICompatibleModelOptions
-  | N8nCustomChatModelOptions;
+export type ChatModelOptions =
+  | OpenAICompatibleModelOptions
+  | CustomChatModelOptions;
 
 /**
  * For models implementing the OpenAI API spec.
  * Covers: OpenAI, Azure OpenAI, Ollama, LM Studio, vLLM, Together AI, etc.
  */
-export interface N8nOpenAICompatibleModelOptions {
+export interface OpenAICompatibleModelOptions {
   type: 'openaiCompatible';
   
   // Required
@@ -280,7 +280,7 @@ export interface N8nOpenAICompatibleModelOptions {
  * For models with non-OpenAI APIs.
  * Only `invoke` is required. Streaming is optional.
  */
-export interface N8nCustomChatModelOptions {
+export interface CustomChatModelOptions {
   type: 'custom';
   
   // Model identifier
@@ -288,28 +288,28 @@ export interface N8nCustomChatModelOptions {
   
   // Required: core model logic
   invoke: (
-    messages: N8nMessage[],
-    options?: N8nInvokeOptions
-  ) => Promise<N8nAiMessage>;
+    messages: Message[],
+    options?: InvokeOptions
+  ) => Promise<AiMessage>;
   
   // Optional: streaming support (for real-time token display in chat UI)
   stream?: (
-    messages: N8nMessage[],
-    options?: N8nInvokeOptions
-  ) => AsyncGenerator<N8nStreamChunk>;
+    messages: Message[],
+    options?: InvokeOptions
+  ) => AsyncGenerator<StreamChunk>;
   
   // Optional: bind tools for function calling
-  bindTools?: (tools: N8nToolDefinition[]) => N8nCustomChatModelOptions;
+  bindTools?: (tools: ToolDefinition[]) => CustomChatModelOptions;
 }
 
-export interface N8nInvokeOptions {
+export interface InvokeOptions {
   stop?: string[];
   signal?: AbortSignal;
 }
 
-export interface N8nStreamChunk {
+export interface StreamChunk {
   content?: string;
-  toolCalls?: Partial<N8nToolCall>[];
+  toolCalls?: Partial<ToolCall>[];
   finishReason?: 'stop' | 'tool_calls' | 'length';
 }
 ```
@@ -319,13 +319,13 @@ export interface N8nStreamChunk {
 ```typescript
 // types/memory.ts
 
-export type N8nMemoryOptions =
-  | N8nBufferMemoryOptions
-  | N8nBufferWindowMemoryOptions
-  | N8nTokenBufferMemoryOptions;
+export type MemoryOptions =
+  | BufferMemoryOptions
+  | BufferWindowMemoryOptions
+  | TokenBufferMemoryOptions;
 
-interface N8nBaseMemoryOptions {
-  chatHistory: N8nChatHistory;
+interface BaseMemoryOptions {
+  chatHistory: ChatHistory;
   memoryKey?: string;       // Default: 'chat_history'
   inputKey?: string;        // Default: 'input'
   outputKey?: string;       // Default: 'output'
@@ -334,16 +334,16 @@ interface N8nBaseMemoryOptions {
   aiPrefix?: string;        // Default: 'AI'
 }
 
-export interface N8nBufferMemoryOptions extends N8nBaseMemoryOptions {
+export interface BufferMemoryOptions extends BaseMemoryOptions {
   type: 'buffer';
 }
 
-export interface N8nBufferWindowMemoryOptions extends N8nBaseMemoryOptions {
+export interface BufferWindowMemoryOptions extends BaseMemoryOptions {
   type: 'bufferWindow';
   k: number; // Number of recent messages to keep
 }
 
-export interface N8nTokenBufferMemoryOptions extends N8nBaseMemoryOptions {
+export interface TokenBufferMemoryOptions extends BaseMemoryOptions {
   type: 'tokenBuffer';
   maxTokenLimit: number;
   model: ReturnType<typeof createChatModel>; // For token counting
@@ -355,16 +355,21 @@ export interface N8nTokenBufferMemoryOptions extends N8nBaseMemoryOptions {
 All factory functions require the node execution context (`this` from `supplyData`) as the first parameter. The factory automatically wraps the returned object with n8n's `logWrapper`, enabling execution logging in the workflow UI.
 
 ```typescript
+// Opaque return types - avoid exposing LangChain in the public API
+// Internally these are LangChain objects, but the type hides this detail
+type ChatModelInstance = unknown;
+type MemoryInstance = unknown;
+
 // Factory signatures - context first, then options
 function createChatModel(
   context: ISupplyDataFunctions,
-  options: N8nChatModelOptions
-): BaseChatModel;
+  options: ChatModelOptions
+): ChatModelInstance;
 
 function createMemory(
   context: ISupplyDataFunctions,
-  options: N8nMemoryOptions
-): BaseChatMemory;
+  options: MemoryOptions
+): MemoryInstance;
 
 // Usage in supplyData - same pattern for all factories
 const memory = createMemory(this, {
@@ -400,7 +405,7 @@ return { response: memory };  // Already wrapped - no manual logWrapper needed
  * Base class for custom chat message storage.
  * Community nodes extend this to implement storage backends.
  */
-export abstract class N8nChatHistory {
+export abstract class ChatHistory {
   /**
    * Unique namespace for this history implementation.
    * Used for serialization/deserialization.
@@ -410,18 +415,18 @@ export abstract class N8nChatHistory {
   /**
    * Retrieve all messages from storage.
    */
-  abstract getMessages(): Promise<N8nMessage[]>;
+  abstract getMessages(): Promise<Message[]>;
 
   /**
    * Add a single message to storage.
    */
-  abstract addMessage(message: N8nMessage): Promise<void>;
+  abstract addMessage(message: Message): Promise<void>;
 
   /**
    * Add multiple messages to storage.
    * Default implementation calls addMessage in sequence.
    */
-  async addMessages(messages: N8nMessage[]): Promise<void> {
+  async addMessages(messages: Message[]): Promise<void> {
     for (const message of messages) {
       await this.addMessage(message);
     }
@@ -454,13 +459,13 @@ import {
 } from 'n8n-workflow';
 import {
   createMemory,
-  N8nChatHistory,
-  type N8nMessage,
+  ChatHistory,
+  type Message,
 } from '@n8n/ai-node-sdk';
 import Redis from 'ioredis';
 
-// Step 1: Implement N8nChatHistory for Redis
-class RedisChatHistory extends N8nChatHistory {
+// Step 1: Implement ChatHistory for Redis
+class RedisChatHistory extends ChatHistory {
   readonly namespace = ['n8n', 'memory', 'redis'];
   
   private client: Redis;
@@ -478,12 +483,12 @@ class RedisChatHistory extends N8nChatHistory {
     return `n8n:chat:${this.sessionId}`;
   }
 
-  async getMessages(): Promise<N8nMessage[]> {
+  async getMessages(): Promise<Message[]> {
     const data = await this.client.lrange(this.key, 0, -1);
     return data.map((item) => JSON.parse(item));
   }
 
-  async addMessage(message: N8nMessage): Promise<void> {
+  async addMessage(message: Message): Promise<void> {
     await this.client.rpush(this.key, JSON.stringify(message));
     await this.client.expire(this.key, this.ttl);
   }
@@ -588,9 +593,9 @@ import {
 } from 'n8n-workflow';
 import {
   createChatModel,
-  type N8nMessage,
-  type N8nAiMessage,
-  type N8nStreamChunk,
+  type Message,
+  type AiMessage,
+  type StreamChunk,
 } from '@n8n/ai-node-sdk';
 
 export class LmChatCustomProvider implements INodeType {
@@ -655,7 +660,7 @@ export class LmChatCustomProvider implements INodeType {
       type: 'custom',
       name: modelName,
 
-      invoke: async (messages: N8nMessage[]): Promise<N8nAiMessage> => {
+      invoke: async (messages: Message[]): Promise<AiMessage> => {
         // Use n8n's httpRequest helper for better proxy/retry handling
         const data = await this.helpers.httpRequest({
           method: 'POST',
@@ -685,7 +690,7 @@ export class LmChatCustomProvider implements INodeType {
       },
 
       // Optional: streaming support
-      stream: async function* (messages: N8nMessage[]): AsyncGenerator<N8nStreamChunk> {
+      stream: async function* (messages: Message[]): AsyncGenerator<StreamChunk> {
         // TODO: Consider providing SDK helper like `createSSEStream(this, options)`
         // to abstract away low-level fetch/streaming complexity.
         // See "Open Questions" section.
@@ -705,7 +710,7 @@ export class LmChatCustomProvider implements INodeType {
 
 1. **Create `@n8n/ai-node-sdk` package**
    - Define all public types and interfaces
-   - Implement `N8nChatHistory` base class (for memory nodes)
+   - Implement `ChatHistory` base class (for memory nodes)
    - Create factory functions with LangChain adapters
 
 2. **Migrate internal nodes as proof-of-concept**
