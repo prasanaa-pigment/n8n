@@ -9,6 +9,7 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { generateWorkflowCode } from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
+import { formatCodeWithLineNumbers } from '../../tools/text-editor-handler';
 import { escapeCurlyBrackets } from './sdk-api';
 
 /**
@@ -42,36 +43,32 @@ Follow these rules strictly when generating workflows:
    - Each subsequent node +300 in x direction: \`[540, 300]\`, \`[840, 300]\`, etc.
    - Branch vertically: \`[540, 200]\` for top branch, \`[540, 400]\` for bottom branch
 
-5. **NEVER use $env for environment variables or secrets**
-   - Do NOT use expressions like \`={{{{ $env.API_KEY }}}}\`
-   - Instead, use \`placeholder('description')\` for any values that need user input
-   - Example: \`url: placeholder('Your API endpoint URL')\`
-
-6. **Use newCredential() for authentication**
+5. **Use newCredential() for authentication**
    - When a node needs credentials, use \`newCredential('Name')\` in the credentials config
    - Example: \`credentials: {{ slackApi: newCredential('Slack Bot') }}\`
    - The credential type must match what the node expects
 
-7. **AI subnodes use subnodes config, not .to() chains**
+6. **AI subnodes use subnodes config, not .to() chains**
    - AI nodes (agents, chains) configure subnodes in the \`subnodes\` property
    - Example: \`subnodes: {{ model: languageModel(...), tools: [tool(...)] }}\`
 
-8. **Node connections use .to() for regular nodes**
+7. **Node connections use .to() for regular nodes**
    - Chain nodes: \`trigger(...).to(node1.to(node2))\`
    - IF branching: Use \`.onTrue(target).onFalse(target)\` on IF nodes
    - Switch routing: Use \`.onCase(n, target)\` on Switch nodes
    - Merge inputs: Use \`.to(mergeNode.input(n))\` to connect to specific merge inputs
 
-9. **Expressions must start with '='**
-   - n8n expressions use the format \`={{{{ expression }}}}\`
-   - Examples: \`={{{{ $json.field }}}}\`, \`={{{{ $('Node Name').item.json.key }}}}\`, \`={{{{ $now }}}}\`
+8. **Expressions and Data Flow** (see ExpressionContext in SDK API)
+   - Format: \`={{{{ expression }}}}\` - must start with '='
+   - **$json is short for $input.item.json** - Use $json to access the output items from previous node
+   - **$('NodeName').item.json.field** = access any earlier node's output
 
-10. **AI Agent architecture** (see Step 1.5 in Mandatory Workflow)
+9. **AI Agent architecture** (see Step 1.5 in Mandatory Workflow)
     - Use \`@n8n/n8n-nodes-langchain.agent\` for AI tasks
     - Provider nodes (openAi, anthropic, etc.) are subnodes, not standalone workflow nodes
     - \`@n8n/n8n-nodes-langchain.agentTool\` is for multi-agent systems
 
-11. **Prefer native n8n nodes over Code node**
+10. **Prefer native n8n nodes over Code node**
     - Code nodes are slower (sandboxed environment) - use them as a LAST RESORT
     - **Edit Fields (Set) node** is your go-to for data manipulation:
       - Adding, renaming, or removing fields
@@ -106,7 +103,7 @@ Follow these rules strictly when generating workflows:
       - Array operations (use Split Out, Aggregate)
       - Regex operations (use expressions in If or Edit Fields nodes)
 
-12. **Prefer dedicated integration nodes over HTTP Request**
+11. **Prefer dedicated integration nodes over HTTP Request**
     - n8n has 400+ dedicated integration nodes - use them instead of HTTP Request when available
     - **Use dedicated nodes for:** OpenAI, Gmail, Slack, Google Sheets, Notion, Airtable, HubSpot, Salesforce, Stripe, GitHub, Jira, Trello, Discord, Telegram, Twitter, LinkedIn, etc.
     - **Only use HTTP Request when:**
@@ -121,14 +118,12 @@ Follow these rules strictly when generating workflows:
       - Easier to configure and maintain
     - **Example:** If user says "send email via Gmail", use the Gmail node, NOT HTTP Request to Gmail API
 
-13. **OUTPUT DECLARATION (MANDATORY)**
-    Every node MUST include an \`output\` property showing sample output data.
-    This forces you to reason about what data is available at each step.
+12. **OUTPUT DECLARATION (MANDATORY)**
+    Every node MUST include an \`output\` property showing sample output data
+		In order to reason about what data is available at each step.
+		Expressions in following nodes depend on output of previous nodes.
 
     ### Data Flow Rules
-    1. **Each node replaces $json** - After a node executes, $json contains ONLY that node's output
-    2. **Approval/Wait nodes lose input data** - Nodes like Slack sendAndWait, Wait, Form return only their response. Use \`$('Previous Node').item.json\` to access earlier data
-    3. **Branches may have different outputs** - After Switch/IF, use optional chaining or reference a node that always runs
 
     ### Example - Output Declaration
     \`\`\`javascript
@@ -138,31 +133,7 @@ Follow these rules strictly when generating workflows:
       config: {{ name: 'Webhook', parameters: {{ httpMethod: 'POST' }} }},
       output: [{{ amount: 100, description: 'Laptop' }}]
     }});
-
-    const approval = node({{
-      type: 'n8n-nodes-base.slack',
-      version: 2.3,
-      config: {{ parameters: {{ operation: 'sendAndWait' }} }},
-      output: [{{ data: {{ approved: true }} }}]
-    }});
-
-    const email = node({{
-      type: 'n8n-nodes-base.emailSend',
-      version: 2.1,
-      config: {{ parameters: {{}} }},
-      output: [{{ messageId: 'msg_123' }}]
-    }});
     \`\`\`
-
-    ### Data Flow After Approval Nodes
-    After approval/wait nodes like Slack sendAndWait:
-    - **$json** contains ONLY the approval response: \`{{ data: {{ approved: true }} }}\`
-    - Original webhook data is NO LONGER in $json
-    - To access original data, use: \`={{{{ $("Webhook").item.json.amount }}}}\`
-
-    ### Wrong vs Right Expression References
-    - WRONG: \`={{{{ $json.amount }}}}\` after approval node (amount doesn't exist in approval output)
-    - RIGHT: \`={{{{ $("Webhook").item.json.amount }}}}\` (references webhook node directly)
 
     ### Handling Multiple Branches
     When a node receives data from multiple paths (after Switch, IF, Merge):
@@ -596,7 +567,6 @@ Continue your <n8n_thinking> with design decisions based on search results:
 4. **Identify Placeholders and Credentials**:
    - List values needing user input → use placeholder()
    - List credentials needed → use newCredential()
-   - Verify you're NOT using $env anywhere
 
 5. **Prepare get_nodes Call**: Write the exact call including discriminators
 
@@ -659,11 +629,10 @@ Your code must:
 2. **Get type definitions:** Call \`get_nodes\` with ALL node types before writing code
 3. **Define nodes first:** Declare all nodes as constants before the return statement
 4. **No imports:** Never include import statements - functions are pre-loaded
-5. **No $env:** Use \`placeholder()\` for user input values, not \`{{{{ $env.VAR }}}}\`
-6. **Credentials:** Use \`newCredential('Name')\` for authentication
-7. **Descriptive names:** Give nodes clear, descriptive names
-8. **Proper positioning:** Follow left-to-right layout with vertical spacing for branches
-9. **Code block format:** Output your code in a \`\`\`javascript code block
+5. **Credentials:** Use \`newCredential('Name')\` for authentication
+6. **Descriptive names:** Give nodes clear, descriptive names
+7. **Proper positioning:** Follow left-to-right layout with vertical spacing for branches
+8. **Code block format:** Output your code in a \`\`\`javascript code block
 
 Now, analyze the user's request and generate the workflow code following all the steps above.`;
 
@@ -699,12 +668,11 @@ You MUST use the \`str_replace_based_edit_tool\` for all workflow code. Do NOT o
 
 ## Workflow
 
-1. Workflow code is always pre-loaded with the current state
-2. Use \`view\` to see current code, then \`str_replace\` to edit, then \`finalize\`
-3. After \`finalize\`, you'll see validation results:
-   - **Success**: Workflow is complete
-   - **Errors**: Use \`str_replace\` to fix the issues, then \`finalize\` again
-4. SDK types are available via the \`get_node_types\` tool
+1. If \`<workflow_file>\` is shown above, the code is already visible with line numbers - proceed directly to \`str_replace\`
+2. Use \`view\` only if you need to refresh the view after multiple edits
+3. After editing, call \`finalize\` to validate the workflow
+4. On errors, use \`str_replace\` to fix, then \`finalize\` again
+5. SDK types are available via the \`get_node_types\` tool
 
 ## Important Notes
 
@@ -773,12 +741,23 @@ export function buildCodeBuilderPrompt(
 		userMessageParts.push('</previous_requests>');
 	}
 
-	// 3. Current workflow context (existing logic)
+	// 3. Current workflow context (with line numbers when text editor is enabled)
 	if (currentWorkflow) {
-		// Convert WorkflowJSON to SDK code and escape curly brackets for LangChain
+		// Convert WorkflowJSON to SDK code
 		const workflowCode = generateWorkflowCode(currentWorkflow);
-		const escapedWorkflowCode = escapeCurlyBrackets(workflowCode);
-		userMessageParts.push(`<current_workflow>\n${escapedWorkflowCode}\n</current_workflow>`);
+
+		if (options?.enableTextEditor) {
+			// Format as file with line numbers (matches view command output)
+			const formattedCode = formatCodeWithLineNumbers(workflowCode);
+			const escapedCode = escapeCurlyBrackets(formattedCode);
+			userMessageParts.push(
+				`<workflow_file path="/workflow.ts">\n${escapedCode}\n</workflow_file>`,
+			);
+		} else {
+			// Standard format without line numbers
+			const escapedWorkflowCode = escapeCurlyBrackets(workflowCode);
+			userMessageParts.push(`<current_workflow>\n${escapedWorkflowCode}\n</current_workflow>`);
+		}
 	}
 
 	// 4. Add context separator if we have any context

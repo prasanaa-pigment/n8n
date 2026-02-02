@@ -806,13 +806,39 @@ export type TextSplitterFn = (input: NodeInput) => TextSplitterInstance;
 
 /**
  * Context available in n8n expressions (inside {{ }}).
- * TJson allows typing based on upstream node's output type.
- */
-export interface ExpressionContext<TJson = IDataObject> {
-	/** Current item's JSON data from the previous node */
-	json: TJson;
-	/** Current item's binary data */
-	binary: {
+ *
+export interface ExpressionContext<Item = { json: IDataObject; binary: IDataObject }> {
+	/**
+	 * Access any node's output by name.
+	 *
+	 * @example
+	 * // After OpenAI node, to get original webhook data:
+	 * $('Webhook').item.json.amount
+	 *
+	 * // To get all items from a node:
+	 * $('Split Items').all()
+	 */
+	$: (nodeName: string) => { item: { json: IDataObject }; all: () => IDataObject[] };
+
+	/**
+	 * Access data from the immediate predecessor.
+	 * Same data as $json but with helper methods.
+	 * - $input.first() - first item's data
+	 * - $input.all() - array of all items' data
+	 * - $input.item - the current item node is processing
+	 */
+	$input: { first(): Item; all(): Item[]; item: Item };
+
+	/**
+	 * Short for $input.item.json
+	 * Providing json data from the IMMEDIATE predecessor node.
+	 */
+	$json: Item;
+
+	/** Short for $input.item.binary
+	 * Providing binary data from the IMMEDIATE predecessor node.
+	 */
+	$binary: {
 		[fieldName: string]: {
 			fileName?: string;
 			mimeType?: string;
@@ -820,29 +846,19 @@ export interface ExpressionContext<TJson = IDataObject> {
 			fileSize?: string;
 		};
 	};
-	/** Input data access - typed based on upstream node's output */
-	input: { first(): TJson; all(): TJson[]; item: TJson };
-	/** Environment variables */
-	env: IDataObject;
-	/** Workflow variables */
-	vars: IDataObject;
-	/** External secrets */
-	secrets: IDataObject;
 	/** Current DateTime */
-	now: Date;
+	$now: Date;
 	/** Start of today */
-	today: Date;
+	$today: Date;
 	/** Current item index */
-	itemIndex: number;
+	$itemIndex: number;
 	/** Current run index */
-	runIndex: number;
+	$runIndex: number;
 	/** Execution context */
-	execution: { id: string; mode: 'test' | 'production' };
+	$execution: { id: string; mode: 'test' | 'production' };
 	/** Workflow metadata */
-	workflow: { id?: string; name?: string; active: boolean };
-}
-
-`;
+	$workflow: { id?: string; name?: string; active: boolean };
+}`;
 
 /**
  * Pre-escaped SDK API content for direct use in LangChain prompt templates.

@@ -24,6 +24,17 @@ import {
 /** The only supported file path for workflow code */
 const WORKFLOW_FILE_PATH = '/workflow.ts';
 
+/**
+ * Format code with line numbers (matches view command output)
+ *
+ * @param code - The code to format
+ * @returns Code with line numbers in "N: content" format
+ */
+export function formatCodeWithLineNumbers(code: string): string {
+	const lines = code.split('\n');
+	return lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
+}
+
 /** Debug log callback type */
 type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
 
@@ -142,7 +153,7 @@ export class TextEditorHandler {
 
 		this.debugLog('VIEW', 'Returning full file', { linesReturned: lines.length });
 		// Return full file with line numbers
-		return lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
+		return formatCodeWithLineNumbers(this.code);
 	}
 
 	/**
