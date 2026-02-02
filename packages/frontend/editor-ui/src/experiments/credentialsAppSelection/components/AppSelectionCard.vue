@@ -122,7 +122,7 @@ const nodeTypeForIcon = computed((): SimplifiedNodeType | null => {
 						{{ i18n.baseText('credentialsAppSelection.credentialsNotValid') }}
 					</template>
 					<div :class="$style.warningBadge">
-						<N8nIcon icon="exclamation-triangle" :class="$style.badgeIcon" />
+						<N8nIcon icon="triangle-alert" :class="$style.badgeIcon" />
 					</div>
 				</N8nTooltip>
 			</div>

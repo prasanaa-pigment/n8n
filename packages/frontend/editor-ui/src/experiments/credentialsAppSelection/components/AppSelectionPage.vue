@@ -338,6 +338,34 @@ watch(isCredentialModalOpen, async (isOpen, wasOpen) => {
 	width: 400px;
 	min-width: 400px;
 	margin-bottom: var(--spacing--lg);
+
+	// Override N8nInput styles to show prefix/suffix icons inside the bordered area
+	:global(.n8n-input) {
+		border: var(--border-width) var(--border-style) var(--color--foreground);
+		border-radius: var(--radius);
+		background-color: var(--color--background--light-2);
+		padding: 0 var(--spacing--xs);
+
+		&:hover {
+			border-color: var(--color--foreground--shade-1);
+		}
+
+		&:focus-within {
+			border-color: var(--color--secondary);
+		}
+
+		input {
+			border: none;
+			background: transparent;
+			padding-left: 0;
+			padding-right: 0;
+
+			&:hover,
+			&:focus {
+				border: none;
+			}
+		}
+	}
 }
 
 .clearIcon {
