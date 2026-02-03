@@ -62,13 +62,24 @@ export interface ExecutionRequestChunk {
 }
 
 /**
+ * Session messages chunk for persistence
+ * Contains the full message history for saving to session storage
+ */
+export interface SessionMessagesChunk {
+	type: 'session-messages';
+	/** Raw LangChain messages for session persistence */
+	messages: unknown[];
+}
+
+/**
  * Union type for all stream chunks
  */
 export type StreamChunk =
 	| AgentMessageChunk
 	| ToolProgressChunk
 	| WorkflowUpdateChunk
-	| ExecutionRequestChunk;
+	| ExecutionRequestChunk
+	| SessionMessagesChunk;
 
 /**
  * Stream output containing messages

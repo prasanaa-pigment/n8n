@@ -37,6 +37,7 @@ import type {
 	WorkflowUpdateChunk,
 	ToolProgressChunk,
 	StreamGenerationError,
+	SessionMessagesChunk,
 } from './types/streaming';
 import type { TextEditorCommand } from './types/text-editor';
 import type { EvaluationLogger } from './utils/evaluation-logger';
@@ -928,6 +929,16 @@ ${'='.repeat(50)}
 				],
 			};
 
+			// Yield session messages for persistence (includes tool calls and results)
+			yield {
+				messages: [
+					{
+						type: 'session-messages',
+						messages,
+					} as SessionMessagesChunk,
+				],
+			};
+
 			this.debugLog('CHAT', '========== CHAT COMPLETE ==========', {
 				totalDurationMs: totalDuration,
 				totalInputTokens,
@@ -1461,7 +1472,10 @@ ${'='.repeat(50)}
 				this.debugLog('VALIDATE_TOOL', 'All warnings are repeated, prompting agent to finalize');
 			}
 
-			// Validation passed (or only repeated warnings) - prompt to finalize
+			// Validation passed (or only repeated warnings) - save workflow and prompt to finalize
+			// We must set the workflow here to handle edge cases where this is the last iteration
+			// and the LLM doesn't get another turn to stop calling tools (auto-finalize can't happen)
+			state.setWorkflow(result.workflow);
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCall.id,

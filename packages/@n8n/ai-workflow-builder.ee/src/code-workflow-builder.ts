@@ -20,14 +20,14 @@ import type { INodeTypeDescription } from 'n8n-workflow';
 
 import { CodeBuilderAgent } from './code-builder-agent';
 import type { EvaluationLogger } from './utils/evaluation-logger';
-import type { StreamOutput } from './types/streaming';
+import type { StreamOutput, SessionMessagesChunk } from './types/streaming';
 import type { ChatPayload } from './workflow-builder-agent';
 import {
 	loadCodeBuilderSession,
 	saveCodeBuilderSession,
 	compactSessionIfNeeded,
 	generateCodeBuilderThreadId,
-	saveToSessionManagerThread,
+	saveSessionMessages,
 } from './utils/code-builder-session';
 
 /**
@@ -133,9 +133,9 @@ export class CodeWorkflowBuilder {
 				};
 			}
 
-			// Track generation success and buffer assistant text
+			// Track generation success and capture session messages
 			let generationSucceeded = false;
-			const assistantTextParts: string[] = [];
+			let sessionMessages: unknown[] | undefined;
 
 			// Delegate to CodeBuilderAgent with history context
 			for await (const chunk of this.codeBuilderAgent.chat(
@@ -149,43 +149,38 @@ export class CodeWorkflowBuilder {
 					generationSucceeded = true;
 				}
 
-				// Buffer assistant text messages
+				// Capture session messages for persistence
 				for (const msg of chunk.messages ?? []) {
-					if (msg.type === 'message' && msg.role === 'assistant' && typeof msg.text === 'string') {
-						assistantTextParts.push(msg.text);
+					if (msg.type === 'session-messages') {
+						sessionMessages = (msg as SessionMessagesChunk).messages;
 					}
 				}
 
-				yield chunk;
+				// Don't yield session-messages chunk to frontend (internal use only)
+				const filteredMessages = chunk.messages?.filter((msg) => msg.type !== 'session-messages');
+				if (filteredMessages && filteredMessages.length > 0) {
+					yield { messages: filteredMessages };
+				}
 			}
 
 			// Save current message to session after successful generation
 			session.userMessages.push(payload.message);
 			await saveCodeBuilderSession(this.checkpointer, threadId, session);
 
-			// Also save to SessionManager thread for frontend retrieval
-			if (generationSucceeded) {
-				const assistantText =
-					assistantTextParts.length > 0 ? assistantTextParts.join('\n') : undefined;
-
-				// Generate unique messageId for this turn (used for truncation support)
-				const messageId = crypto.randomUUID();
-
-				await saveToSessionManagerThread(
+			// Save full message history to SessionManager thread for frontend retrieval
+			if (generationSucceeded && sessionMessages) {
+				await saveSessionMessages(
 					this.checkpointer,
 					workflowId,
 					userId,
-					payload.message,
-					messageId,
+					sessionMessages,
 					payload.versionId,
-					assistantText,
 				);
 
-				this.logger?.debug('Saved to SessionManager thread', {
+				this.logger?.debug('Saved session messages to SessionManager thread', {
 					workflowId,
 					userId,
-					messageId,
-					hasAssistantText: !!assistantText,
+					messageCount: sessionMessages.length,
 				});
 			}
 
