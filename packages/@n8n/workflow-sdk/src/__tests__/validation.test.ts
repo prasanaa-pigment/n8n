@@ -1410,4 +1410,158 @@ describe('Validation', () => {
 			expect(expressionWarning?.parameterPath).toBe('items[0].value');
 		});
 	});
+
+	describe('INVALID_DATE_METHOD validation', () => {
+		it('should warn when using .toISOString() instead of .toISO() for $now', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $now.toISOString() }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(1);
+			expect(dateMethodWarnings[0].message).toContain('.toISOString()');
+			expect(dateMethodWarnings[0].message).toContain('.toISO()');
+		});
+
+		it('should warn when using .toISOString() instead of .toISO() for $today', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $today.toISOString() }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(1);
+			expect(dateMethodWarnings[0].message).toContain('.toISOString()');
+		});
+
+		it('should warn when .toISOString() is used in nested parameters', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						options: {
+							nested: {
+								date: '={{ $now.toISOString() }}',
+							},
+						},
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(1);
+			expect(dateMethodWarnings[0].message).toContain('options.nested.date');
+		});
+
+		it('should warn when .toISOString() is used in array parameters', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						items: [{ date: '={{ $now.toISOString() }}' }, { date: '={{ $today.toISOString() }}' }],
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(2);
+		});
+
+		it('should not warn when using correct .toISO() method', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $now.toISO() }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(0);
+		});
+
+		it('should not warn when toISOString is used on regular JS Date objects', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						// This is actually fine if someone is intentionally using JS Date
+						value: '={{ new Date().toISOString() }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			// We still warn because .toISOString() is generally a mistake in n8n context
+			// The LLM should use $now.toISO() instead of new Date().toISOString()
+			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarnings).toHaveLength(1);
+		});
+
+		it('should include node name in the warning', () => {
+			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Date Formatter',
+					parameters: {
+						value: '={{ $now.toISOString() }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(t).then(setNode);
+			const result = wf.validate();
+
+			const dateMethodWarning = result.warnings.find((w) => w.code === 'INVALID_DATE_METHOD');
+			expect(dateMethodWarning).toBeDefined();
+			expect(dateMethodWarning?.nodeName).toBe('Date Formatter');
+		});
+	});
 });
