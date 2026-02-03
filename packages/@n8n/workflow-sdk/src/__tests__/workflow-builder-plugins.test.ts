@@ -7,10 +7,16 @@
  */
 
 import { workflow } from '../workflow-builder';
-import { node, trigger } from '../node-builder';
+import { node, trigger, ifElse } from '../node-builder';
 import { PluginRegistry } from '../plugins/registry';
-import type { ValidatorPlugin, PluginContext, SerializerPlugin } from '../plugins/types';
-import type { WorkflowJSON } from '../types/base';
+import type {
+	ValidatorPlugin,
+	PluginContext,
+	SerializerPlugin,
+	CompositeHandlerPlugin,
+	MutablePluginContext,
+} from '../plugins/types';
+import type { WorkflowJSON, IfElseComposite } from '../types/base';
 import { jsonSerializer } from '../plugins/serializers/json-serializer';
 
 // Helper to create mock validators
@@ -280,6 +286,141 @@ describe('WorkflowBuilder plugin integration', () => {
 
 			const json = wf.toJSON();
 			expect(json.settings?.timezone).toBe('UTC');
+		});
+	});
+
+	describe('add() with composite handlers', () => {
+		it('delegates IfElseComposite to registered handler when handler handles it', () => {
+			const mockAddNodes = jest.fn().mockReturnValue('If Node');
+			const mockHandler: CompositeHandlerPlugin<IfElseComposite> = {
+				id: 'test:if-else',
+				name: 'Test If/Else Handler',
+				priority: 100,
+				canHandle: (input): input is IfElseComposite =>
+					input !== null &&
+					typeof input === 'object' &&
+					'_isIfElseBuilder' in input &&
+					(input as { _isIfElseBuilder: boolean })._isIfElseBuilder === true,
+				addNodes: mockAddNodes,
+			};
+			testRegistry.registerCompositeHandler(mockHandler);
+
+			// Create an IfElseComposite using the ifElse builder
+			const trueNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'True Branch', parameters: {} },
+			});
+			const falseNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'False Branch', parameters: {} },
+			});
+
+			const composite = ifElse({ version: 2, config: { name: 'If Node', parameters: {} } }).onTrue!(
+				trueNode,
+			).onFalse(falseNode);
+
+			// Add the composite to the workflow
+			workflow('test', 'Test', { registry: testRegistry }).add(composite);
+
+			// Verify the handler was called
+			expect(mockAddNodes).toHaveBeenCalled();
+		});
+
+		it('falls back to built-in handling when no handler matches', () => {
+			// Empty registry - no handlers
+			const trueNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'True Branch', parameters: {} },
+			});
+			const falseNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'False Branch', parameters: {} },
+			});
+
+			const composite = ifElse({ version: 2, config: { name: 'If Node', parameters: {} } }).onTrue!(
+				trueNode,
+			).onFalse(falseNode);
+
+			// Should still work without a handler registered
+			const wf = workflow('test', 'Test', { registry: testRegistry }).add(composite);
+
+			// Verify all nodes were added
+			const json = wf.toJSON();
+			expect(json.nodes).toHaveLength(3);
+			expect(json.nodes.map((n) => n.name)).toContain('If Node');
+			expect(json.nodes.map((n) => n.name)).toContain('True Branch');
+			expect(json.nodes.map((n) => n.name)).toContain('False Branch');
+		});
+
+		it('handler receives MutablePluginContext with helper methods', () => {
+			let receivedCtx: MutablePluginContext | undefined;
+			const mockHandler: CompositeHandlerPlugin<IfElseComposite> = {
+				id: 'test:ctx-checker',
+				name: 'Context Checker Handler',
+				priority: 100,
+				canHandle: (input): input is IfElseComposite =>
+					input !== null &&
+					typeof input === 'object' &&
+					'_isIfElseBuilder' in input &&
+					(input as { _isIfElseBuilder: boolean })._isIfElseBuilder === true,
+				addNodes: (input, ctx) => {
+					receivedCtx = ctx;
+					// Actually add the if node so workflow doesn't fail
+					ctx.addNodeWithSubnodes(input.ifNode);
+					return input.ifNode.name;
+				},
+			};
+			testRegistry.registerCompositeHandler(mockHandler);
+
+			const composite = ifElse({ version: 2, config: { name: 'If Node', parameters: {} } }).onTrue!(
+				null,
+			).onFalse(null);
+
+			workflow('wf-123', 'My Workflow', { registry: testRegistry }).add(composite);
+
+			expect(receivedCtx).toBeDefined();
+			expect(receivedCtx!.workflowId).toBe('wf-123');
+			expect(receivedCtx!.workflowName).toBe('My Workflow');
+			expect(typeof receivedCtx!.addNodeWithSubnodes).toBe('function');
+			expect(typeof receivedCtx!.addBranchToGraph).toBe('function');
+		});
+	});
+
+	describe('then() with composite handlers', () => {
+		it('delegates IfElseComposite to registered handler in then()', () => {
+			const mockAddNodes = jest.fn().mockImplementation((input: IfElseComposite, ctx) => {
+				ctx.addNodeWithSubnodes(input.ifNode);
+				return input.ifNode.name;
+			});
+			const mockHandler: CompositeHandlerPlugin<IfElseComposite> = {
+				id: 'test:if-else',
+				name: 'Test If/Else Handler',
+				priority: 100,
+				canHandle: (input): input is IfElseComposite =>
+					input !== null &&
+					typeof input === 'object' &&
+					'_isIfElseBuilder' in input &&
+					(input as { _isIfElseBuilder: boolean })._isIfElseBuilder === true,
+				addNodes: mockAddNodes,
+			};
+			testRegistry.registerCompositeHandler(mockHandler);
+
+			const startTrigger = trigger({
+				type: 'n8n-nodes-base.manualTrigger',
+				version: 1,
+				config: { name: 'Start' },
+			});
+			const composite = ifElse({ version: 2, config: { name: 'If Node', parameters: {} } }).onTrue!(
+				null,
+			).onFalse(null);
+
+			workflow('test', 'Test', { registry: testRegistry }).add(startTrigger).then(composite);
+
+			expect(mockAddNodes).toHaveBeenCalled();
 		});
 	});
 });

@@ -21,7 +21,7 @@ import type {
 	WorkflowBuilderOptions,
 } from './types/base';
 import type { PluginRegistry } from './plugins/registry';
-import type { PluginContext, ValidationIssue } from './plugins/types';
+import type { PluginContext, MutablePluginContext, ValidationIssue } from './plugins/types';
 import { isNodeChain } from './types/base';
 import {
 	isInputTarget,
@@ -123,6 +123,26 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		);
 		builder._currentOutput = overrides.currentOutput ?? this._currentOutput;
 		return builder;
+	}
+
+	/**
+	 * Create a MutablePluginContext for composite handlers.
+	 * This provides helper methods that allow plugins to add nodes to the graph.
+	 */
+	private createMutablePluginContext(nodes: Map<string, GraphNode>): MutablePluginContext {
+		return {
+			nodes,
+			workflowId: this.id,
+			workflowName: this.name,
+			settings: this._settings,
+			pinData: this._pinData,
+			addNodeWithSubnodes: (node: NodeInstance<string, string, unknown>) => {
+				return this.addNodeWithSubnodes(nodes, node);
+			},
+			addBranchToGraph: (branch: unknown) => {
+				return this.addBranchToGraph(nodes, branch as NodeInstance<string, string, unknown>);
+			},
+		};
 	}
 
 	/**
@@ -230,7 +250,9 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		N extends
 			| NodeInstance<string, string, unknown>
 			| TriggerInstance<string, string, unknown>
-			| NodeChain,
+			| NodeChain
+			| IfElseBuilder<unknown>
+			| SwitchCaseBuilder<unknown>,
 	>(node: N): WorkflowBuilder {
 		const newNodes = new Map(this._nodes);
 
@@ -266,6 +288,22 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				currentOutput: this._currentOutput,
 				pinData: this._pinData,
 			});
+		}
+
+		// Check for plugin composite handlers FIRST
+		// This allows registered handlers to intercept composites before built-in handling
+		if (this._registry) {
+			const handler = this._registry.findCompositeHandler(node);
+			if (handler) {
+				const ctx = this.createMutablePluginContext(newNodes);
+				const headName = handler.addNodes(node, ctx);
+				return this.clone({
+					nodes: newNodes,
+					currentNode: headName,
+					currentOutput: 0,
+					pinData: this._pinData,
+				});
+			}
 		}
 
 		// Check for fluent API builders FIRST (before composites)
@@ -418,6 +456,36 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		// This must come before composite checks since chains have composite-like properties
 		if (isNodeChain(nodeOrComposite)) {
 			return this.handleNodeChain(nodeOrComposite);
+		}
+
+		// Check for plugin composite handlers
+		// This allows registered handlers to intercept composites before built-in handling
+		if (this._registry) {
+			const handler = this._registry.findCompositeHandler(nodeOrComposite);
+			if (handler) {
+				const newNodes = new Map(this._nodes);
+				const ctx = this.createMutablePluginContext(newNodes);
+				const headName = handler.addNodes(nodeOrComposite, ctx);
+
+				// Connect current node to head of composite
+				if (this._currentNode) {
+					const currentGraphNode = newNodes.get(this._currentNode);
+					if (currentGraphNode) {
+						const mainConns = currentGraphNode.connections.get('main') || new Map();
+						const outputConns = mainConns.get(this._currentOutput) || [];
+						outputConns.push({ node: headName, type: 'main', index: 0 });
+						mainConns.set(this._currentOutput, outputConns);
+						currentGraphNode.connections.set('main', mainConns);
+					}
+				}
+
+				return this.clone({
+					nodes: newNodes,
+					currentNode: headName,
+					currentOutput: 0,
+					pinData: this._pinData,
+				});
+			}
 		}
 
 		// Handle merge composite
