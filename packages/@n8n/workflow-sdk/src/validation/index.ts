@@ -1,4 +1,10 @@
-import type { INodeTypes } from 'n8n-workflow';
+import type {
+	INodeTypes,
+	IConnections as N8nIConnections,
+	IConnection as N8nIConnection,
+	IDisplayOptions,
+} from 'n8n-workflow';
+import { mapConnectionsByDestination } from 'n8n-workflow';
 import type { WorkflowBuilder, WorkflowJSON } from '../types/base';
 import { validateNodeConfig } from './schema-validator';
 import { resolveMainInputCount } from './input-resolver';
@@ -25,6 +31,7 @@ export type ValidationErrorCode =
 	| 'INVALID_PARAMETER'
 	| 'INVALID_INPUT_INDEX'
 	| 'SUBNODE_NOT_CONNECTED'
+	| 'SUBNODE_PARAMETER_MISMATCH'
 	| 'MULTIPLE_MANUAL_TRIGGERS'
 	| 'INVALID_EXPRESSION_PATH'
 	| 'PARTIAL_EXPRESSION_PATH'
@@ -445,6 +452,8 @@ export function validateWorkflow(
 	// Input index validation (only if provider is given)
 	if (options.nodeTypesProvider) {
 		checkNodeInputIndices(json, options.nodeTypesProvider, warnings);
+		// Validate subnode parameters match parent's displayOptions requirements
+		validateSubnodeParameters(json, options.nodeTypesProvider, warnings);
 	}
 
 	return {
@@ -452,6 +461,139 @@ export function validateWorkflow(
 		errors,
 		warnings,
 	};
+}
+
+/**
+ * Mapping from AI connection type to SDK function name (for error messages)
+ */
+const AI_CONNECTION_TO_SDK_FUNCTION: Record<string, string> = {
+	ai_languageModel: 'languageModel()',
+	ai_memory: 'memory()',
+	ai_tool: 'tool()',
+	ai_outputParser: 'outputParser()',
+	ai_embedding: 'embeddings()',
+	ai_vectorStore: 'vectorStore()',
+	ai_retriever: 'retriever()',
+	ai_document: 'documentLoader()',
+	ai_textSplitter: 'textSplitter()',
+	ai_reranker: 'reranker()',
+};
+
+/**
+ * Check if a subnode's parameters satisfy displayOptions conditions
+ */
+function checkDisplayOptionsMatch(
+	subnodeParams: Record<string, unknown>,
+	displayOptions: IDisplayOptions,
+): {
+	matches: boolean;
+	mismatches: Array<{ param: string; expected: unknown[]; actual: unknown }>;
+} {
+	const mismatches: Array<{ param: string; expected: unknown[]; actual: unknown }> = [];
+
+	if (!displayOptions.show) return { matches: true, mismatches };
+
+	for (const [paramName, expectedValues] of Object.entries(displayOptions.show)) {
+		if (!expectedValues) continue; // Skip undefined values
+		const actualValue = subnodeParams[paramName];
+		if (!expectedValues.includes(actualValue as never)) {
+			mismatches.push({
+				param: paramName,
+				expected: expectedValues as unknown[],
+				actual: actualValue,
+			});
+		}
+	}
+
+	return { matches: mismatches.length === 0, mismatches };
+}
+
+/**
+ * Validate that subnodes connected to parent nodes have parameters
+ * matching the displayOptions conditions in builderHint.inputs.
+ *
+ * For example, if an Agent's ai_tool input has displayOptions.show = { mode: ['retrieve-as-tool'] },
+ * then any node connected via ai_tool must have mode='retrieve-as-tool'.
+ */
+function validateSubnodeParameters(
+	json: WorkflowJSON,
+	nodeTypesProvider: INodeTypes,
+	warnings: ValidationWarning[],
+): void {
+	// Build a map of node name -> node for quick lookup
+	const nodesByName = new Map<string, NodeJSON>();
+	for (const node of json.nodes) {
+		if (node.name) {
+			nodesByName.set(node.name, node);
+		}
+	}
+
+	// Invert connections to find incoming connections by destination
+	// Cast to n8n-workflow IConnections since our local type has string for connection type
+	const connectionsByDest = mapConnectionsByDestination(
+		json.connections as unknown as N8nIConnections,
+	);
+
+	// Check each node that might be a parent with AI inputs
+	for (const parentNode of json.nodes) {
+		if (!parentNode.name) continue;
+
+		// Try to get the node type to check for builderHint.inputs
+		const parentNodeType = nodeTypesProvider.getByNameAndVersion(
+			parentNode.type,
+			typeof parentNode.typeVersion === 'string'
+				? parseFloat(parentNode.typeVersion)
+				: (parentNode.typeVersion ?? 1),
+		);
+		const builderHintInputs = parentNodeType?.description?.builderHint?.inputs;
+		if (!builderHintInputs) continue;
+
+		// For each AI input type the parent accepts
+		for (const [connectionType, inputConfig] of Object.entries(builderHintInputs)) {
+			if (!connectionType.startsWith('ai_')) continue;
+			if (!inputConfig?.displayOptions?.show) continue;
+
+			// Find subnodes connected via this type
+			const incomingConnections = connectionsByDest[parentNode.name]?.[connectionType];
+			if (!incomingConnections) continue;
+
+			for (const connList of incomingConnections) {
+				if (!connList) continue;
+				for (const conn of connList as N8nIConnection[]) {
+					const subnodeName = conn.node;
+					const subnode = nodesByName.get(subnodeName);
+					if (!subnode?.parameters) continue;
+
+					// Check if subnode params match displayOptions conditions
+					const { matches, mismatches } = checkDisplayOptionsMatch(
+						subnode.parameters,
+						inputConfig.displayOptions,
+					);
+
+					if (!matches) {
+						const sdkFn = AI_CONNECTION_TO_SDK_FUNCTION[connectionType] || connectionType;
+
+						// Build error message with actual parameter names from displayOptions
+						const mismatchDetails = mismatches
+							.map(
+								(m) =>
+									`${m.param}='${m.actual}' (expected: ${m.expected.map((v) => `'${v}'`).join(' or ')})`,
+							)
+							.join(', ');
+
+						warnings.push(
+							new ValidationWarning(
+								'SUBNODE_PARAMETER_MISMATCH',
+								`'${subnodeName}' is connected to '${parentNode.name}' using ${sdkFn} but has ${mismatchDetails}. Update parameters to match the SDK function used.`,
+								subnodeName,
+								mismatches[0]?.param,
+							),
+						);
+					}
+				}
+			}
+		}
+	}
 }
 
 /**

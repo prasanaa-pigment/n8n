@@ -770,16 +770,17 @@ describe('CodeBuilderSearchTool', () => {
 			expect(result).toContain('retrieve');
 			expect(result).toContain('retrieve-as-tool');
 
-			// Should show display names
-			expect(result).toContain('Retrieve Documents (As Vector Store for Chain/Tool)');
+			// Should show OVERRIDDEN display name for retrieve (without confusing "/Tool" text)
+			expect(result).toContain('Retrieve Documents (As Vector Store for Chain)');
+			expect(result).not.toContain('Retrieve Documents (As Vector Store for Chain/Tool)');
 			expect(result).toContain('Retrieve Documents (As Tool for AI Agent)');
 
-			// Should show SDK function mapping for modes with outputConnectionType
-			// retrieve → vectorStore() for subnodes.vectorStore
-			expect(result).toMatch(/retrieve.*vectorStore\(\)/s);
+			// Should show SDK function mapping WITH mode parameter for modes with outputConnectionType
+			// retrieve → vectorStore({ mode: 'retrieve' }) for subnodes.vectorStore
+			expect(result).toMatch(/retrieve.*vectorStore\(\{ mode: 'retrieve' \}\)/s);
 
-			// retrieve-as-tool → tool() for subnodes.tools
-			expect(result).toMatch(/retrieve-as-tool.*tool\(\)/s);
+			// retrieve-as-tool → tool({ mode: 'retrieve-as-tool' }) for subnodes.tools
+			expect(result).toMatch(/retrieve-as-tool.*tool\(\{ mode: 'retrieve-as-tool' \}\)/s);
 		});
 
 		it('should show node() for modes without outputConnectionType', async () => {
@@ -796,8 +797,8 @@ describe('CodeBuilderSearchTool', () => {
 			expect(result).toContain('update');
 			expect(result).toContain('Update Documents');
 
-			// These should indicate they use node() function
-			expect(result).toMatch(/load.*Get Many.*node\(\)/is);
+			// These should indicate they use node() function (no mode parameter needed for node())
+			expect(result).toMatch(/load.*Get Many.*→ use node\(\)/is);
 		});
 
 		it('should NOT show SDK function for nodes where all modes use node()', async () => {

@@ -233,13 +233,28 @@ const CONNECTION_TYPE_TO_SDK: Record<string, { fn: string; subnodeField: string 
 };
 
 /**
+ * Display name overrides for confusing mode names
+ * Maps mode value -> original display name -> clearer display name
+ */
+const MODE_DISPLAY_NAME_OVERRIDES: Record<string, Record<string, string>> = {
+	retrieve: {
+		'Retrieve Documents (As Vector Store for Chain/Tool)':
+			'Retrieve Documents (As Vector Store for Chain)',
+	},
+};
+
+/**
  * Format a mode for display, including SDK function mapping only if showSdkMapping is true
  */
 function formatModeForDisplay(mode: ModeInfo, showSdkMapping: boolean): string {
 	const lines: string[] = [];
 
+	// Apply display name override if available (to remove confusing text)
+	const displayName =
+		MODE_DISPLAY_NAME_OVERRIDES[mode.value]?.[mode.displayName] ?? mode.displayName;
+
 	// First line: value and display name
-	let firstLine = `      - ${mode.value}: "${mode.displayName}"`;
+	let firstLine = `      - ${mode.value}: "${displayName}"`;
 
 	// Add SDK mapping if applicable
 	if (showSdkMapping) {
@@ -248,7 +263,9 @@ function formatModeForDisplay(mode: ModeInfo, showSdkMapping: boolean): string {
 			: undefined;
 
 		if (sdkMapping) {
-			firstLine += ` → use ${sdkMapping.fn} for ${sdkMapping.subnodeField}`;
+			// Include mode parameter in the SDK function call for clarity
+			const fnWithMode = sdkMapping.fn.replace('()', `({ mode: '${mode.value}' })`);
+			firstLine += ` → use ${fnWithMode} for ${sdkMapping.subnodeField}`;
 		} else {
 			firstLine += ' → use node()';
 		}
