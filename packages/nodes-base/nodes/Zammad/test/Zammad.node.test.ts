@@ -559,7 +559,7 @@ describe('Zammad Node', () => {
 			);
 		});
 
-		it('should create a ticket with article', async () => {
+		it('should create a ticket with custom fields if specified', async () => {
 			const mockTicket = { id: 1, title: 'Test Ticket' };
 			const mockArticles = [{ id: 1, body: 'Test article' }];
 
@@ -584,6 +584,12 @@ describe('Zammad Node', () => {
 									visibility: 'public',
 								},
 							};
+						case 'additionalFields':
+							return {
+								customFieldsUi: {
+									customFieldPairs: [{ name: 'linear', value: '1234' }],
+								},
+							};
 						default:
 							return null;
 					}
@@ -594,7 +600,7 @@ describe('Zammad Node', () => {
 				.mockResolvedValueOnce(mockTicket)
 				.mockResolvedValueOnce(mockArticles);
 
-			const result = await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
+			await node.execute.call(mockExecuteFunctions as IExecuteFunctions);
 
 			expect(GenericFunctions.zammadApiRequest).toHaveBeenCalledWith('POST', '/tickets', {
 				article: {
@@ -605,15 +611,8 @@ describe('Zammad Node', () => {
 				title: 'Test Ticket',
 				group: 'Support',
 				customer: 'test@example.com',
+				linear: '1234',
 			});
-
-			expect(GenericFunctions.zammadApiRequest).toHaveBeenCalledWith(
-				'GET',
-				'/ticket_articles/by_ticket/1',
-			);
-
-			const expectedResult = { ...mockTicket, articles: mockArticles };
-			expect(result).toEqual([[{ json: expectedResult, itemData: { item: 0 } }]]);
 		});
 
 		it('should throw error when creating ticket without article', async () => {
@@ -632,6 +631,8 @@ describe('Zammad Node', () => {
 							return 'test@example.com';
 						case 'article':
 							return {};
+						case 'additionalFields':
+							return {};
 						default:
 							return null;
 					}
@@ -643,7 +644,7 @@ describe('Zammad Node', () => {
 			);
 		});
 
-		it('should update a ticket', async () => {
+		it('should update a ticket`s note', async () => {
 			const mockTicket = { id: 1, title: 'Updated Ticket' };
 
 			(mockExecuteFunctions.getNodeParameter as jest.Mock).mockImplementation(
