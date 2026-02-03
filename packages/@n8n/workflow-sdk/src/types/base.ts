@@ -921,7 +921,9 @@ export interface WorkflowBuilder {
 		N extends
 			| NodeInstance<string, string, unknown>
 			| TriggerInstance<string, string, unknown>
-			| NodeChain,
+			| NodeChain
+			| IfElseBuilder<unknown>
+			| SwitchCaseBuilder<unknown>,
 	>(node: N): WorkflowBuilder;
 
 	then<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
