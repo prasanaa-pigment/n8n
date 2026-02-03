@@ -463,7 +463,6 @@ export class SourceControlImportService {
 						`Failed to decrypt credential "${local.name}" (ID: ${local.id}) for status comparison`,
 						{
 							credentialType: local.type,
-							errorMessage: error instanceof Error ? error.message : 'Unknown error',
 						},
 					);
 				}
