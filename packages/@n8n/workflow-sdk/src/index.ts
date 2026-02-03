@@ -80,9 +80,6 @@ export type {
 	IConnections,
 	// $fromAI types for tool nodes
 	FromAIArgumentType,
-	ToolConfigContext,
-	ToolConfigInput,
-	ToolInput,
 } from './types/base';
 
 // Type guard for NodeChain
@@ -99,7 +96,6 @@ export {
 	placeholder,
 	newCredential,
 	ifElse,
-	ifNode,
 	switchCase,
 	merge,
 } from './node-builder';
