@@ -46,6 +46,7 @@ import { VARIABLE_MODAL_KEY } from '@/features/settings/environments.ee/environm
 import {
 	CREDENTIAL_EDIT_MODAL_KEY,
 	CREDENTIAL_SELECT_MODAL_KEY,
+	QUICK_CONNECT_MODAL_KEY,
 } from '@/features/credentials/credentials.constants';
 import {
 	DELETE_USER_MODAL_KEY,
@@ -192,6 +193,11 @@ export const useUIStore = defineStore(STORES.UI, () => {
 			activeId: null,
 			showAuthSelector: false,
 		} as ModalState,
+		[QUICK_CONNECT_MODAL_KEY]: {
+			open: false,
+			mode: 'new' as 'new' | 'edit',
+			activeId: '',
+		},
 		[DELETE_FOLDER_MODAL_KEY]: {
 			open: false,
 			activeId: null,
@@ -520,6 +526,16 @@ export const useUIStore = defineStore(STORES.UI, () => {
 		openModal(CREDENTIAL_EDIT_MODAL_KEY);
 	};
 
+	const openQuickConnectModal = (credentialType: string) => {
+		openModalWithData({
+			name: QUICK_CONNECT_MODAL_KEY,
+			data: {
+				credentialType,
+				mode: 'new',
+			},
+		});
+	};
+
 	const openCommunityPackageUninstallConfirmModal = (packageName: string) => {
 		setMode(COMMUNITY_PACKAGE_CONFIRM_MODAL_KEY, COMMUNITY_PACKAGE_MANAGE_ACTIONS.UNINSTALL);
 		setActiveId(COMMUNITY_PACKAGE_CONFIRM_MODAL_KEY, packageName);
@@ -709,6 +725,7 @@ export const useUIStore = defineStore(STORES.UI, () => {
 		openDeleteUserModal,
 		openExistingCredential,
 		openNewCredential,
+		openQuickConnectModal,
 		openCommunityPackageUninstallConfirmModal,
 		openCommunityPackageUpdateConfirmModal,
 		addActiveAction,

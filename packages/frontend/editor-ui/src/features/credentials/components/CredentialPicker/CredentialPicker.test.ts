@@ -1,6 +1,8 @@
 import { createComponentRenderer } from '@/__tests__/render';
 import { mockedStore } from '@/__tests__/utils';
 import { useCredentialsStore } from '../../credentials.store';
+import { useUIStore } from '@/app/stores/ui.store';
+import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { createTestingPinia } from '@pinia/testing';
 import CredentialPicker from './CredentialPicker.vue';
 import {
@@ -12,6 +14,8 @@ import {
 } from './CredentialPicker.test.constants';
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/vue';
+import { useImprovedCredentials } from '@/experiments/improvedCredentials';
+import { computed } from 'vue';
 
 vi.mock('vue-router', () => {
 	const push = vi.fn();
@@ -26,12 +30,19 @@ vi.mock('vue-router', () => {
 	};
 });
 
+vi.mock('@/experiments/improvedCredentials', () => ({
+	useImprovedCredentials: vi.fn(),
+}));
+
 let credentialsStore: ReturnType<typeof mockedStore<typeof useCredentialsStore>>;
 
 const renderComponent = createComponentRenderer(CredentialPicker);
 
 describe('CredentialPicker', () => {
 	beforeEach(() => {
+		vi.mocked(useImprovedCredentials).mockReturnValue({
+			isEnabled: computed(() => false),
+		});
 		createTestingPinia();
 		credentialsStore = mockedStore(useCredentialsStore);
 		credentialsStore.state.credentials = TEST_CREDENTIALS;
@@ -111,5 +122,76 @@ describe('CredentialPicker', () => {
 		expect(
 			screen.queryByTestId(`node-credentials-select-item-${GLOBAL_OPENAI_CREDENTIAL.id}`),
 		).toBeInTheDocument();
+	});
+});
+
+describe('CredentialPicker with improved credentials experiment', () => {
+	beforeEach(() => {
+		vi.mocked(useImprovedCredentials).mockReturnValue({
+			isEnabled: computed(() => true),
+		});
+		createTestingPinia();
+		credentialsStore = mockedStore(useCredentialsStore);
+		credentialsStore.state.credentials = TEST_CREDENTIALS;
+		credentialsStore.state.credentialTypes = TEST_CREDENTIAL_TYPES;
+	});
+
+	it('should show CredentialConnectionStatus when experiment is enabled', () => {
+		const { getByTestId, queryByTestId } = renderComponent({
+			props: {
+				appName: 'OpenAI',
+				credentialType: 'openAiApi',
+				selectedCredentialId: PERSONAL_OPENAI_CREDENTIAL.id,
+			},
+		});
+
+		expect(getByTestId('credential-connection-status')).toBeInTheDocument();
+		expect(queryByTestId('credential-dropdown')).not.toBeInTheDocument();
+	});
+
+	it('should show connect button when experiment is enabled and no credentials', () => {
+		credentialsStore.state.credentials = {};
+
+		const { getByTestId } = renderComponent({
+			props: {
+				appName: 'OpenAI',
+				credentialType: 'openAiApi',
+				selectedCredentialId: null,
+			},
+		});
+
+		expect(getByTestId('credential-connect-button')).toBeInTheDocument();
+	});
+
+	it('should open QuickConnectModal when connect clicked in experiment', async () => {
+		credentialsStore.state.credentials = {};
+		const uiStore = mockedStore(useUIStore);
+		const projectsStore = mockedStore(useProjectsStore);
+
+		// Set up personal project with create permission
+		projectsStore.personalProject = {
+			id: 'personal-project',
+			type: 'personal',
+			name: 'My Project',
+			icon: null,
+			createdAt: '2024-01-01',
+			updatedAt: '2024-01-01',
+			relations: [],
+			scopes: ['credential:create'],
+		};
+
+		const { getByTestId, emitted } = renderComponent({
+			props: {
+				appName: 'OpenAI',
+				credentialType: 'openAiApi',
+				selectedCredentialId: null,
+			},
+		});
+
+		await userEvent.click(getByTestId('credential-connect-button'));
+
+		// Verify the credentialModalOpened event is emitted (indicates createNewCredential was called)
+		expect(emitted().credentialModalOpened).toBeTruthy();
+		expect(uiStore.openQuickConnectModal).toHaveBeenCalledWith('openAiApi');
 	});
 });

@@ -34,6 +34,7 @@ import { isEmpty } from '@/app/utils/typesUtils';
 import { getResourcePermissions } from '@n8n/permissions';
 import { useNodeCredentialOptions } from '../composables/useNodeCredentialOptions';
 import { useEnvFeatureFlag } from '@/features/shared/envFeatureFlag/useEnvFeatureFlag';
+import { useImprovedCredentials } from '@/experiments/improvedCredentials';
 
 import {
 	N8nBadge,
@@ -81,6 +82,7 @@ const workflowsStore = useWorkflowsStore();
 const projectsStore = useProjectsStore();
 const workflowState = injectWorkflowState();
 const { check: checkEnvFeatureFlag } = useEnvFeatureFlag();
+const { isEnabled: isImprovedCredentialsEnabled } = useImprovedCredentials();
 
 const canCreateCredentials = computed(
 	() =>
@@ -316,7 +318,11 @@ function createNewCredential(
 		subscribedToCredentialType.value = credentialType;
 	}
 
-	uiStore.openNewCredential(credentialType, showAuthOptions);
+	if (isImprovedCredentialsEnabled.value) {
+		uiStore.openQuickConnectModal(credentialType);
+	} else {
+		uiStore.openNewCredential(credentialType, showAuthOptions);
+	}
 	telemetry.track('User opened Credential modal', {
 		credential_type: credentialType,
 		source: 'node',

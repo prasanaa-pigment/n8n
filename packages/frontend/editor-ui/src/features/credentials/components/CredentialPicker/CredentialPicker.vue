@@ -4,8 +4,10 @@ import { listenForModalChanges, useUIStore } from '@/app/stores/ui.store';
 import { listenForCredentialChanges, useCredentialsStore } from '../../credentials.store';
 import { assert } from '@n8n/utils/assert';
 import CredentialsDropdown from './CredentialsDropdown.vue';
+import CredentialConnectionStatus from '../QuickConnect/CredentialConnectionStatus.vue';
 import { useI18n } from '@n8n/i18n';
-import { CREDENTIAL_EDIT_MODAL_KEY } from '../../credentials.constants';
+import { CREDENTIAL_EDIT_MODAL_KEY, QUICK_CONNECT_MODAL_KEY } from '../../credentials.constants';
+import { useImprovedCredentials } from '@/experiments/improvedCredentials';
 
 import { N8nButton, N8nIconButton, N8nTooltip } from '@n8n/design-system';
 import { getResourcePermissions } from '@n8n/permissions';
@@ -37,6 +39,8 @@ const projectsStore = useProjectsStore();
 const i18n = useI18n();
 const toast = useToast();
 const message = useMessage();
+
+const { isEnabled: isImprovedCredentialsEnabled } = useImprovedCredentials();
 
 const wasModalOpenedFromHere = ref(false);
 const currentCredential = ref<ICredentialsResponse | ICredentialsDecryptedResponse | null>(null);
@@ -107,7 +111,11 @@ const onCredentialSelected = (credentialId: string) => {
 	emit('credentialSelected', credentialId);
 };
 const createNewCredential = () => {
-	uiStore.openNewCredential(props.credentialType, true);
+	if (isImprovedCredentialsEnabled.value) {
+		uiStore.openQuickConnectModal(props.credentialType);
+	} else {
+		uiStore.openNewCredential(props.credentialType, true);
+	}
 	wasModalOpenedFromHere.value = true;
 	emit('credentialModalOpened', undefined);
 };
@@ -184,7 +192,10 @@ listenForCredentialChanges({
 listenForModalChanges({
 	store: uiStore,
 	onModalClosed(modalName) {
-		if (modalName === CREDENTIAL_EDIT_MODAL_KEY && wasModalOpenedFromHere.value) {
+		if (
+			(modalName === CREDENTIAL_EDIT_MODAL_KEY || modalName === QUICK_CONNECT_MODAL_KEY) &&
+			wasModalOpenedFromHere.value
+		) {
 			wasModalOpenedFromHere.value = false;
 		}
 	},
@@ -201,61 +212,78 @@ watch(
 
 <template>
 	<div>
-		<div v-if="credentialOptions.length > 0 || props.hideCreateNew" :class="$style.dropdown">
-			<CredentialsDropdown
+		<!-- Improved Credentials Experiment -->
+		<template v-if="isImprovedCredentialsEnabled">
+			<CredentialConnectionStatus
+				:app-name="props.appName"
 				:credential-type="props.credentialType"
-				:credential-options="credentialOptions"
 				:selected-credential-id="props.selectedCredentialId"
-				data-test-id="credential-dropdown"
-				:permissions="credentialPermissions"
-				@credential-selected="onCredentialSelected"
-				@new-credential="createNewCredential"
+				:credential-options="credentialOptions"
+				:disabled="!credentialPermissions.create"
+				data-test-id="credential-connection-status"
+				@connect="createNewCredential"
+				@select="onCredentialSelected"
 			/>
+		</template>
 
-			<N8nTooltip
-				:disabled="credentialPermissions.update"
-				:content="i18n.baseText('nodeCredentials.updateCredential.permissionDenied')"
-				:placement="'top'"
-			>
-				<N8nIconButton
-					icon="pen"
-					type="secondary"
-					:class="{
-						[$style.edit]: true,
-						[$style.invisible]: !props.selectedCredentialId,
-					}"
-					:title="i18n.baseText('nodeCredentials.updateCredential')"
-					data-test-id="credential-edit-button"
-					:disabled="!credentialPermissions.update"
-					@click="editCredential()"
+		<!-- Control Group (existing behavior) -->
+		<template v-else>
+			<div v-if="credentialOptions.length > 0 || props.hideCreateNew" :class="$style.dropdown">
+				<CredentialsDropdown
+					:credential-type="props.credentialType"
+					:credential-options="credentialOptions"
+					:selected-credential-id="props.selectedCredentialId"
+					data-test-id="credential-dropdown"
+					:permissions="credentialPermissions"
+					@credential-selected="onCredentialSelected"
+					@new-credential="createNewCredential"
 				/>
-			</N8nTooltip>
 
-			<N8nTooltip
-				:disabled="credentialPermissions.update"
-				:content="i18n.baseText('nodeCredentials.deleteCredential.permissionDenied')"
-				:placement="'top'"
-			>
-				<N8nIconButton
-					v-if="props.showDelete && props.selectedCredentialId"
-					native-type="button"
-					:title="i18n.baseText('nodeCredentials.deleteCredential')"
-					icon="trash-2"
-					icon-size="large"
-					type="secondary"
-					:disabled="!credentialPermissions.delete"
-					@click="deleteCredential()"
-				/>
-			</N8nTooltip>
-		</div>
+				<N8nTooltip
+					:disabled="credentialPermissions.update"
+					:content="i18n.baseText('nodeCredentials.updateCredential.permissionDenied')"
+					:placement="'top'"
+				>
+					<N8nIconButton
+						icon="pen"
+						type="secondary"
+						:class="{
+							[$style.edit]: true,
+							[$style.invisible]: !props.selectedCredentialId,
+						}"
+						:title="i18n.baseText('nodeCredentials.updateCredential')"
+						data-test-id="credential-edit-button"
+						:disabled="!credentialPermissions.update"
+						@click="editCredential()"
+					/>
+				</N8nTooltip>
 
-		<N8nButton
-			v-else-if="!props.hideCreateNew"
-			:label="`Create new ${props.appName} credential`"
-			data-test-id="create-credential"
-			:disabled="!credentialPermissions.create"
-			@click="createNewCredential"
-		/>
+				<N8nTooltip
+					:disabled="credentialPermissions.update"
+					:content="i18n.baseText('nodeCredentials.deleteCredential.permissionDenied')"
+					:placement="'top'"
+				>
+					<N8nIconButton
+						v-if="props.showDelete && props.selectedCredentialId"
+						native-type="button"
+						:title="i18n.baseText('nodeCredentials.deleteCredential')"
+						icon="trash-2"
+						icon-size="large"
+						type="secondary"
+						:disabled="!credentialPermissions.delete"
+						@click="deleteCredential()"
+					/>
+				</N8nTooltip>
+			</div>
+
+			<N8nButton
+				v-else-if="!props.hideCreateNew"
+				:label="`Create new ${props.appName} credential`"
+				data-test-id="create-credential"
+				:disabled="!credentialPermissions.create"
+				@click="createNewCredential"
+			/>
+		</template>
 	</div>
 </template>
 

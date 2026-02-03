@@ -44,6 +44,7 @@ import { VARIABLE_MODAL_KEY } from '@/features/settings/environments.ee/environm
 import {
 	CREDENTIAL_EDIT_MODAL_KEY,
 	CREDENTIAL_SELECT_MODAL_KEY,
+	QUICK_CONNECT_MODAL_KEY,
 } from '@/features/credentials/credentials.constants';
 import {
 	DELETE_USER_MODAL_KEY,
@@ -78,6 +79,7 @@ import CommunityPackageManageConfirmModal from '@/features/settings/communityNod
 import CommunityPlusEnrollmentModal from '@/features/settings/usage/components/CommunityPlusEnrollmentModal.vue';
 import CredentialEdit from '@/features/credentials/components/CredentialEdit/CredentialEdit.vue';
 import CredentialsSelectModal from '@/features/credentials/components/CredentialsSelectModal.vue';
+import QuickConnectModal from '@/features/credentials/components/QuickConnect/QuickConnectModal.vue';
 import DebugPaywallModal from '@/features/execution/executions/components/DebugPaywallModal.vue';
 import DeleteFolderModal from '@/features/core/folders/components/DeleteFolderModal.vue';
 import MoveToFolderModal from '@/features/core/folders/components/MoveToFolderModal.vue';
@@ -129,6 +131,12 @@ import CredentialResolverEditModal from '@/app/components/CredentialResolverEdit
 		<ModalRoot :name="CREDENTIAL_EDIT_MODAL_KEY">
 			<template #default="{ modalName, activeId, mode }">
 				<CredentialEdit :modal-name="modalName" :mode="mode" :active-id="activeId" />
+			</template>
+		</ModalRoot>
+
+		<ModalRoot :name="QUICK_CONNECT_MODAL_KEY">
+			<template #default="{ modalName }">
+				<QuickConnectModal :modal-name="modalName" />
 			</template>
 		</ModalRoot>
 
