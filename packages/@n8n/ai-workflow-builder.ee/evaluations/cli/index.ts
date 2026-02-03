@@ -12,6 +12,25 @@ import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
+import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
+import { createLogger } from '../harness/logger';
+import {
+	runEvaluation,
+	createConsoleLifecycle,
+	createLLMJudgeEvaluator,
+	createProgrammaticEvaluator,
+	createPairwiseEvaluator,
+	createSimilarityEvaluator,
+	type RunConfig,
+	type TestCase,
+	type Evaluator,
+	type EvaluationContext,
+} from '../index';
+import { createResponderEvaluator } from '../evaluators/responder';
+import { createSubgraphRunner } from '../harness/subgraph-runner';
+import { runSubgraphEvaluation } from '../harness/subgraph-evaluation';
+import { runLocalSubgraphEvaluation } from '../harness/subgraph-evaluation-local';
+import { loadSubgraphDatasetFile } from './dataset-file-loader';
 import {
 	argsToStageModels,
 	getDefaultDatasetName,
@@ -206,6 +225,85 @@ export async function runV2Evaluation(): Promise<void> {
 	// Validate LangSmith client early if langsmith backend is requested
 	if (args.backend === 'langsmith' && !env.lsClient) {
 		throw new Error('LangSmith client not initialized - check LANGSMITH_API_KEY');
+	}
+
+	// Subgraph evaluation mode
+	if (args.subgraph) {
+		const subgraphRunner = createSubgraphRunner({
+			subgraph: args.subgraph,
+			llms: env.llms,
+		});
+
+		const evaluators: Array<Evaluator<EvaluationContext>> = [];
+		if (args.subgraph === 'responder') {
+			evaluators.push(createResponderEvaluator(env.llms.judge));
+		}
+
+		let summary: Awaited<ReturnType<typeof runSubgraphEvaluation>>;
+
+		if (args.datasetFile) {
+			// Local dataset file mode (no LangSmith required)
+			const examples = loadSubgraphDatasetFile(args.datasetFile);
+			const maxExamples = args.maxExamples;
+			const slicedExamples = maxExamples ? examples.slice(0, maxExamples) : examples;
+
+			summary = await runLocalSubgraphEvaluation({
+				subgraph: args.subgraph,
+				subgraphRunner,
+				evaluators,
+				examples: slicedExamples,
+				concurrency: args.concurrency,
+				lifecycle,
+				logger,
+				outputDir: args.outputDir,
+				timeoutMs: args.timeoutMs,
+			});
+		} else {
+			// LangSmith dataset mode
+			if (!args.datasetName) {
+				throw new Error('`--subgraph` requires `--dataset` or `--dataset-file`');
+			}
+			if (!env.lsClient) {
+				throw new Error('LangSmith client not initialized - check LANGSMITH_API_KEY');
+			}
+
+			summary = await runSubgraphEvaluation({
+				subgraph: args.subgraph,
+				subgraphRunner,
+				evaluators,
+				datasetName: args.datasetName,
+				langsmithClient: env.lsClient,
+				langsmithOptions: {
+					experimentName: args.experimentName ?? `${args.subgraph}-eval`,
+					repetitions: args.repetitions,
+					concurrency: args.concurrency,
+					maxExamples: args.maxExamples,
+					filters: args.filters,
+					experimentMetadata: {
+						...buildCIMetadata(),
+						subgraph: args.subgraph,
+					},
+				},
+				lifecycle,
+				logger,
+				outputDir: args.outputDir,
+				timeoutMs: args.timeoutMs,
+			});
+		}
+
+		if (args.webhookUrl) {
+			await sendWebhookNotification({
+				webhookUrl: args.webhookUrl,
+				webhookSecret: args.webhookSecret,
+				summary,
+				dataset: args.datasetFile ?? args.datasetName ?? 'local-dataset',
+				suite: args.suite,
+				metadata: { ...buildCIMetadata(), subgraph: args.subgraph },
+				logger,
+			});
+		}
+
+		process.exit(0);
 	}
 
 	// Create workflow generator with per-stage LLMs
