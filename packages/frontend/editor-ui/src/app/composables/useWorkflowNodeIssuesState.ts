@@ -569,6 +569,25 @@ export function useWorkflowNodeIssuesState(deps: WorkflowNodeIssuesDeps) {
 		}
 	}
 
+	/**
+	 * Merges the given issues into an existing node's issues.
+	 * This is used to update issues without recalculating all of them.
+	 */
+	function mergeNodeIssues(nodeName: string, issues: INodeIssues): void {
+		const node = workflowsStore.getNodeByName(nodeName);
+		if (!node) return;
+
+		updateNodeProperties({
+			name: nodeName,
+			properties: {
+				issues: {
+					...node.issues,
+					...issues,
+				},
+			},
+		});
+	}
+
 	return {
 		// Node issue update functions
 		updateNodeInputIssues,
@@ -581,6 +600,7 @@ export function useWorkflowNodeIssuesState(deps: WorkflowNodeIssuesDeps) {
 		updateNodeParameterIssues,
 		updateNodesCredentialsIssues,
 		disableNodes,
+		mergeNodeIssues,
 
 		// Helper functions that may be needed externally
 		getNodeIssues,
