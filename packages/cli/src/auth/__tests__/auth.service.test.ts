@@ -871,6 +871,86 @@ describe('AuthService', () => {
 				expiresAt: new Date('2024-02-08T01:23:45.000Z'),
 			});
 		});
+
+		it('should cache the invalidated token', async () => {
+			await authService.invalidateToken(req);
+
+			expect(cacheService.set).toHaveBeenCalledWith(
+				`invalid-auth-token:${validToken}`,
+				'1',
+				expect.any(Number),
+			);
+		});
+	});
+
+	describe('isTokenInvalid caching', () => {
+		const mockReq = () =>
+			mock<AuthenticatedRequest>({
+				cookies: { [AUTH_COOKIE_NAME]: validToken },
+				user: undefined,
+				browserId,
+			});
+		const res = mock<Response>();
+		const next = jest.fn() as NextFunction;
+
+		beforeEach(() => {
+			res.status.mockReturnThis();
+		});
+
+		it('should return invalid from cache without DB call', async () => {
+			const req = mockReq();
+			cacheService.get.mockResolvedValue('1');
+
+			const middleware = authService.createAuthMiddleware({ allowSkipMFA: true });
+			await middleware(req, res, next);
+
+			expect(cacheService.get).toHaveBeenCalled();
+			expect(invalidAuthTokenRepository.existsBy).not.toHaveBeenCalled();
+			expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAME);
+		});
+
+		it('should fall back to DB on cache miss', async () => {
+			const req = mockReq();
+			cacheService.get.mockResolvedValue(undefined);
+			invalidAuthTokenRepository.existsBy.mockResolvedValue(false);
+			userRepository.findOne.mockResolvedValue(user);
+
+			const middleware = authService.createAuthMiddleware({ allowSkipMFA: true });
+			await middleware(req, res, next);
+
+			expect(cacheService.get).toHaveBeenCalled();
+			expect(invalidAuthTokenRepository.existsBy).toHaveBeenCalled();
+			expect(next).toHaveBeenCalled();
+		});
+
+		it('should fall back to DB on cache failure', async () => {
+			const req = mockReq();
+			cacheService.get.mockRejectedValue(new Error('Redis down'));
+			invalidAuthTokenRepository.existsBy.mockResolvedValue(false);
+			userRepository.findOne.mockResolvedValue(user);
+
+			const middleware = authService.createAuthMiddleware({ allowSkipMFA: true });
+			await middleware(req, res, next);
+
+			expect(cacheService.get).toHaveBeenCalled();
+			expect(invalidAuthTokenRepository.existsBy).toHaveBeenCalled();
+			expect(next).toHaveBeenCalled();
+		});
+
+		it('should populate cache after DB hit', async () => {
+			const req = mockReq();
+			cacheService.get.mockResolvedValue(undefined);
+			invalidAuthTokenRepository.existsBy.mockResolvedValue(true);
+
+			const middleware = authService.createAuthMiddleware({ allowSkipMFA: true });
+			await middleware(req, res, next);
+
+			expect(cacheService.set).toHaveBeenCalledWith(
+				`invalid-auth-token:${validToken}`,
+				'1',
+				expect.any(Number),
+			);
+		});
 	});
 
 	describe('getCookieToken', () => {
