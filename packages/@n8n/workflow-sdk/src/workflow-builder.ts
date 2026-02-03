@@ -984,6 +984,9 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			if (graphNode.instance.type !== 'n8n-nodes-base.stickyNote') {
 				this.checkMissingExpressionPrefix(graphNode.instance, warnings, mapKey);
 			}
+
+			// Check for .toISOString() which should be .toISO() for Luxon DateTime
+			this.checkInvalidDateMethod(graphNode.instance, warnings, mapKey);
 		}
 
 		// Check: Subnode-only types used without proper AI connections
@@ -1523,6 +1526,73 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				),
 			);
 		}
+	}
+
+	/**
+	 * Check for .toISOString() usage which should be .toISO() for Luxon DateTime
+	 */
+	private checkInvalidDateMethod(
+		instance: NodeInstance<string, string, unknown>,
+		warnings: import('./validation/index').ValidationWarning[],
+		mapKey: string,
+	): void {
+		const { ValidationWarning } = require('./validation/index');
+		const params = instance.config?.parameters;
+		if (!params) return;
+
+		const originalName = instance.name;
+		const isRenamed = this.isAutoRenamed(mapKey, originalName);
+		const displayName = isRenamed ? mapKey : originalName;
+		const origForWarning = isRenamed ? originalName : undefined;
+		const nodeRef = this.formatNodeRef(displayName, origForWarning, instance.type);
+
+		const issues = this.findInvalidDateMethods(params);
+
+		for (const { path } of issues) {
+			warnings.push(
+				new ValidationWarning(
+					'INVALID_DATE_METHOD',
+					`${nodeRef} parameter "${path}" uses .toISOString() which is a JS Date method. ` +
+						`Use .toISO() for Luxon DateTime ($now, $today).`,
+					displayName,
+					origForWarning,
+				),
+			);
+		}
+	}
+
+	/**
+	 * Recursively find all string values containing .toISOString()
+	 */
+	private findInvalidDateMethods(
+		value: unknown,
+		path: string = '',
+	): Array<{ path: string; value: string }> {
+		const issues: Array<{ path: string; value: string }> = [];
+
+		if (typeof value === 'string') {
+			if (value.includes('.toISOString()')) {
+				issues.push({ path, value });
+			}
+		} else if (Array.isArray(value)) {
+			value.forEach((item, index) => {
+				issues.push(...this.findInvalidDateMethods(item, `${path}[${index}]`));
+			});
+		} else if (value && typeof value === 'object') {
+			// Skip PlaceholderValue objects
+			if (
+				'__placeholder' in value &&
+				(value as { __placeholder: boolean }).__placeholder === true
+			) {
+				return issues;
+			}
+			for (const [key, val] of Object.entries(value)) {
+				const newPath = path ? `${path}.${key}` : key;
+				issues.push(...this.findInvalidDateMethods(val, newPath));
+			}
+		}
+
+		return issues;
 	}
 
 	/**

@@ -27,7 +27,8 @@ export type ValidationErrorCode =
 	| 'SUBNODE_NOT_CONNECTED'
 	| 'MULTIPLE_MANUAL_TRIGGERS'
 	| 'INVALID_EXPRESSION_PATH'
-	| 'PARTIAL_EXPRESSION_PATH';
+	| 'PARTIAL_EXPRESSION_PATH'
+	| 'INVALID_DATE_METHOD';
 
 /**
  * Validation error class
