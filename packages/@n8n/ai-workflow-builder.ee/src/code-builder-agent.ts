@@ -1501,6 +1501,19 @@ ${'='.repeat(50)}
 				nodeNames: result.workflow.nodes.map((n) => n.name),
 				nodeTypes: result.workflow.nodes.map((n) => n.type),
 			});
+
+			// Stream workflow update to frontend for progressive rendering
+			yield {
+				messages: [
+					{
+						role: 'assistant',
+						type: 'workflow-updated',
+						codeSnippet: JSON.stringify(result.workflow, null, 2),
+						sourceCode: code,
+					} as WorkflowUpdateChunk,
+				],
+			};
+
 			yield {
 				messages: [
 					{
