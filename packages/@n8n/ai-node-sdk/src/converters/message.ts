@@ -2,7 +2,7 @@ import * as LangchainMessages from '@langchain/core/messages';
 
 import type * as N8nMessages from '../types/message';
 
-function convertToN8nRole(role: LangchainMessages.MessageType): N8nMessages.MessageRole {
+function fromLcRole(role: LangchainMessages.MessageType): N8nMessages.MessageRole {
 	switch (role) {
 		case 'system':
 			return 'system';
@@ -17,7 +17,7 @@ function convertToN8nRole(role: LangchainMessages.MessageType): N8nMessages.Mess
 	}
 }
 
-function mapLcContentToN8nContent(
+function fromLcContent(
 	content: string | LangchainMessages.ContentBlock | LangchainMessages.ContentBlock[],
 ): N8nMessages.MessageContent[] {
 	if (typeof content === 'string') {
@@ -80,7 +80,7 @@ function mapLcContentToN8nContent(
 		.filter((content): content is N8nMessages.MessageContent => content !== null);
 }
 
-export function convertToN8nMessage(msg: LangchainMessages.BaseMessage): N8nMessages.Message {
+export function fromLcMessage(msg: LangchainMessages.BaseMessage): N8nMessages.Message {
 	if (LangchainMessages.ToolMessage.isInstance(msg)) {
 		return {
 			role: 'tool',
@@ -88,7 +88,7 @@ export function convertToN8nMessage(msg: LangchainMessages.BaseMessage): N8nMess
 				{
 					type: 'tool-result',
 					toolCallId: msg.tool_call_id,
-					result: mapLcContentToN8nContent(msg.content),
+					result: fromLcContent(msg.content),
 					isError: false,
 					providerMetadata: msg.metadata,
 				},
@@ -96,7 +96,7 @@ export function convertToN8nMessage(msg: LangchainMessages.BaseMessage): N8nMess
 		};
 	}
 	if (LangchainMessages.AIMessage.isInstance(msg)) {
-		const content = mapLcContentToN8nContent(msg.content);
+		const content = fromLcContent(msg.content);
 		const toolsCalls = msg.tool_calls;
 		if (toolsCalls?.length) {
 			const mappedToolsCalls = toolsCalls.map<N8nMessages.ContentToolCall>((toolCall) => ({
@@ -112,7 +112,7 @@ export function convertToN8nMessage(msg: LangchainMessages.BaseMessage): N8nMess
 	if (LangchainMessages.SystemMessage.isInstance(msg)) {
 		return {
 			role: 'system',
-			content: mapLcContentToN8nContent(msg.content),
+			content: fromLcContent(msg.content),
 			id: msg.id,
 			name: msg.name,
 		};
@@ -120,15 +120,15 @@ export function convertToN8nMessage(msg: LangchainMessages.BaseMessage): N8nMess
 	if (LangchainMessages.HumanMessage.isInstance(msg)) {
 		return {
 			role: 'human',
-			content: mapLcContentToN8nContent(msg.content),
+			content: fromLcContent(msg.content),
 			id: msg.id,
 			name: msg.name,
 		};
 	}
 	if (LangchainMessages.BaseMessage.isInstance(msg)) {
 		return {
-			role: convertToN8nRole(msg.type),
-			content: mapLcContentToN8nContent(msg.content),
+			role: fromLcRole(msg.type),
+			content: fromLcContent(msg.content),
 			id: msg.id,
 			name: msg.name,
 		};

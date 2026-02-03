@@ -8,7 +8,7 @@ import type { ChatResult } from '@langchain/core/outputs';
 import { ChatGenerationChunk } from '@langchain/core/outputs';
 import type { Runnable } from '@langchain/core/runnables';
 
-import { convertToN8nMessage } from '../converters/message';
+import { fromLcMessage } from '../converters/message';
 import { toN8nTool } from '../converters/tool';
 import type { ChatModel, ChatModelConfig } from '../types/chat-model';
 
@@ -28,7 +28,7 @@ export class LangchainAdapter<
 		options: this['ParsedCallOptions'],
 	): Promise<ChatResult> {
 		// Convert LangChain messages to generic messages
-		const genericMessages = messages.map(convertToN8nMessage);
+		const genericMessages = messages.map(fromLcMessage);
 		// Call generic model
 		const result = await this.genericModel.generate(genericMessages, options);
 
@@ -93,7 +93,7 @@ export class LangchainAdapter<
 		options: this['ParsedCallOptions'],
 		runManager?: CallbackManagerForLLMRun,
 	): AsyncGenerator<ChatGenerationChunk> {
-		const genericMessages = messages.map(convertToN8nMessage);
+		const genericMessages = messages.map(fromLcMessage);
 		const stream = this.genericModel.stream(genericMessages, options);
 
 		for await (const chunk of stream) {

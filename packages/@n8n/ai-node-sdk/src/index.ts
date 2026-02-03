@@ -17,6 +17,5 @@ export type { ServerSentEventMessage } from './utils/sse';
 
 export { LangchainAdapter } from './adapters/langchain';
 export { BaseChatModel } from './chat-model/base';
-export { convertToN8nMessage } from './converters/message';
-export { toN8nTool, getParametersJsonSchema } from './converters/tool';
+export { getParametersJsonSchema } from './converters/tool';
 export { parseSSEStream } from './utils/sse';
