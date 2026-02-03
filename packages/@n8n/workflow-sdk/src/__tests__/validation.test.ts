@@ -1564,4 +1564,321 @@ describe('Validation', () => {
 			expect(dateMethodWarning?.nodeName).toBe('Date Formatter');
 		});
 	});
+
+	describe('SUBNODE_PARAMETER_MISMATCH validation', () => {
+		// Mock node types provider that returns builderHint.inputs with displayOptions
+		// Note: builderHint is on description, not on the INodeType directly
+		const mockNodeTypesProviderWithBuilderHints = {
+			getByNameAndVersion: (type: string, _version?: number) => {
+				if (type === '@n8n/n8n-nodes-langchain.agent') {
+					return {
+						description: {
+							inputs: ['main'],
+							builderHint: {
+								inputs: {
+									ai_languageModel: { required: true },
+									ai_tool: {
+										required: false,
+										displayOptions: {
+											show: { mode: ['retrieve-as-tool'] },
+										},
+									},
+									ai_vectorStore: {
+										required: false,
+										displayOptions: {
+											show: { mode: ['retrieve'] },
+										},
+									},
+								},
+							},
+						},
+					};
+				}
+				if (type === '@n8n/n8n-nodes-langchain.vectorStorePinecone') {
+					return { description: { inputs: ['main'] } };
+				}
+				if (type === '@n8n/n8n-nodes-langchain.lmChatOpenAi') {
+					return { description: { inputs: [] } };
+				}
+				return { description: { inputs: ['main'] } };
+			},
+			getByName: (type: string) => mockNodeTypesProviderWithBuilderHints.getByNameAndVersion(type),
+			getKnownTypes: () => ({}),
+		};
+
+		it('should warn when subnode mode does not match expected displayOptions', () => {
+			// Create workflow JSON directly to have control over AI connections
+			const workflowJson = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{
+						id: 'trigger-1',
+						name: 'Manual Trigger',
+						type: 'n8n-nodes-base.manualTrigger',
+						typeVersion: 1,
+						position: [0, 0] as [number, number],
+						parameters: {},
+					},
+					{
+						id: 'agent-1',
+						name: 'AI Agent',
+						type: '@n8n/n8n-nodes-langchain.agent',
+						typeVersion: 1.7,
+						position: [200, 0] as [number, number],
+						parameters: { text: 'Hello' },
+					},
+					{
+						id: 'model-1',
+						name: 'OpenAI Model',
+						type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+						typeVersion: 1.2,
+						position: [200, 100] as [number, number],
+						parameters: { model: 'gpt-4o' },
+					},
+					{
+						id: 'pinecone-1',
+						name: 'Pinecone Retriever',
+						type: '@n8n/n8n-nodes-langchain.vectorStorePinecone',
+						typeVersion: 1,
+						position: [200, 200] as [number, number],
+						parameters: {
+							mode: 'retrieve', // WRONG: connected as ai_tool but mode='retrieve'
+						},
+					},
+				],
+				connections: {
+					'Manual Trigger': {
+						main: [[{ node: 'AI Agent', type: 'main', index: 0 }]],
+					},
+					'OpenAI Model': {
+						ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel', index: 0 }]],
+					},
+					'Pinecone Retriever': {
+						// Connected as ai_tool but mode='retrieve' expects ai_vectorStore
+						ai_tool: [[{ node: 'AI Agent', type: 'ai_tool', index: 0 }]],
+					},
+				},
+			};
+
+			const result = validateWorkflow(workflowJson, {
+				nodeTypesProvider: mockNodeTypesProviderWithBuilderHints as never,
+			});
+
+			const mismatchWarnings = result.warnings.filter(
+				(w) => w.code === 'SUBNODE_PARAMETER_MISMATCH',
+			);
+			expect(mismatchWarnings).toHaveLength(1);
+			expect(mismatchWarnings[0].nodeName).toBe('Pinecone Retriever');
+			expect(mismatchWarnings[0].message).toContain("mode='retrieve'");
+			expect(mismatchWarnings[0].message).toContain("'retrieve-as-tool'");
+			expect(mismatchWarnings[0].message).toContain('tool()');
+		});
+
+		it('should not warn when subnode mode matches expected displayOptions', () => {
+			const workflowJson = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{
+						id: 'trigger-1',
+						name: 'Manual Trigger',
+						type: 'n8n-nodes-base.manualTrigger',
+						typeVersion: 1,
+						position: [0, 0] as [number, number],
+						parameters: {},
+					},
+					{
+						id: 'agent-1',
+						name: 'AI Agent',
+						type: '@n8n/n8n-nodes-langchain.agent',
+						typeVersion: 1.7,
+						position: [200, 0] as [number, number],
+						parameters: { text: 'Hello' },
+					},
+					{
+						id: 'model-1',
+						name: 'OpenAI Model',
+						type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+						typeVersion: 1.2,
+						position: [200, 100] as [number, number],
+						parameters: { model: 'gpt-4o' },
+					},
+					{
+						id: 'pinecone-1',
+						name: 'Pinecone Retriever',
+						type: '@n8n/n8n-nodes-langchain.vectorStorePinecone',
+						typeVersion: 1,
+						position: [200, 200] as [number, number],
+						parameters: {
+							mode: 'retrieve-as-tool', // CORRECT: matches ai_tool displayOptions
+						},
+					},
+				],
+				connections: {
+					'Manual Trigger': {
+						main: [[{ node: 'AI Agent', type: 'main', index: 0 }]],
+					},
+					'OpenAI Model': {
+						ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel', index: 0 }]],
+					},
+					'Pinecone Retriever': {
+						ai_tool: [[{ node: 'AI Agent', type: 'ai_tool', index: 0 }]],
+					},
+				},
+			};
+
+			const result = validateWorkflow(workflowJson, {
+				nodeTypesProvider: mockNodeTypesProviderWithBuilderHints as never,
+			});
+
+			const mismatchWarnings = result.warnings.filter(
+				(w) => w.code === 'SUBNODE_PARAMETER_MISMATCH',
+			);
+			expect(mismatchWarnings).toHaveLength(0);
+		});
+
+		it('should warn when connected as ai_vectorStore but has mode=retrieve-as-tool', () => {
+			const workflowJson = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{
+						id: 'trigger-1',
+						name: 'Manual Trigger',
+						type: 'n8n-nodes-base.manualTrigger',
+						typeVersion: 1,
+						position: [0, 0] as [number, number],
+						parameters: {},
+					},
+					{
+						id: 'agent-1',
+						name: 'AI Agent',
+						type: '@n8n/n8n-nodes-langchain.agent',
+						typeVersion: 1.7,
+						position: [200, 0] as [number, number],
+						parameters: { text: 'Hello' },
+					},
+					{
+						id: 'model-1',
+						name: 'OpenAI Model',
+						type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+						typeVersion: 1.2,
+						position: [200, 100] as [number, number],
+						parameters: { model: 'gpt-4o' },
+					},
+					{
+						id: 'pinecone-1',
+						name: 'Pinecone VS',
+						type: '@n8n/n8n-nodes-langchain.vectorStorePinecone',
+						typeVersion: 1,
+						position: [200, 200] as [number, number],
+						parameters: {
+							mode: 'retrieve-as-tool', // WRONG: connected as ai_vectorStore but mode expects ai_tool
+						},
+					},
+				],
+				connections: {
+					'Manual Trigger': {
+						main: [[{ node: 'AI Agent', type: 'main', index: 0 }]],
+					},
+					'OpenAI Model': {
+						ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel', index: 0 }]],
+					},
+					'Pinecone VS': {
+						ai_vectorStore: [[{ node: 'AI Agent', type: 'ai_vectorStore', index: 0 }]],
+					},
+				},
+			};
+
+			const result = validateWorkflow(workflowJson, {
+				nodeTypesProvider: mockNodeTypesProviderWithBuilderHints as never,
+			});
+
+			const mismatchWarnings = result.warnings.filter(
+				(w) => w.code === 'SUBNODE_PARAMETER_MISMATCH',
+			);
+			expect(mismatchWarnings).toHaveLength(1);
+			expect(mismatchWarnings[0].nodeName).toBe('Pinecone VS');
+			expect(mismatchWarnings[0].message).toContain("mode='retrieve-as-tool'");
+			expect(mismatchWarnings[0].message).toContain("'retrieve'");
+			expect(mismatchWarnings[0].message).toContain('vectorStore()');
+		});
+
+		it('should skip validation when no nodeTypesProvider given', () => {
+			const workflowJson = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{
+						id: 'agent-1',
+						name: 'AI Agent',
+						type: '@n8n/n8n-nodes-langchain.agent',
+						typeVersion: 1.7,
+						position: [200, 0] as [number, number],
+						parameters: { text: 'Hello' },
+					},
+					{
+						id: 'pinecone-1',
+						name: 'Pinecone',
+						type: '@n8n/n8n-nodes-langchain.vectorStorePinecone',
+						typeVersion: 1,
+						position: [200, 200] as [number, number],
+						parameters: { mode: 'retrieve' }, // Wrong mode but no provider
+					},
+				],
+				connections: {
+					Pinecone: {
+						ai_tool: [[{ node: 'AI Agent', type: 'ai_tool', index: 0 }]],
+					},
+				},
+			};
+
+			// No nodeTypesProvider - validation should be skipped
+			const result = validateWorkflow(workflowJson);
+
+			const mismatchWarnings = result.warnings.filter(
+				(w) => w.code === 'SUBNODE_PARAMETER_MISMATCH',
+			);
+			expect(mismatchWarnings).toHaveLength(0);
+		});
+
+		it('should include parameterPath in the warning', () => {
+			const workflowJson = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{
+						id: 'agent-1',
+						name: 'AI Agent',
+						type: '@n8n/n8n-nodes-langchain.agent',
+						typeVersion: 1.7,
+						position: [200, 0] as [number, number],
+						parameters: { text: 'Hello' },
+					},
+					{
+						id: 'pinecone-1',
+						name: 'Pinecone',
+						type: '@n8n/n8n-nodes-langchain.vectorStorePinecone',
+						typeVersion: 1,
+						position: [200, 200] as [number, number],
+						parameters: { mode: 'retrieve' },
+					},
+				],
+				connections: {
+					Pinecone: {
+						ai_tool: [[{ node: 'AI Agent', type: 'ai_tool', index: 0 }]],
+					},
+				},
+			};
+
+			const result = validateWorkflow(workflowJson, {
+				nodeTypesProvider: mockNodeTypesProviderWithBuilderHints as never,
+			});
+
+			const warning = result.warnings.find((w) => w.code === 'SUBNODE_PARAMETER_MISMATCH');
+			expect(warning).toBeDefined();
+			expect(warning?.parameterPath).toBe('mode');
+		});
+	});
 });
