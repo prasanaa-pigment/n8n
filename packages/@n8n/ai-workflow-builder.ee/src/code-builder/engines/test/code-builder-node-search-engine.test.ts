@@ -1,3 +1,10 @@
+/**
+ * Tests for Code Builder Node Search Engine
+ *
+ * This is a fork of tools/engines/test/node-search-engine.test.ts for the code-builder agent.
+ * It tests the additional features specific to the code-builder workflow generation approach.
+ */
+
 import {
 	NodeConnectionTypes,
 	type INodeTypeDescription,
@@ -5,10 +12,10 @@ import {
 } from 'n8n-workflow';
 
 import { createNodeType } from '../../../../test/test-utils';
-import { NodeSearchEngine, SCORE_WEIGHTS } from '../node-search-engine';
+import { CodeBuilderNodeSearchEngine, SCORE_WEIGHTS } from '../code-builder-node-search-engine';
 
-describe('NodeSearchEngine', () => {
-	let searchEngine: NodeSearchEngine;
+describe('CodeBuilderNodeSearchEngine', () => {
+	let searchEngine: CodeBuilderNodeSearchEngine;
 	let nodeTypes: INodeTypeDescription[];
 
 	beforeEach(() => {
@@ -69,7 +76,7 @@ describe('NodeSearchEngine', () => {
 			}),
 		];
 
-		searchEngine = new NodeSearchEngine(nodeTypes);
+		searchEngine = new CodeBuilderNodeSearchEngine(nodeTypes);
 	});
 
 	describe('searchByName', () => {
@@ -148,7 +155,7 @@ describe('NodeSearchEngine', () => {
 				displayName: 'Test Node',
 				description: undefined,
 			});
-			const engine = new NodeSearchEngine([nodeWithoutDesc]);
+			const engine = new CodeBuilderNodeSearchEngine([nodeWithoutDesc]);
 
 			const results = engine.searchByName('test');
 
@@ -163,7 +170,7 @@ describe('NodeSearchEngine', () => {
 				displayName: undefined as unknown as string,
 			} as INodeTypeDescription;
 
-			const engineWithMalformed = new NodeSearchEngine([...nodeTypes, malformedNode]);
+			const engineWithMalformed = new CodeBuilderNodeSearchEngine([...nodeTypes, malformedNode]);
 
 			// Should not throw and should return valid results
 			expect(() => engineWithMalformed.searchByName('http')).not.toThrow();
@@ -188,7 +195,7 @@ describe('NodeSearchEngine', () => {
 				displayName: 'Code Tool',
 				outputs: ['ai_tool'],
 			});
-			const engine = new NodeSearchEngine([...nodeTypes, anotherTool]);
+			const engine = new CodeBuilderNodeSearchEngine([...nodeTypes, anotherTool]);
 
 			const results = engine.searchByConnectionType(NodeConnectionTypes.AiTool);
 
@@ -224,7 +231,7 @@ describe('NodeSearchEngine', () => {
 				displayName: 'Expression Node',
 				outputs: '={{ $parameter.mode === "tool" ? "ai_tool" : "main" }}',
 			});
-			const engine = new NodeSearchEngine([...nodeTypes, expressionNode]);
+			const engine = new CodeBuilderNodeSearchEngine([...nodeTypes, expressionNode]);
 
 			const results = engine.searchByConnectionType(NodeConnectionTypes.AiTool);
 
@@ -246,7 +253,7 @@ describe('NodeSearchEngine', () => {
 				displayName: 'Something Else',
 				outputs: '={{ "ai_tool" }}',
 			});
-			const engine = new NodeSearchEngine([...nodeTypes, exactMatch, expressionMatch]);
+			const engine = new CodeBuilderNodeSearchEngine([...nodeTypes, exactMatch, expressionMatch]);
 
 			const results = engine.searchByConnectionType(NodeConnectionTypes.AiTool, 20, 'calculator');
 
@@ -283,7 +290,7 @@ describe('NodeSearchEngine', () => {
 					outputs: ['ai_tool'],
 				}),
 			);
-			const engine = new NodeSearchEngine([...nodeTypes, ...manyNodes]);
+			const engine = new CodeBuilderNodeSearchEngine([...nodeTypes, ...manyNodes]);
 
 			const results = engine.searchByConnectionType(NodeConnectionTypes.AiTool, 5);
 
@@ -370,14 +377,14 @@ describe('NodeSearchEngine', () => {
 
 	describe('static methods', () => {
 		it('should identify AI connection types', () => {
-			expect(NodeSearchEngine.isAiConnectionType('ai_tool')).toBe(true);
-			expect(NodeSearchEngine.isAiConnectionType('ai_languageModel')).toBe(true);
-			expect(NodeSearchEngine.isAiConnectionType('main')).toBe(false);
-			expect(NodeSearchEngine.isAiConnectionType('Main')).toBe(false);
+			expect(CodeBuilderNodeSearchEngine.isAiConnectionType('ai_tool')).toBe(true);
+			expect(CodeBuilderNodeSearchEngine.isAiConnectionType('ai_languageModel')).toBe(true);
+			expect(CodeBuilderNodeSearchEngine.isAiConnectionType('main')).toBe(false);
+			expect(CodeBuilderNodeSearchEngine.isAiConnectionType('Main')).toBe(false);
 		});
 
 		it('should get all AI connection types', () => {
-			const aiTypes = NodeSearchEngine.getAiConnectionTypes();
+			const aiTypes = CodeBuilderNodeSearchEngine.getAiConnectionTypes();
 
 			expect(aiTypes).toContain(NodeConnectionTypes.AiTool);
 			expect(aiTypes).toContain(NodeConnectionTypes.AiLanguageModel);
@@ -393,7 +400,7 @@ describe('NodeSearchEngine', () => {
 
 	describe('edge cases and error handling', () => {
 		it('should handle empty node types array', () => {
-			const emptyEngine = new NodeSearchEngine([]);
+			const emptyEngine = new CodeBuilderNodeSearchEngine([]);
 
 			expect(emptyEngine.searchByName('test')).toEqual([]);
 			expect(emptyEngine.searchByConnectionType(NodeConnectionTypes.AiTool)).toEqual([]);
@@ -408,7 +415,7 @@ describe('NodeSearchEngine', () => {
 					alias: null as unknown as string[],
 				},
 			});
-			const engine = new NodeSearchEngine([nodeWithNulls]);
+			const engine = new CodeBuilderNodeSearchEngine([nodeWithNulls]);
 
 			expect(() => engine.searchByName('null')).not.toThrow();
 			const results = engine.searchByName('null');
@@ -451,7 +458,7 @@ describe('NodeSearchEngine', () => {
 				version: 3,
 			});
 
-			const engine = new NodeSearchEngine([nodeV1, nodeV2, nodeV3]);
+			const engine = new CodeBuilderNodeSearchEngine([nodeV1, nodeV2, nodeV3]);
 			const results = engine.searchByName('http');
 
 			// Should only return one node (the latest version)
@@ -472,7 +479,7 @@ describe('NodeSearchEngine', () => {
 				version: [2, 3],
 			});
 
-			const engine = new NodeSearchEngine([nodeV1, nodeV2V3]);
+			const engine = new CodeBuilderNodeSearchEngine([nodeV1, nodeV2V3]);
 			const results = engine.searchByName('code');
 
 			// Should return the node with array version [2, 3] as latest
@@ -493,7 +500,7 @@ describe('NodeSearchEngine', () => {
 				version: 3,
 			});
 
-			const engine = new NodeSearchEngine([nodeV1V2, nodeV3]);
+			const engine = new CodeBuilderNodeSearchEngine([nodeV1V2, nodeV3]);
 			const results = engine.searchByName('webhook');
 
 			expect(results).toHaveLength(1);
@@ -528,6 +535,311 @@ describe('NodeSearchEngine', () => {
 			const formatted = searchEngine.formatResult(results[0]);
 			expect(formatted).toContain('<node_version>');
 			expect(formatted).toMatch(/<node_version>\d+<\/node_version>/);
+		});
+	});
+
+	describe('subnode requirements', () => {
+		it('should extract subnode requirements from builderHint.inputs', () => {
+			const agentNode = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.agent',
+				displayName: 'AI Agent',
+				builderHint: {
+					inputs: {
+						ai_languageModel: { required: true },
+						ai_memory: { required: false },
+						ai_tool: { required: false },
+						ai_outputParser: {
+							required: false,
+							displayOptions: { show: { hasOutputParser: [true] } },
+						},
+					},
+					message: 'Use with output parser for structured output',
+				},
+			});
+			const engine = new CodeBuilderNodeSearchEngine([agentNode]);
+
+			const results = engine.searchByName('agent');
+
+			expect(results).toHaveLength(1);
+			expect(results[0].subnodeRequirements).toBeDefined();
+			expect(results[0].subnodeRequirements).toHaveLength(4);
+
+			// Check required language model
+			const lmReq = results[0].subnodeRequirements!.find(
+				(r) => r.connectionType === 'ai_languageModel',
+			);
+			expect(lmReq).toBeDefined();
+			expect(lmReq!.required).toBe(true);
+
+			// Check optional memory
+			const memReq = results[0].subnodeRequirements!.find((r) => r.connectionType === 'ai_memory');
+			expect(memReq).toBeDefined();
+			expect(memReq!.required).toBe(false);
+
+			// Check conditional output parser
+			const parserReq = results[0].subnodeRequirements!.find(
+				(r) => r.connectionType === 'ai_outputParser',
+			);
+			expect(parserReq).toBeDefined();
+			expect(parserReq!.required).toBe(false);
+			expect(parserReq!.displayOptions).toEqual({ show: { hasOutputParser: [true] } });
+
+			// Check builder hint message
+			expect(results[0].builderHintMessage).toBe('Use with output parser for structured output');
+		});
+
+		it('should not include subnodeRequirements for nodes without builderHint.inputs', () => {
+			const basicNode = createNodeType({
+				name: 'n8n-nodes-base.httpRequest',
+				displayName: 'HTTP Request',
+			});
+			const engine = new CodeBuilderNodeSearchEngine([basicNode]);
+
+			const results = engine.searchByName('http');
+
+			expect(results).toHaveLength(1);
+			expect(results[0].subnodeRequirements).toBeUndefined();
+		});
+
+		it('should include subnodeRequirements in searchByConnectionType results', () => {
+			const openAiModel = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				displayName: 'OpenAI Chat Model',
+				outputs: ['ai_languageModel'],
+				builderHint: {
+					inputs: {
+						ai_embedding: { required: false },
+					},
+				},
+			});
+			const engine = new CodeBuilderNodeSearchEngine([openAiModel]);
+
+			const results = engine.searchByConnectionType(NodeConnectionTypes.AiLanguageModel);
+
+			expect(results).toHaveLength(1);
+			expect(results[0].subnodeRequirements).toBeDefined();
+			expect(results[0].subnodeRequirements).toHaveLength(1);
+			expect(results[0].subnodeRequirements![0].connectionType).toBe('ai_embedding');
+		});
+
+		it('should format subnode requirements in XML output', () => {
+			const agentNode = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.agent',
+				displayName: 'AI Agent',
+				builderHint: {
+					inputs: {
+						ai_languageModel: { required: true },
+						ai_outputParser: {
+							required: false,
+							displayOptions: { show: { hasOutputParser: [true] } },
+						},
+					},
+					message: 'Test hint message',
+				},
+			});
+			const engine = new CodeBuilderNodeSearchEngine([agentNode]);
+
+			const results = engine.searchByName('agent');
+			const formatted = engine.formatResult(results[0]);
+
+			// Check builder hint
+			expect(formatted).toContain('<builder_hint>Test hint message</builder_hint>');
+
+			// Check subnode requirements section
+			expect(formatted).toContain('<subnode_requirements>');
+			expect(formatted).toContain('type="ai_languageModel"');
+			expect(formatted).toContain('status="required"');
+			expect(formatted).toContain('type="ai_outputParser"');
+			expect(formatted).toContain('status="optional"');
+			expect(formatted).toContain('<display_options>');
+			expect(formatted).toContain('hasOutputParser');
+			expect(formatted).toContain('</subnode_requirements>');
+		});
+
+		it('should not include subnode_requirements in XML for nodes without inputs', () => {
+			const basicNode = createNodeType({
+				name: 'n8n-nodes-base.code',
+				displayName: 'Code',
+			});
+			const engine = new CodeBuilderNodeSearchEngine([basicNode]);
+
+			const results = engine.searchByName('code');
+			const formatted = engine.formatResult(results[0]);
+
+			expect(formatted).not.toContain('<subnode_requirements>');
+			expect(formatted).not.toContain('<builder_hint>');
+		});
+	});
+
+	describe('getSubnodesForConnectionType', () => {
+		it('should return default subnodes for ai_languageModel', () => {
+			const engine = new CodeBuilderNodeSearchEngine([]);
+
+			const subnodes = engine.getSubnodesForConnectionType('ai_languageModel');
+
+			expect(subnodes).toContain('@n8n/n8n-nodes-langchain.lmChatOpenAi');
+		});
+
+		it('should return default subnodes for ai_memory', () => {
+			const engine = new CodeBuilderNodeSearchEngine([]);
+
+			const subnodes = engine.getSubnodesForConnectionType('ai_memory');
+
+			expect(subnodes).toContain('@n8n/n8n-nodes-langchain.memoryBufferWindow');
+		});
+
+		it('should return default subnodes for ai_embedding', () => {
+			const engine = new CodeBuilderNodeSearchEngine([]);
+
+			const subnodes = engine.getSubnodesForConnectionType('ai_embedding');
+
+			expect(subnodes).toContain('@n8n/n8n-nodes-langchain.embeddingsOpenAi');
+		});
+
+		it('should return empty array for ai_tool (varies by use case)', () => {
+			const engine = new CodeBuilderNodeSearchEngine([]);
+
+			const subnodes = engine.getSubnodesForConnectionType('ai_tool');
+
+			expect(subnodes).toEqual([]);
+		});
+
+		it('should return empty array for unknown connection type', () => {
+			const engine = new CodeBuilderNodeSearchEngine([]);
+
+			const subnodes = engine.getSubnodesForConnectionType('unknown_type');
+
+			expect(subnodes).toEqual([]);
+		});
+	});
+
+	describe('getRelatedSubnodeIds', () => {
+		it('should find related subnodes based on builderHint.inputs', () => {
+			const agentNode = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.agent',
+				displayName: 'AI Agent',
+				builderHint: {
+					inputs: {
+						ai_languageModel: { required: true },
+						ai_memory: { required: false },
+					},
+				},
+			});
+			const openAiModel = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				displayName: 'OpenAI Chat Model',
+				outputs: ['ai_languageModel'],
+			});
+			const bufferMemory = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+				displayName: 'Window Buffer Memory',
+				outputs: ['ai_memory'],
+			});
+			const engine = new CodeBuilderNodeSearchEngine([agentNode, openAiModel, bufferMemory]);
+
+			const relatedIds = engine.getRelatedSubnodeIds(['@n8n/n8n-nodes-langchain.agent'], new Set());
+
+			expect(relatedIds.has('@n8n/n8n-nodes-langchain.lmChatOpenAi')).toBe(true);
+			expect(relatedIds.has('@n8n/n8n-nodes-langchain.memoryBufferWindow')).toBe(true);
+		});
+
+		it('should recursively find nested subnode requirements', () => {
+			// Create a chain: Vector Store Memory -> In-Memory Vector Store -> OpenAI Embeddings
+			const vectorMemory = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.memoryVectorStore',
+				displayName: 'Vector Store Memory',
+				outputs: ['ai_memory'],
+				builderHint: {
+					inputs: {
+						ai_vectorStore: { required: true },
+					},
+				},
+			});
+			const inMemoryVectorStore = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+				displayName: 'In-Memory Vector Store',
+				outputs: ['ai_vectorStore'],
+				builderHint: {
+					inputs: {
+						ai_embedding: { required: true },
+					},
+				},
+			});
+			const openAiEmbeddings = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.embeddingsOpenAi',
+				displayName: 'OpenAI Embeddings',
+				outputs: ['ai_embedding'],
+			});
+
+			const engine = new CodeBuilderNodeSearchEngine([
+				vectorMemory,
+				inMemoryVectorStore,
+				openAiEmbeddings,
+			]);
+
+			const relatedIds = engine.getRelatedSubnodeIds(
+				['@n8n/n8n-nodes-langchain.memoryVectorStore'],
+				new Set(),
+			);
+
+			// Should find the in-memory vector store (direct requirement)
+			expect(relatedIds.has('@n8n/n8n-nodes-langchain.vectorStoreInMemory')).toBe(true);
+			// Should also find OpenAI embeddings (nested requirement of vector store)
+			expect(relatedIds.has('@n8n/n8n-nodes-langchain.embeddingsOpenAi')).toBe(true);
+		});
+
+		it('should exclude already shown node IDs', () => {
+			const agentNode = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.agent',
+				displayName: 'AI Agent',
+				builderHint: {
+					inputs: {
+						ai_languageModel: { required: true },
+					},
+				},
+			});
+			const openAiModel = createNodeType({
+				name: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				displayName: 'OpenAI Chat Model',
+				outputs: ['ai_languageModel'],
+			});
+			const engine = new CodeBuilderNodeSearchEngine([agentNode, openAiModel]);
+
+			// Exclude OpenAI model from results
+			const relatedIds = engine.getRelatedSubnodeIds(
+				['@n8n/n8n-nodes-langchain.agent'],
+				new Set(['@n8n/n8n-nodes-langchain.lmChatOpenAi']),
+			);
+
+			expect(relatedIds.has('@n8n/n8n-nodes-langchain.lmChatOpenAi')).toBe(false);
+		});
+
+		it('should return empty set for nodes without builderHint.inputs', () => {
+			const basicNode = createNodeType({
+				name: 'n8n-nodes-base.httpRequest',
+				displayName: 'HTTP Request',
+			});
+			const engine = new CodeBuilderNodeSearchEngine([basicNode]);
+
+			const relatedIds = engine.getRelatedSubnodeIds(['n8n-nodes-base.httpRequest'], new Set());
+
+			expect(relatedIds.size).toBe(0);
+		});
+	});
+
+	describe('getNodeType', () => {
+		it('should return node type by ID', () => {
+			const nodeType = searchEngine.getNodeType('n8n-nodes-base.code');
+
+			expect(nodeType).toBeDefined();
+			expect(nodeType!.name).toBe('n8n-nodes-base.code');
+			expect(nodeType!.displayName).toBe('Code');
+		});
+
+		it('should return undefined for non-existent node', () => {
+			const nodeType = searchEngine.getNodeType('nonexistent.node');
+
+			expect(nodeType).toBeUndefined();
 		});
 	});
 });
