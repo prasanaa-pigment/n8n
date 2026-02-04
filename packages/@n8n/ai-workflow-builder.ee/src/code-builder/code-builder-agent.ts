@@ -604,15 +604,6 @@ ${'='.repeat(50)}
 				iterations: iteration,
 			});
 
-			// Calculate stats
-			const totalDuration = Date.now() - startTime;
-
-			this.debugLog('CHAT', 'Request stats', {
-				totalDurationMs: totalDuration,
-				totalInputTokens,
-				totalOutputTokens,
-			});
-
 			// Stream workflow update
 			this.debugLog('CHAT', 'Streaming workflow update');
 			yield {
