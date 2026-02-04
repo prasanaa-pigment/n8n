@@ -20,7 +20,6 @@ export default defineConfig(
 			'@typescript-eslint/no-unsafe-member-access': 'warn',
 			'@typescript-eslint/no-unsafe-call': 'warn',
 			'@typescript-eslint/no-unsafe-argument': 'warn',
-			'@typescript-eslint/no-unsafe-return': 'warn',
 			'@typescript-eslint/no-base-to-string': 'warn',
 			'@typescript-eslint/restrict-template-expressions': 'warn',
 			'@typescript-eslint/prefer-nullish-coalescing': 'warn',
