@@ -37,3 +37,17 @@ export type {
 	ValidationFeedbackResult,
 	ParseErrorResult,
 } from './handlers/parse-validate-handler';
+
+export { ValidateToolHandler } from './handlers/validate-tool-handler';
+export type {
+	ValidateToolHandlerConfig,
+	ValidateToolParams,
+	ValidateToolResult,
+} from './handlers/validate-tool-handler';
+
+export { TextEditorToolHandler } from './handlers/text-editor-tool-handler';
+export type {
+	TextEditorToolHandlerConfig,
+	TextEditorToolParams,
+	TextEditorToolResult,
+} from './handlers/text-editor-tool-handler';
