@@ -700,7 +700,7 @@ export class Zammad implements INodeType {
 						const { customFieldsUi, ...additionalFields } = this.getNodeParameter(
 							'additionalFields',
 							i,
-						) as IDataObject;
+						);
 
 						if (customFieldsUi) {
 							const customFields = customFieldsUi as {
@@ -755,7 +755,7 @@ export class Zammad implements INodeType {
 							throwOnEmptyUpdate.call(this, resource);
 						}
 
-						const { note, customFieldsUi, ...rest } = updateFields as IDataObject;
+						const { note, customFieldsUi, ...rest } = updateFields;
 
 						if (note) {
 							body.article = {
