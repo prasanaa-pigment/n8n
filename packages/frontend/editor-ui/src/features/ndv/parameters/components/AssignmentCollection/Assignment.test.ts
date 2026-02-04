@@ -1,14 +1,12 @@
 import { defaultSettings } from '@/__tests__/defaults';
 import { createComponentRenderer, type RenderOptions } from '@/__tests__/render';
 import { getTooltip, hoverTooltipTrigger } from '@/__tests__/utils';
-import * as useResolvedExpression from '@/app/composables/useResolvedExpression';
 import * as workflowHelpers from '@/app/composables/useWorkflowHelpers';
 import { STORES } from '@n8n/stores';
 import { createTestingPinia } from '@pinia/testing';
 import userEvent from '@testing-library/user-event';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/vue';
+import { cleanup, screen, waitFor, within } from '@testing-library/vue';
 import merge from 'lodash/merge';
-import { computed, nextTick, ref } from 'vue';
 import Assignment from './Assignment.vue';
 import { flushPromises } from '@vue/test-utils';
 

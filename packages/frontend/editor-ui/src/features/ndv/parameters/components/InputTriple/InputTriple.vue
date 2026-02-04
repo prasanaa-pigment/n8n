@@ -86,6 +86,10 @@ withDefaults(defineProps<Props>(), { middleWidth: '160px' });
 		&:first-child {
 			margin-top: 0;
 		}
+
+		&:not(:first-child) {
+			--parameter-input-options--height: 0;
+		}
 	}
 
 	.itemMiddle {
