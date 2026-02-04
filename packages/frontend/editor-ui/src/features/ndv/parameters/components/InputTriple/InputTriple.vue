@@ -78,6 +78,15 @@ withDefaults(defineProps<Props>(), { middleWidth: '160px' });
 
 	--input--radius: 0;
 
+	// Suppress N8nInput's border since .background div handles it
+	--input--border-color: transparent;
+	--input--border-width: 0;
+
+	// Remove gap that breaks visual unity with .background div
+	:global(.n8n-input) {
+		gap: 0;
+	}
+
 	&:focus-within {
 		z-index: 1;
 	}
