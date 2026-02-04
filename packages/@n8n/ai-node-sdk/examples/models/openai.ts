@@ -19,13 +19,17 @@ import { parseSSEStream } from '../../src/utils/sse';
 /**
  * OpenAI API tool definition
  */
-export interface OpenAITool {
-	type: 'function';
-	name: string;
-	description?: string;
-	parameters: JSONSchema7;
-	strict?: boolean;
-}
+export type OpenAITool =
+	| {
+			type: 'function';
+			name: string;
+			description?: string;
+			parameters: JSONSchema7;
+			strict?: boolean;
+	  }
+	| {
+			type: 'web_search';
+	  };
 
 /**
  * OpenAI API tool choice
@@ -360,6 +364,15 @@ function genericMessagesToResponsesInput(messages: Message[]): {
  * Convert N8nTool to OpenAI Responses API function tool format.
  */
 function genericToolToResponsesTool(tool: Tool): OpenAITool {
+	if (tool.type === 'provider') {
+		if (tool.name === 'web_search') {
+			return {
+				type: 'web_search',
+				...tool.args,
+			};
+		}
+		throw new Error(`Unsupported provider tool: ${tool.name}`);
+	}
 	const parameters = getParametersJsonSchema(tool);
 	return {
 		type: 'function',
@@ -449,11 +462,9 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 	}
 
 	async generate(messages: Message[], config?: OpenAIChatModelConfig): Promise<GenerateResult> {
-		const merged = this.mergeConfig(config) as OpenAIChatModelConfig;
+		const merged = this.mergeConfig(config);
 		const { instructions, input } = genericMessagesToResponsesInput(messages);
-
-		const tools = merged.tools?.length ? merged.tools.map(genericToolToResponsesTool) : undefined;
-
+		const tools = this.tools.length ? this.tools.map(genericToolToResponsesTool) : undefined;
 		const requestBody: OpenAIResponsesRequest = {
 			model: this.modelId,
 			input,
@@ -537,10 +548,7 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 		const merged = this.mergeConfig(config) as OpenAIChatModelConfig;
 		const { instructions, input } = genericMessagesToResponsesInput(messages);
 
-		const tools =
-			(merged.tools ?? this.tools).length > 0
-				? (merged.tools ?? this.tools).map(genericToolToResponsesTool)
-				: undefined;
+		const tools = this.tools.length ? this.tools.map(genericToolToResponsesTool) : undefined;
 
 		const requestBody: OpenAIResponsesRequest = {
 			model: this.modelId,

@@ -1,7 +1,8 @@
 import type { JSONSchema7 } from 'json-schema';
 import type { ZodTypeAny, ZodEffects, ZodSchema } from 'zod';
 
-export interface Tool {
+export interface FunctionTool {
+	type: 'function';
 	/**
 	 * The name of the tool/function
 	 */
@@ -22,9 +23,19 @@ export interface Tool {
 	 */
 	strict?: boolean;
 
-	execute?: (args: any) => Promise<unknown>;
+	/**
+	 * Provider-specific options
+	 */
+	providerOptions?: Record<string, unknown>;
 }
 
+export interface ProviderTool<TArgs extends Record<string, unknown> = Record<string, unknown>> {
+	type: 'provider';
+	name: string;
+	args?: TArgs;
+}
+
+export type Tool = FunctionTool | ProviderTool;
 /**
  * Tool call from the model
  */

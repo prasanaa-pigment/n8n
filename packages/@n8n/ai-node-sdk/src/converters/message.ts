@@ -108,6 +108,12 @@ export function fromLcMessage(msg: LangchainMessages.BaseMessage): N8nMessages.M
 			}));
 			content.push(...mappedToolsCalls);
 		}
+		return {
+			role: 'ai',
+			content,
+			id: msg.id,
+			name: msg.name,
+		};
 	}
 	if (LangchainMessages.SystemMessage.isInstance(msg)) {
 		return {

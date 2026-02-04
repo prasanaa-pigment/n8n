@@ -15,7 +15,7 @@ import type { ChatModel, ChatModelConfig } from '../types/chat-model';
 export class LangchainAdapter<
 	CallOptions extends ChatModelConfig = ChatModelConfig,
 > extends BaseChatModel<CallOptions> {
-	constructor(private genericModel: ChatModel) {
+	constructor(private chatModel: ChatModel) {
 		super({});
 	}
 
@@ -28,10 +28,8 @@ export class LangchainAdapter<
 		options: this['ParsedCallOptions'],
 	): Promise<ChatResult> {
 		// Convert LangChain messages to generic messages
-		const genericMessages = messages.map(fromLcMessage);
-		// Call generic model
-		const result = await this.genericModel.generate(genericMessages, options);
-
+		const transformedMessages = messages.map(fromLcMessage);
+		const result = await this.chatModel.generate(transformedMessages, options);
 		// Build content blocks for the message
 		const content: ContentBlock[] = [];
 		if (result.text) {
@@ -67,8 +65,8 @@ export class LangchainAdapter<
 			usage_metadata,
 			response_metadata: {
 				...result.providerMetadata,
-				model: this.genericModel.modelId,
-				provider: this.genericModel.provider,
+				model: this.chatModel.modelId,
+				provider: this.chatModel.provider,
 			},
 			id: result.id,
 			tool_calls,
@@ -94,7 +92,7 @@ export class LangchainAdapter<
 		runManager?: CallbackManagerForLLMRun,
 	): AsyncGenerator<ChatGenerationChunk> {
 		const genericMessages = messages.map(fromLcMessage);
-		const stream = this.genericModel.stream(genericMessages, options);
+		const stream = this.chatModel.stream(genericMessages, options);
 
 		for await (const chunk of stream) {
 			if (chunk.type === 'text-delta' && chunk.textDelta) {
@@ -179,12 +177,9 @@ export class LangchainAdapter<
 	bindTools(
 		tools: BindToolsInput[],
 	): Runnable<BaseLanguageModelInput, AIMessageChunk, CallOptions> {
-		// Convert tools to generic format
 		const genericTools = tools.map(fromLcTool);
-
-		// Create a new adapter with bound tools
-		const newN8nModel = this.genericModel.withTools(genericTools);
-		const newAdapter = new LangchainAdapter(newN8nModel);
+		const newModel = this.chatModel.withTools(genericTools);
+		const newAdapter = new LangchainAdapter(newModel);
 
 		return newAdapter as any;
 	}

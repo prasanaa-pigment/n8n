@@ -19,3 +19,4 @@ export { LangchainAdapter } from './adapters/langchain';
 export { BaseChatModel } from './chat-model/base';
 export { getParametersJsonSchema } from './converters/tool';
 export { parseSSEStream } from './utils/sse';
+export { createChatModel } from './creators/create-chat-model';

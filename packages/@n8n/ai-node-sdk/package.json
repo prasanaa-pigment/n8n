@@ -4,6 +4,7 @@
 	"description": "SDK for building AI nodes in n8n",
 	"main": "index.js",
 	"scripts": {
+		"example:run": "tsx examples/run.ts",
 		"clean": "rimraf dist .turbo",
 		"dev": "pnpm run watch",
 		"typecheck": "tsc --noEmit",
@@ -28,6 +29,7 @@
 		"zod": "catalog:",
     "zod-to-json-schema": "catalog:",
 		"@langchain/core": "catalog:",
+		"@langchain/openai": "catalog:",
 		"langchain": "catalog:",
 		"@n8n/config": "workspace:*",
 		"@n8n/typescript-config": "workspace:*",

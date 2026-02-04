@@ -64,11 +64,6 @@ export interface ChatModelConfig {
 	headers?: Record<string, string | undefined>;
 
 	/**
-	 * Tools available for the model to call
-	 */
-	tools?: Tool[];
-
-	/**
 	 * Provider-specific options
 	 */
 	providerOptions?: Record<string, unknown>;

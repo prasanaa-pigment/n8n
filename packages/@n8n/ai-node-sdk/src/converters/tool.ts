@@ -9,34 +9,30 @@ import type * as N8nTools from '../types/tool';
 
 /**
  * Convert various tool formats to N8nTool
- * Supports LangChain BindToolsInput, OpenAI-style tools, and custom formats
  */
 export function fromLcTool(tool: LangchainChatModels.BindToolsInput): N8nTools.Tool {
 	if ('schema' in tool && 'invoke' in tool) {
 		const structuredTool = tool as LangchainTools.StructuredTool;
 		return {
+			type: 'function',
 			name: structuredTool.name,
 			description: structuredTool.description,
-			inputSchema: structuredTool.schema,
-			execute: async (args: unknown) => {
-				return await structuredTool.invoke(args);
-			},
-		} as N8nTools.Tool;
+			inputSchema: structuredTool.schema as JSONSchema7 | ZodTypeAny,
+		};
 	}
 	if ('schema' in tool && 'func' in tool) {
 		const structuredTool = tool as LangchainTools.DynamicStructuredTool;
 		return {
+			type: 'function',
 			name: structuredTool.name,
 			description: structuredTool.description,
 			inputSchema: structuredTool.schema as JSONSchema7 | ZodTypeAny,
-			execute: async (args) => {
-				return await structuredTool.func(args);
-			},
 		};
 	}
 	if ('name' in tool && 'schema' in tool) {
 		const structuredTool = tool as LangchainTools.StructuredTool;
 		return {
+			type: 'function',
 			name: structuredTool.name,
 			description: structuredTool.description,
 			inputSchema: structuredTool.schema as JSONSchema7 | ZodTypeAny,
@@ -45,6 +41,7 @@ export function fromLcTool(tool: LangchainChatModels.BindToolsInput): N8nTools.T
 	if ('function' in tool && 'type' in tool && tool.type === 'function') {
 		const functionTool = tool as FunctionDefinition;
 		return {
+			type: 'function',
 			name: functionTool.name,
 			description: functionTool.description,
 			inputSchema: functionTool.parameters as JSONSchema7,
@@ -54,7 +51,7 @@ export function fromLcTool(tool: LangchainChatModels.BindToolsInput): N8nTools.T
 	throw new Error(`Unable to convert tool to N8nTool: ${JSON.stringify(tool)}`);
 }
 
-export function getParametersJsonSchema(tool: N8nTools.Tool): JSONSchema7 {
+export function getParametersJsonSchema(tool: N8nTools.FunctionTool): JSONSchema7 {
 	const schema = tool.inputSchema;
 	if (schema instanceof ZodSchema) {
 		if ('toJSONSchema' in schema && typeof schema.toJSONSchema === 'function') {
