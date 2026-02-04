@@ -1,18 +1,29 @@
 import { defineStore, getActivePinia, type StoreGeneric } from 'pinia';
 import { STORES } from '@n8n/stores';
-import { ref, readonly } from 'vue';
-import { useWorkflowsStore } from './workflows.store';
+import { ref, readonly, inject } from 'vue';
+import { WorkflowDocumentStoreKey } from '@/app/constants/injectionKeys';
 
 // Pinia internal type - _s is the store registry Map
 type PiniaInternal = ReturnType<typeof getActivePinia> & {
 	_s: Map<string, StoreGeneric>;
 };
 
-type WorkflowDocumentId = `${string}@${string}`;
+export type WorkflowDocumentId = `${string}@${string}`;
+
+export function createWorkflowDocumentId(
+	workflowId: string,
+	version: string = 'latest',
+): WorkflowDocumentId {
+	return `${workflowId}@${version}`;
+}
 
 type Action<N, P> = { name: N; payload: P };
 
 type SetTagsAction = Action<'setTags', { tags: string[] }>;
+type AddTagsAction = Action<'addTags', { tags: string[] }>;
+type RemoveTagAction = Action<'removeTag', { tagId: string }>;
+
+type WorkflowDocumentAction = SetTagsAction | AddTagsAction | RemoveTagAction;
 
 /**
  * Gets the store ID for a workflow document store.
@@ -33,8 +44,6 @@ export function getWorkflowDocumentStoreId(id: string) {
  */
 export function useWorkflowDocumentStore(id: WorkflowDocumentId) {
 	return defineStore(getWorkflowDocumentStoreId(id), () => {
-		const workflowsStore = useWorkflowsStore();
-
 		const [workflowId, workflowVersion] = id.split('@');
 
 		/**
@@ -47,32 +56,36 @@ export function useWorkflowDocumentStore(id: WorkflowDocumentId) {
 			onChange({ name: 'setTags', payload: { tags: newTags } });
 		}
 
+		function addTags(newTags: string[]) {
+			onChange({ name: 'addTags', payload: { tags: newTags } });
+		}
+
+		function removeTag(tagId: string) {
+			onChange({ name: 'removeTag', payload: { tagId } });
+		}
+
 		/**
 		 * Handle actions in a CRDT like manner
 		 */
 
-		function onChange(action: SetTagsAction) {
+		function onChange(action: WorkflowDocumentAction) {
 			if (action.name === 'setTags') {
 				tags.value = action.payload.tags;
+			} else if (action.name === 'addTags') {
+				const uniqueTags = new Set([...tags.value, ...action.payload.tags]);
+				tags.value = Array.from(uniqueTags);
+			} else if (action.name === 'removeTag') {
+				tags.value = tags.value.filter((tag) => tag !== action.payload.tagId);
 			}
 		}
-
-		/**
-		 * Subscribe to workflow changes
-		 */
-
-		const unsubscribe = workflowsStore.$subscribe((mutation, state) => {
-			if (mutation.storeId === workflowsStore.$id && state.workflow?.id === workflowId) {
-				setTags((state.workflow.tags as string[]) || []);
-			}
-		});
 
 		return {
 			workflowId,
 			workflowVersion,
 			tags: readonly(tags),
 			setTags,
-			unsubscribe,
+			addTags,
+			removeTag,
 		};
 	})();
 }
@@ -95,11 +108,21 @@ export function disposeWorkflowDocumentStore(id: string) {
 		// Get the store instance
 		const store = pinia._s.get(storeId);
 		if (store) {
-			// Unsubscribe from workflowsStore before disposing
-			store.unsubscribe?.();
 			store.$dispose();
 		}
 		// Remove from Pinia's state
 		delete pinia.state.value[storeId];
 	}
+}
+
+/**
+ * Injects the workflow document store from the current component tree.
+ * Returns null if not within a component context that has provided the store.
+ *
+ * Use this in composables/stores that need to interact with the current workflow's
+ * document store but may be called outside of the NodeView tree.
+ */
+export function injectWorkflowDocumentStore() {
+	const storeRef = inject(WorkflowDocumentStoreKey, null);
+	return storeRef?.value ?? null;
 }

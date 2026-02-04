@@ -6,6 +6,11 @@ import { useRootStore } from '@n8n/stores/useRootStore';
 import { computed, ref } from 'vue';
 import { hasPermission } from '@/app/utils/rbac/permissions';
 import { injectWorkflowState } from '@/app/composables/useWorkflowState';
+import {
+	useWorkflowDocumentStore,
+	createWorkflowDocumentId,
+} from '@/app/stores/workflowDocument.store';
+import { useWorkflowsStore } from '@/app/stores/workflows.store';
 
 const apiMapping = {
 	[STORES.TAGS]: createTagsApi('/tags'),
@@ -24,6 +29,7 @@ const createTagsStore = (id: typeof STORES.TAGS | typeof STORES.ANNOTATION_TAGS)
 			const fetchedUsageCount = ref(false);
 
 			const rootStore = useRootStore();
+			const workflowsStore = useWorkflowsStore();
 			const workflowState = injectWorkflowState();
 
 			// Computed
@@ -123,6 +129,13 @@ const createTagsStore = (id: typeof STORES.TAGS | typeof STORES.ANNOTATION_TAGS)
 
 				if (deleted) {
 					deleteTag(id);
+
+					// Update workflowDocumentStore (source of truth)
+					const workflowDocumentId = createWorkflowDocumentId(workflowsStore.workflowId);
+					const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
+					workflowDocumentStore.removeTag(id);
+
+					// Keep workflowState in sync for backward compatibility
 					workflowState.removeWorkflowTagId(id);
 				}
 

@@ -2168,7 +2168,7 @@ export function useCanvasOperations() {
 	}
 
 	async function initializeWorkspace(data: IWorkflowDb) {
-		await workflowHelpers.initState(data, useWorkflowState());
+		const { workflowDocumentStore } = await workflowHelpers.initState(data, useWorkflowState());
 		data.nodes.forEach((node) => {
 			const nodeTypeDescription = requireNodeTypeDescription(node.type, node.typeVersion);
 			const isUnknownNode =
@@ -2185,6 +2185,8 @@ export function useCanvasOperations() {
 		workflowsStore.setConnections(data.connections);
 		workflowState.setWorkflowProperty('createdAt', data.createdAt);
 		workflowState.setWorkflowProperty('updatedAt', data.updatedAt);
+
+		return { workflowDocumentStore };
 	}
 
 	const initializeUnknownNodes = (nodes: INode[]) => {

@@ -8,6 +8,7 @@ import {
 	onDeactivated,
 	onMounted,
 	ref,
+	shallowRef,
 	useCssModule,
 	watch,
 	h,
@@ -142,7 +143,12 @@ import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import { useActivityDetection } from '@/app/composables/useActivityDetection';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
 import { injectStrict } from '@/app/utils/injectStrict';
-import { WorkflowIdKey } from '@/app/constants/injectionKeys';
+import { WorkflowIdKey, WorkflowDocumentStoreKey } from '@/app/constants/injectionKeys';
+import {
+	disposeWorkflowDocumentStore,
+	createWorkflowDocumentId,
+	useWorkflowDocumentStore,
+} from '@/app/stores/workflowDocument.store';
 
 import { N8nCallout, N8nCanvasThinkingPill, N8nCanvasCollaborationPill } from '@n8n/design-system';
 
@@ -214,6 +220,12 @@ const workflowState = injectWorkflowState();
 
 // Initialize activity detection for collaboration
 useActivityDetection();
+
+// Track the current workflow document store for cleanup and provide to children
+const currentWorkflowDocumentStore = shallowRef<ReturnType<typeof useWorkflowDocumentStore> | null>(
+	null,
+);
+provide(WorkflowDocumentStoreKey, currentWorkflowDocumentStore);
 
 const { addBeforeUnloadEventBindings, removeBeforeUnloadEventBindings } = useBeforeUnload({
 	route,
@@ -375,7 +387,18 @@ async function openWorkflow(data: IWorkflowDb) {
 		documentTitle.setDocumentTitle(data.name, 'IDLE');
 	}
 
-	await initializeWorkspace(data);
+	// Dispose previous workflow document store if it exists
+	if (currentWorkflowDocumentStore.value) {
+		const previousStoreId = createWorkflowDocumentId(
+			currentWorkflowDocumentStore.value.workflowId,
+			currentWorkflowDocumentStore.value.workflowVersion,
+		);
+		disposeWorkflowDocumentStore(previousStoreId);
+		currentWorkflowDocumentStore.value = null;
+	}
+
+	const { workflowDocumentStore } = await initializeWorkspace(data);
+	currentWorkflowDocumentStore.value = workflowDocumentStore;
 
 	void externalHooks.run('workflow.open', {
 		workflowId: data.id,
@@ -1805,8 +1828,18 @@ onMounted(async () => {
 
 	// Register callback for collaboration store to refresh canvas when workflow updates arrive
 	collaborationStore.setRefreshCanvasCallback(async (workflow) => {
+		// Dispose previous workflow document store if it exists
+		if (currentWorkflowDocumentStore.value) {
+			const previousStoreId = createWorkflowDocumentId(
+				currentWorkflowDocumentStore.value.workflowId,
+				currentWorkflowDocumentStore.value.workflowVersion,
+			);
+			disposeWorkflowDocumentStore(previousStoreId);
+			currentWorkflowDocumentStore.value = null;
+		}
 		// Refresh the canvas with updated workflow
-		await initializeWorkspace(workflow);
+		const { workflowDocumentStore } = await initializeWorkspace(workflow);
+		currentWorkflowDocumentStore.value = workflowDocumentStore;
 	});
 
 	try {
@@ -1874,6 +1907,16 @@ onBeforeUnmount(() => {
 	canvasEventBus.off('saved:workflow', onSaveFromWithinExecutionDebug);
 	if (!isDemoRoute.value) {
 		pushConnectionStore.pushDisconnect();
+	}
+
+	// Dispose the workflow document store when unmounting
+	if (currentWorkflowDocumentStore.value) {
+		const storeId = createWorkflowDocumentId(
+			currentWorkflowDocumentStore.value.workflowId,
+			currentWorkflowDocumentStore.value.workflowVersion,
+		);
+		disposeWorkflowDocumentStore(storeId);
+		currentWorkflowDocumentStore.value = null;
 	}
 });
 </script>
