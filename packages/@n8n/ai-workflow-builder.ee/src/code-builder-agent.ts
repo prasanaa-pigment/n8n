@@ -14,11 +14,7 @@ import type { BaseMessage, AIMessage } from '@langchain/core/messages';
 import { HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
-import {
-	parseWorkflowCodeToBuilder,
-	validateWorkflow,
-	generateWorkflowCode,
-} from '@n8n/workflow-sdk';
+import { generateWorkflowCode } from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -26,6 +22,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inspect } from 'node:util';
 
+import {
+	MAX_AGENT_ITERATIONS,
+	MAX_VALIDATE_ATTEMPTS,
+	FIX_AND_FINALIZE_INSTRUCTION,
+	TEXT_EDITOR_TOOL,
+	VALIDATE_TOOL,
+} from './code-builder/constants';
+import { ParseValidateHandler } from './code-builder/handlers/parse-validate-handler';
+import { calculateCost } from './code-builder/utils/cost-calculator';
+import {
+	extractTextContent,
+	extractThinkingContent,
+} from './code-builder/utils/content-extractors';
 import { buildCodeBuilderPrompt, type HistoryContext } from './prompts/code-builder';
 import { createCodeBuilderGetTool } from './tools/code-builder-get.tool';
 import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
@@ -41,84 +50,11 @@ import type {
 } from './types/streaming';
 import type { TextEditorCommand } from './types/text-editor';
 import type { EvaluationLogger } from './utils/evaluation-logger';
-import {
-	extractWorkflowCode,
-	SDK_IMPORT_STATEMENT,
-	stripImportStatements,
-} from './utils/extract-code';
+import { extractWorkflowCode, SDK_IMPORT_STATEMENT } from './utils/extract-code';
 import { NodeTypeParser } from './utils/node-type-parser';
 import type { ChatPayload } from './workflow-builder-agent';
 
-/** Maximum iterations for the agentic loop to prevent infinite loops */
-const MAX_AGENT_ITERATIONS = 50;
-
-/** Maximum validate attempts before giving up in text editor mode */
-const MAX_VALIDATE_ATTEMPTS = 10;
-
-/** Mandatory instruction appended to validation/parse error messages */
-const FIX_AND_FINALIZE_INSTRUCTION = `
-
-IMPORTANT: After fixing the issues above, you MUST do ONE of:
-1. Call validate_workflow to verify your fixes are correct, OR
-2. Stop calling tools to trigger auto-finalize
-
-Do NOT continue making edits indefinitely without validating.`;
-
-/** Native Anthropic text editor tool configuration */
-const TEXT_EDITOR_TOOL = {
-	type: 'text_editor_20250728' as const,
-	name: 'str_replace_based_edit_tool' as const,
-};
-
-/** Validate workflow tool schema - separate from text editor for clearer separation of concerns */
-const VALIDATE_TOOL = {
-	type: 'function' as const,
-	function: {
-		name: 'validate_workflow',
-		description:
-			'Validate the current workflow code for errors. Returns validation results - either success or a list of errors to fix.',
-		parameters: {
-			type: 'object' as const,
-			properties: {
-				path: {
-					type: 'string' as const,
-					description: 'Path to the workflow file (must be /workflow.ts)',
-				},
-			},
-			required: ['path'],
-		},
-	},
-};
-
-/** Claude Sonnet 4.5 pricing per million tokens (USD) */
-const SONNET_4_5_PRICING = {
-	inputPerMillion: 3,
-	outputPerMillion: 15,
-};
-
-/**
- * Calculate cost estimate based on token usage
- */
-function calculateCost(inputTokens: number, outputTokens: number): number {
-	const inputCost = (inputTokens / 1_000_000) * SONNET_4_5_PRICING.inputPerMillion;
-	const outputCost = (outputTokens / 1_000_000) * SONNET_4_5_PRICING.outputPerMillion;
-	return inputCost + outputCost;
-}
-
-/**
- * Structured output type for the LLM response
- */
-interface WorkflowCodeOutput {
-	workflowCode: string;
-}
-
-/**
- * Result from parseAndValidate including workflow and any warnings
- */
-interface ParseAndValidateResult {
-	workflow: WorkflowJSON;
-	warnings: Array<{ code: string; message: string; nodeName?: string; parameterPath?: string }>;
-}
+import type { WorkflowCodeOutput } from './code-builder/types';
 
 /**
  * Configuration for the code builder agent
@@ -161,6 +97,7 @@ export class CodeBuilderAgent {
 	private tools: StructuredToolInterface[];
 	private toolsMap: Map<string, StructuredToolInterface>;
 	private enableTextEditorConfig?: boolean;
+	private parseValidateHandler: ParseValidateHandler;
 	/** Current session log file path (for temporary file-based logging) */
 	private currentLogFile: string | null = null;
 
@@ -174,6 +111,12 @@ export class CodeBuilderAgent {
 		this.logger = config.logger;
 		this.evalLogger = config.evalLogger;
 		this.enableTextEditorConfig = config.enableTextEditor;
+
+		// Initialize parse/validate handler with debug logging
+		this.parseValidateHandler = new ParseValidateHandler({
+			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
+			logger: config.logger,
+		});
 
 		// Create tools
 		const searchTool = createCodeBuilderSearchTool(this.nodeTypeParser);
@@ -291,36 +234,6 @@ ${'='.repeat(50)}
 			modelName.includes('opus-4') ||
 			modelName.includes('sonnet-4')
 		);
-	}
-
-	/**
-	 * Extract error context with line numbers for debugging
-	 */
-	private getErrorContext(code: string, errorMessage: string): string {
-		// Try to extract line number from error message (e.g., "at line 5" or "Line 5:")
-		const lineMatch = errorMessage.match(/(?:line|Line)\s*(\d+)/i);
-		if (!lineMatch) {
-			// No line number - show first 10 lines as context
-			const lines = code.split('\n').slice(0, 10);
-			return `Code context:\n${lines.map((l, i) => `${i + 1}: ${l}`).join('\n')}`;
-		}
-
-		const errorLine = parseInt(lineMatch[1], 10);
-		const lines = code.split('\n');
-
-		// Show 3 lines before and after the error line
-		const start = Math.max(0, errorLine - 4);
-		const end = Math.min(lines.length, errorLine + 3);
-		const context = lines
-			.slice(start, end)
-			.map((l, i) => {
-				const lineNum = start + i + 1;
-				const marker = lineNum === errorLine ? '> ' : '  ';
-				return `${marker}${lineNum}: ${l}`;
-			})
-			.join('\n');
-
-		return `Code around line ${errorLine}:\n${context}`;
 	}
 
 	/**
@@ -539,7 +452,7 @@ ${'='.repeat(50)}
 				});
 
 				// Extract and log thinking/planning content separately if present
-				const thinkingContent = this.extractThinkingContent(response);
+				const thinkingContent = extractThinkingContent(response);
 				if (thinkingContent) {
 					this.debugLog('CHAT', '========== AGENT THINKING/PLANNING ==========', {
 						thinkingContent,
@@ -547,7 +460,7 @@ ${'='.repeat(50)}
 				}
 
 				// Extract text content from response
-				const textContent = this.extractTextContent(response);
+				const textContent = extractTextContent(response);
 				if (textContent) {
 					this.debugLog('CHAT', 'Streaming text response', {
 						textContentLength: textContent.length,
@@ -694,7 +607,10 @@ ${'='.repeat(50)}
 
 						const parseStartTime = Date.now();
 						try {
-							const result = await this.parseAndValidate(code, currentWorkflow);
+							const result = await this.parseValidateHandler.parseAndValidate(
+								code,
+								currentWorkflow,
+							);
 							parseDuration = Date.now() - parseStartTime;
 							sourceCode = code;
 
@@ -708,7 +624,10 @@ ${'='.repeat(50)}
 								const warningText = result.warnings
 									.map((w) => `- [${w.code}] ${w.message}`)
 									.join('\n');
-								const errorContext = this.getErrorContext(code, result.warnings[0].message);
+								const errorContext = this.parseValidateHandler.getErrorContext(
+									code,
+									result.warnings[0].message,
+								);
 
 								this.debugLog('CHAT', 'Auto-finalize: validation warnings', {
 									warnings: result.warnings,
@@ -740,7 +659,7 @@ ${'='.repeat(50)}
 						} catch (error) {
 							parseDuration = Date.now() - parseStartTime;
 							const errorMessage = error instanceof Error ? error.message : String(error);
-							const errorContext = this.getErrorContext(code, errorMessage);
+							const errorContext = this.parseValidateHandler.getErrorContext(code, errorMessage);
 
 							this.debugLog('CHAT', '========== AUTO-FINALIZE FAILED ==========', {
 								parseDurationMs: parseDuration,
@@ -782,7 +701,10 @@ ${'='.repeat(50)}
 						const parseStartTime = Date.now();
 
 						try {
-							const result = await this.parseAndValidate(finalResult.workflowCode, currentWorkflow);
+							const result = await this.parseValidateHandler.parseAndValidate(
+								finalResult.workflowCode,
+								currentWorkflow,
+							);
 							workflow = result.workflow;
 							parseDuration = Date.now() - parseStartTime;
 							sourceCode = finalResult.workflowCode; // Save for later use
@@ -1004,67 +926,6 @@ ${'='.repeat(50)}
 	}
 
 	/**
-	 * Extract text content from an AI message
-	 */
-	private extractTextContent(message: AIMessage): string | null {
-		// Content can be a string or an array of content blocks
-		if (typeof message.content === 'string') {
-			return message.content || null;
-		}
-
-		if (Array.isArray(message.content)) {
-			const textParts = message.content
-				.filter(
-					(block): block is { type: 'text'; text: string } =>
-						typeof block === 'object' && block !== null && 'type' in block && block.type === 'text',
-				)
-				.map((block) => block.text);
-
-			return textParts.length > 0 ? textParts.join('\n') : null;
-		}
-
-		return null;
-	}
-
-	/**
-	 * Extract thinking/planning content from an AI message
-	 * Looks for <thinking> tags and extended thinking blocks
-	 */
-	private extractThinkingContent(message: AIMessage): string | null {
-		const textContent = this.extractTextContent(message);
-		if (!textContent) {
-			return null;
-		}
-
-		// Extract <thinking> blocks
-		const thinkingMatches = textContent.match(/<thinking>([\s\S]*?)<\/thinking>/g);
-		if (thinkingMatches) {
-			return thinkingMatches
-				.map((match) => match.replace(/<\/?thinking>/g, '').trim())
-				.join('\n\n');
-		}
-
-		// Check for extended thinking in content blocks (Claude's native thinking)
-		if (Array.isArray(message.content)) {
-			const thinkingBlocks = message.content
-				.filter(
-					(block): block is { type: 'thinking'; thinking: string } =>
-						typeof block === 'object' &&
-						block !== null &&
-						'type' in block &&
-						block.type === 'thinking',
-				)
-				.map((block) => block.thinking);
-
-			if (thinkingBlocks.length > 0) {
-				return thinkingBlocks.join('\n\n');
-			}
-		}
-
-		return null;
-	}
-
-	/**
 	 * Execute a tool call and yield progress updates
 	 */
 	private async *executeToolCall(
@@ -1219,7 +1080,10 @@ ${'='.repeat(50)}
 				if (code) {
 					const parseStartTime = Date.now();
 					try {
-						const parseResult = await this.parseAndValidate(code, currentWorkflow);
+						const parseResult = await this.parseValidateHandler.parseAndValidate(
+							code,
+							currentWorkflow,
+						);
 						const parseDuration = Date.now() - parseStartTime;
 						state.setParseDuration(parseDuration);
 						state.setSourceCode(code);
@@ -1234,7 +1098,10 @@ ${'='.repeat(50)}
 							const warningText = parseResult.warnings
 								.map((w) => `- [${w.code}] ${w.message}`)
 								.join('\n');
-							const errorContext = this.getErrorContext(code, parseResult.warnings[0].message);
+							const errorContext = this.parseValidateHandler.getErrorContext(
+								code,
+								parseResult.warnings[0].message,
+							);
 
 							this.debugLog('TEXT_EDITOR', 'Auto-validate: validation warnings', {
 								warnings: parseResult.warnings,
@@ -1291,7 +1158,7 @@ ${'='.repeat(50)}
 						state.setParseDuration(parseDuration);
 						const errorMessage = error instanceof Error ? error.message : String(error);
 						const errorStack = error instanceof Error ? error.stack : undefined;
-						const errorContext = this.getErrorContext(code, errorMessage);
+						const errorContext = this.parseValidateHandler.getErrorContext(code, errorMessage);
 
 						this.debugLog('TEXT_EDITOR', '========== AUTO-VALIDATE FAILED (CREATE) ==========', {
 							parseDurationMs: parseDuration,
@@ -1427,7 +1294,7 @@ ${'='.repeat(50)}
 
 		const parseStartTime = Date.now();
 		try {
-			const result = await this.parseAndValidate(code, currentWorkflow);
+			const result = await this.parseValidateHandler.parseAndValidate(code, currentWorkflow);
 			const parseDuration = Date.now() - parseStartTime;
 			state.setParseDuration(parseDuration);
 			state.setSourceCode(code);
@@ -1462,7 +1329,10 @@ ${'='.repeat(50)}
 					state.addWarnings(newWarningKeys);
 
 					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
-					const errorContext = this.getErrorContext(code, newWarnings[0].message);
+					const errorContext = this.parseValidateHandler.getErrorContext(
+						code,
+						newWarnings[0].message,
+					);
 
 					// Track as generation error
 					generationErrors.push({
@@ -1557,7 +1427,7 @@ ${'='.repeat(50)}
 			state.setParseDuration(parseDuration);
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
-			const errorContext = this.getErrorContext(code, errorMessage);
+			const errorContext = this.parseValidateHandler.getErrorContext(code, errorMessage);
 
 			this.debugLog('VALIDATE_TOOL', '========== VALIDATE FAILED ==========', {
 				parseDurationMs: parseDuration,
@@ -1603,7 +1473,7 @@ ${'='.repeat(50)}
 		result: WorkflowCodeOutput | null;
 		error: string | null;
 	} {
-		const content = this.extractTextContent(message);
+		const content = extractTextContent(message);
 		if (!content) {
 			this.debugLog('PARSE_OUTPUT', 'No text content to parse');
 			return { result: null, error: 'No text content found in response' };
@@ -1632,206 +1502,5 @@ ${'='.repeat(50)}
 		});
 
 		return { result: { workflowCode }, error: null };
-	}
-
-	/**
-	 * Parse TypeScript code to WorkflowJSON and validate
-	 * Returns both the workflow and any validation warnings
-	 */
-	private async parseAndValidate(
-		code: string,
-		currentWorkflow?: WorkflowJSON,
-	): Promise<ParseAndValidateResult> {
-		this.debugLog('PARSE_VALIDATE', '========== PARSING WORKFLOW CODE ==========');
-		this.debugLog('PARSE_VALIDATE', 'Input code', {
-			codeLength: code.length,
-			codePreview: code.substring(0, 500),
-			codeEnd: code.substring(Math.max(0, code.length - 500)),
-		});
-
-		// Strip import statements before parsing - SDK functions are available as globals
-		const codeToparse = stripImportStatements(code);
-		this.debugLog('PARSE_VALIDATE', 'Code after stripping imports', {
-			originalLength: code.length,
-			strippedLength: codeToparse.length,
-		});
-
-		try {
-			// Parse the TypeScript code to WorkflowBuilder
-			this.logger?.debug('Parsing WorkflowCode', { codeLength: codeToparse.length });
-			this.debugLog('PARSE_VALIDATE', 'Calling parseWorkflowCodeToBuilder...');
-			const parseStartTime = Date.now();
-			const builder = parseWorkflowCodeToBuilder(codeToparse);
-			const parseDuration = Date.now() - parseStartTime;
-
-			this.debugLog('PARSE_VALIDATE', 'Code parsed to builder', {
-				parseDurationMs: parseDuration,
-			});
-
-			// Regenerate node IDs deterministically to ensure stable IDs across re-parses.
-			// This prevents the "Only one 'Chat Trigger' node is allowed" error that occurs
-			// when the frontend receives multiple workflow updates with different node IDs
-			// for the same logical nodes.
-			builder.regenerateNodeIds();
-			this.debugLog('PARSE_VALIDATE', 'Node IDs regenerated deterministically');
-
-			// Validate the graph structure BEFORE converting to JSON
-			this.debugLog('PARSE_VALIDATE', 'Validating graph structure...');
-			const graphValidateStartTime = Date.now();
-			const graphValidation = builder.validate();
-			const graphValidateDuration = Date.now() - graphValidateStartTime;
-
-			this.debugLog('PARSE_VALIDATE', 'Graph validation complete', {
-				validateDurationMs: graphValidateDuration,
-				isValid: graphValidation.valid,
-				errorCount: graphValidation.errors.length,
-				warningCount: graphValidation.warnings.length,
-			});
-
-			// If there are graph validation errors, throw to trigger self-correction
-			if (graphValidation.errors.length > 0) {
-				const errorMessages = graphValidation.errors
-					.map((e: { message: string; code?: string }) => `[${e.code}] ${e.message}`)
-					.join('\n');
-				this.debugLog('PARSE_VALIDATE', 'GRAPH VALIDATION ERRORS', {
-					errors: graphValidation.errors.map((e: { message: string; code?: string }) => ({
-						message: e.message,
-						code: e.code,
-					})),
-				});
-				throw new Error(`Graph validation errors:\n${errorMessages}`);
-			}
-
-			// Collect all warnings (graph validation)
-			const allWarnings: Array<{ code: string; message: string; nodeName?: string }> = [];
-
-			// Log warnings (but don't fail on them)
-			if (graphValidation.warnings.length > 0) {
-				this.debugLog('PARSE_VALIDATE', 'GRAPH VALIDATION WARNINGS', {
-					warnings: graphValidation.warnings.map((w: { message: string; code?: string }) => ({
-						message: w.message,
-						code: w.code,
-					})),
-				});
-				this.logger?.info('Graph validation warnings', {
-					warnings: graphValidation.warnings.map((w: { message: string }) => w.message),
-				});
-				// Add to all warnings
-				for (const w of graphValidation.warnings) {
-					allWarnings.push({
-						code: w.code,
-						message: w.message,
-						nodeName: w.nodeName,
-					});
-				}
-			}
-
-			// Generate pin data for new nodes only (nodes not in currentWorkflow)
-			builder.generatePinData({ beforeWorkflow: currentWorkflow });
-
-			// Convert to JSON
-			this.debugLog('PARSE_VALIDATE', 'Converting to JSON...');
-			const workflow: WorkflowJSON = builder.toJSON();
-
-			this.debugLog('PARSE_VALIDATE', 'Workflow converted to JSON', {
-				workflowId: workflow.id,
-				workflowName: workflow.name,
-				nodeCount: workflow.nodes.length,
-				connectionCount: Object.keys(workflow.connections).length,
-			});
-
-			// Log each node
-			this.debugLog('PARSE_VALIDATE', 'Parsed nodes', {
-				nodes: workflow.nodes.map((n) => ({
-					id: n.id,
-					name: n.name,
-					type: n.type,
-					position: n.position,
-					parametersKeys: n.parameters ? Object.keys(n.parameters) : [],
-				})),
-			});
-
-			// Log connections
-			this.debugLog('PARSE_VALIDATE', 'Parsed connections', {
-				connections: workflow.connections,
-			});
-
-			this.logger?.debug('Parsed workflow', {
-				id: workflow.id,
-				name: workflow.name,
-				nodeCount: workflow.nodes.length,
-			});
-
-			// Also run JSON-based validation for additional checks
-			this.debugLog('PARSE_VALIDATE', 'Running JSON validation...');
-			const validateStartTime = Date.now();
-			const validationResult = validateWorkflow(workflow);
-			const validateDuration = Date.now() - validateStartTime;
-
-			this.debugLog('PARSE_VALIDATE', 'JSON validation complete', {
-				validateDurationMs: validateDuration,
-				isValid: validationResult.valid,
-				errorCount: validationResult.errors.length,
-				warningCount: validationResult.warnings.length,
-			});
-
-			if (validationResult.errors.length > 0) {
-				this.debugLog('PARSE_VALIDATE', 'JSON VALIDATION ERRORS', {
-					errors: validationResult.errors.map((e: { message: string; code?: string }) => ({
-						message: e.message,
-						code: e.code,
-					})),
-				});
-				this.logger?.warn('Workflow validation errors', {
-					errors: validationResult.errors.map((e: { message: string }) => e.message),
-				});
-			}
-
-			if (validationResult.warnings.length > 0) {
-				this.debugLog('PARSE_VALIDATE', 'JSON VALIDATION WARNINGS', {
-					warnings: validationResult.warnings.map((w: { message: string; code?: string }) => ({
-						message: w.message,
-						code: w.code,
-					})),
-				});
-				this.logger?.info('Workflow validation warnings', {
-					warnings: validationResult.warnings.map((w: { message: string }) => w.message),
-				});
-				// Add JSON validation warnings to allWarnings for agent self-correction
-				for (const w of validationResult.warnings) {
-					allWarnings.push({
-						code: w.code,
-						message: w.message,
-						nodeName: w.nodeName,
-					});
-				}
-			}
-
-			// Log full workflow JSON
-			this.debugLog('PARSE_VALIDATE', 'Final workflow JSON', {
-				workflow: JSON.stringify(workflow, null, 2),
-			});
-
-			this.debugLog('PARSE_VALIDATE', '========== PARSING COMPLETE ==========');
-
-			// Return both workflow and warnings for agent self-correction
-			return { workflow, warnings: allWarnings };
-		} catch (error) {
-			this.debugLog('PARSE_VALIDATE', '========== PARSING FAILED ==========', {
-				errorMessage: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined,
-				code,
-			});
-
-			this.logger?.error('Failed to parse WorkflowCode', {
-				error: error instanceof Error ? error.message : String(error),
-				code: code.substring(0, 500), // Log first 500 chars
-			});
-
-			// Retry once with error feedback
-			throw new Error(
-				`Failed to parse generated workflow code: ${error instanceof Error ? error.message : 'Unknown error'}`,
-			);
-		}
 	}
 }
