@@ -16,7 +16,10 @@ export class LangchainAdapter<
 	CallOptions extends ChatModelConfig = ChatModelConfig,
 > extends BaseChatModel<CallOptions> {
 	constructor(private chatModel: ChatModel) {
-		super({});
+		super({
+			// TODO: Move N8nLlmTracing to ai-utilities
+			// callbacks: [new N8nLlmTracing(this)],
+		});
 	}
 
 	_llmType(): string {
