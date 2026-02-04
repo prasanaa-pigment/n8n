@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useI18n } from '@n8n/i18n';
 import { N8nButton, N8nIcon } from '@n8n/design-system';
 
@@ -43,6 +43,12 @@ const onCredentialDeselected = (credentialType: string) => {
 const onTestClick = () => {
 	emit('testNode');
 };
+
+onMounted(() => {
+	if (props.state.isComplete) {
+		expanded.value = false;
+	}
+});
 </script>
 
 <template>
