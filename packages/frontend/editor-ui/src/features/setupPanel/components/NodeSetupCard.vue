@@ -46,16 +46,18 @@ const onTestClick = () => {
 </script>
 
 <template>
-	<div :class="[$style.card, { [$style.collapsed]: !expanded }]">
+	<div
+		:class="[$style.card, { [$style.collapsed]: !expanded, [$style.completed]: state.isComplete }]"
+	>
 		<div :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
 				v-if="state.isComplete"
-				icon="circle-check"
-				:class="$style.completeIcon"
+				icon="check"
+				:class="$style['complete-icon']"
 				size="medium"
 			/>
-			<NodeIcon v-else :node-type="nodeType" :size="24" />
-			<span :class="$style.nodeName">{{ props.state.node.name }}</span>
+			<NodeIcon v-else :node-type="nodeType" :size="16" />
+			<span :class="$style['node-name']">{{ props.state.node.name }}</span>
 			<N8nIcon
 				:class="$style.chevron"
 				:icon="expanded ? 'chevron-up' : 'chevron-down'"
@@ -68,10 +70,17 @@ const onTestClick = () => {
 				<div
 					v-for="requirement in state.credentialRequirements"
 					:key="requirement.credentialType"
-					:class="$style.credentialRow"
+					:class="$style['credential-container']"
 				>
+					<label
+						:for="`credential-picker-${state.node.name}-${requirement.credentialType}`"
+						:class="$style['credential-label']"
+					>
+						Credential
+					</label>
 					<CredentialPicker
-						:class="$style.credentialPicker"
+						create-button-type="secondary"
+						:class="$style['credential-picker']"
 						:app-name="requirement.credentialDisplayName"
 						:credential-type="requirement.credentialType"
 						:selected-credential-id="requirement.selectedCredentialId ?? null"
@@ -83,7 +92,7 @@ const onTestClick = () => {
 
 			<div :class="$style.footer">
 				<N8nButton
-					:label="i18n.baseText('node.testStep')"
+					:label="i18n.baseText('generic.test')"
 					:disabled="!state.isComplete"
 					size="small"
 					@click="onTestClick"
@@ -95,6 +104,7 @@ const onTestClick = () => {
 
 <style module lang="scss">
 .card {
+	min-width: 400px;
 	display: flex;
 	flex-direction: column;
 	gap: var(--spacing--sm);
@@ -116,14 +126,14 @@ const onTestClick = () => {
 	}
 }
 
-.nodeName {
+.node-name {
 	flex: 1;
 	font-size: var(--font-size--sm);
-	font-weight: var(--font-weight--bold);
+	font-weight: var(--font-weight--medium);
 	color: var(--color--text);
 }
 
-.completeIcon {
+.complete-icon {
 	color: var(--color--success);
 }
 
@@ -137,17 +147,31 @@ const onTestClick = () => {
 	gap: var(--spacing--xs);
 }
 
-.credentialRow {
+.credential-container {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
+	gap: var(--spacing--3xs);
 }
 
-.credentialPicker {
+.credential-label {
+	font-size: var(--font-size--sm);
+	color: var(--color--text);
+}
+
+.credential-picker {
 	flex: 1;
 }
 
 .footer {
 	display: flex;
 	justify-content: flex-end;
+}
+
+.card.completed {
+	border-color: var(--color--success);
+
+	.node-name {
+		color: var(--color--text--tint-1);
+	}
 }
 </style>

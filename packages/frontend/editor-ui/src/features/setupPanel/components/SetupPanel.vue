@@ -15,8 +15,10 @@ import SetupPanelCards from '@/features/setupPanel/components/SetupPanelCards.vu
 	width: 100%;
 	justify-content: center;
 	padding: var(--spacing--xs);
+	overflow-y: auto;
+	overflow-x: hidden;
 	background-color: var(--color--background--light-1);
 	position: relative;
-	top: -2px; // TODO: --spacing--5xs
+	top: calc(-1 * var(--spacing--5xs));
 }
 </style>
