@@ -8,7 +8,7 @@
  * discovery and code generation in a single, context-preserving agent.
  */
 
-import type { BaseMessage } from '@langchain/core/messages';
+import type { AIMessage, BaseMessage } from '@langchain/core/messages';
 import type { Runnable } from '@langchain/core/runnables';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
@@ -389,26 +389,9 @@ ${'='.repeat(50)}
 	/**
 	 * Run the agentic loop that invokes LLM and processes tool calls
 	 */
-	// eslint-disable-next-line complexity
-	private async *runAgenticLoop(params: {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		llmWithTools: Runnable<any, any, any>;
-		messages: BaseMessage[];
-		textEditorEnabled: boolean;
-		currentWorkflow?: WorkflowJSON;
-		textEditorHandler?: TextEditorHandler;
-		textEditorToolHandler?: TextEditorToolHandler;
-		abortSignal?: AbortSignal;
-	}): AsyncGenerator<
-		StreamOutput,
-		{
-			workflow: WorkflowJSON | null;
-			parseDuration: number;
-			sourceCode: string | null;
-			iteration: number;
-		},
-		unknown
-	> {
+	private async *runAgenticLoop(
+		params: AgenticLoopParams,
+	): AsyncGenerator<StreamOutput, AgenticLoopResult, unknown> {
 		const {
 			llmWithTools,
 			messages,
@@ -420,21 +403,19 @@ ${'='.repeat(50)}
 		} = params;
 
 		this.debugLog('CHAT', 'Starting agentic loop...');
-		let iteration = 0;
-		let consecutiveParseErrors = 0;
-		let workflow: WorkflowJSON | null = null;
-		let parseDuration = 0;
-		let sourceCode: string | null = null;
-		const warningTracker = new WarningTracker();
-		let textEditorValidateAttempts = 0;
+		const state: AgenticLoopState = {
+			iteration: 0,
+			consecutiveParseErrors: 0,
+			workflow: null,
+			parseDuration: 0,
+			sourceCode: null,
+			textEditorValidateAttempts: 0,
+			warningTracker: new WarningTracker(),
+		};
 
-		while (iteration < MAX_AGENT_ITERATIONS) {
-			if (consecutiveParseErrors >= 3) {
-				this.debugLog('CHAT', 'Three consecutive parsing errors - failing');
-				throw new Error('Failed to parse workflow code after 3 consecutive attempts.');
-			}
-
-			iteration++;
+		while (state.iteration < MAX_AGENT_ITERATIONS) {
+			this.checkConsecutiveParseErrors(state.consecutiveParseErrors);
+			state.iteration++;
 
 			// Invoke LLM and stream response
 			/* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -442,106 +423,275 @@ ${'='.repeat(50)}
 				llmWithTools,
 				messages,
 				abortSignal,
-				iteration,
+				iteration: state.iteration,
 			});
 			/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
-			const response = llmResult.response;
+			const iterationResult = yield* this.processIteration({
+				llmResult,
+				messages,
+				currentWorkflow,
+				textEditorEnabled,
+				textEditorHandler,
+				textEditorToolHandler,
+				state,
+			});
 
-			// Process tool calls if present
-			if (llmResult.hasToolCalls && response.tool_calls) {
-				consecutiveParseErrors = 0;
-
-				const dispatchResult = yield* this.toolDispatchHandler.dispatch({
-					toolCalls: response.tool_calls,
-					messages,
-					currentWorkflow,
-					iteration,
-					textEditorHandler,
-					textEditorToolHandler,
-					warningTracker,
-				});
-
-				// Update state from dispatch result
-				if (dispatchResult.workflow) {
-					workflow = dispatchResult.workflow;
-				}
-				if (dispatchResult.parseDuration !== undefined) {
-					parseDuration = dispatchResult.parseDuration;
-				}
-				if (dispatchResult.workflowReady) {
-					sourceCode = dispatchResult.sourceCode ?? null;
-					break;
-				}
-
-				// Check if we should exit after text editor finalize
-				if (textEditorEnabled && workflow && !dispatchResult.validatePassedThisIteration) {
-					this.debugLog('CHAT', 'Workflow ready from text editor, exiting loop');
-					if (this.evalLogger && textEditorHandler) {
-						sourceCode = textEditorHandler.getWorkflowCode() ?? null;
-					}
-					break;
-				}
-
-				// Track validate attempts
-				if (dispatchResult.validatePassedThisIteration) {
-					textEditorValidateAttempts++;
-				}
-
-				// Check for too many validate failures
-				if (textEditorEnabled && textEditorValidateAttempts >= MAX_VALIDATE_ATTEMPTS) {
-					throw new Error(
-						`Failed to generate valid workflow after ${MAX_VALIDATE_ATTEMPTS} validate attempts.`,
-					);
-				}
-			} else if (textEditorEnabled && textEditorHandler) {
-				// Text editor mode: no tool calls means auto-finalize
-				this.debugLog('CHAT', 'Text editor mode: no tool calls, auto-finalizing');
-				textEditorValidateAttempts++;
-
-				const autoFinalizeResult = yield* this.autoFinalizeHandler.execute({
-					code: textEditorHandler.getWorkflowCode(),
-					currentWorkflow,
-					messages,
-				});
-
-				if (autoFinalizeResult.success && autoFinalizeResult.workflow) {
-					workflow = autoFinalizeResult.workflow;
-					parseDuration = autoFinalizeResult.parseDuration ?? 0;
-					if (this.evalLogger) {
-						sourceCode = textEditorHandler.getWorkflowCode() ?? null;
-					}
-					break;
-				}
-				if (autoFinalizeResult.parseDuration) {
-					parseDuration = autoFinalizeResult.parseDuration;
-				}
-			} else {
-				// No tool calls - try to parse as final response
-				const finalResult = await this.finalResponseHandler.process({
-					response: llmResult.response,
-					currentWorkflow,
-					messages,
-					warningTracker,
-				});
-
-				if (finalResult.parseDuration !== undefined) {
-					parseDuration = finalResult.parseDuration;
-				}
-				if (finalResult.isParseError) {
-					consecutiveParseErrors++;
-				}
-
-				if (finalResult.success && finalResult.workflow) {
-					workflow = finalResult.workflow;
-					if (this.evalLogger && finalResult.sourceCode) {
-						sourceCode = finalResult.sourceCode;
-					}
-					break;
-				}
+			if (iterationResult.shouldBreak) {
+				break;
 			}
 		}
 
-		return { workflow, parseDuration, sourceCode, iteration };
+		return {
+			workflow: state.workflow,
+			parseDuration: state.parseDuration,
+			sourceCode: state.sourceCode,
+			iteration: state.iteration,
+		};
 	}
+
+	/**
+	 * Check if we've hit the consecutive parse error limit
+	 */
+	private checkConsecutiveParseErrors(count: number): void {
+		if (count >= 3) {
+			this.debugLog('CHAT', 'Three consecutive parsing errors - failing');
+			throw new Error('Failed to parse workflow code after 3 consecutive attempts.');
+		}
+	}
+
+	/**
+	 * Process a single iteration of the agentic loop
+	 */
+	private async *processIteration(params: {
+		llmResult: { hasToolCalls: boolean; response: AIMessage };
+		messages: BaseMessage[];
+		currentWorkflow?: WorkflowJSON;
+		textEditorEnabled: boolean;
+		textEditorHandler?: TextEditorHandler;
+		textEditorToolHandler?: TextEditorToolHandler;
+		state: AgenticLoopState;
+	}): AsyncGenerator<StreamOutput, { shouldBreak: boolean }, unknown> {
+		const {
+			llmResult,
+			messages,
+			currentWorkflow,
+			textEditorEnabled,
+			textEditorHandler,
+			textEditorToolHandler,
+			state,
+		} = params;
+
+		const response = llmResult.response;
+
+		// Branch 1: Process tool calls
+		if (llmResult.hasToolCalls && response.tool_calls) {
+			return yield* this.handleToolCalls({
+				toolCalls: response.tool_calls,
+				messages,
+				currentWorkflow,
+				textEditorEnabled,
+				textEditorHandler,
+				textEditorToolHandler,
+				state,
+			});
+		}
+
+		// Branch 2: Text editor auto-finalize
+		if (textEditorEnabled && textEditorHandler) {
+			return yield* this.handleTextEditorAutoFinalize({
+				textEditorHandler,
+				currentWorkflow,
+				messages,
+				state,
+			});
+		}
+
+		// Branch 3: Final response processing
+		return await this.handleFinalResponse({
+			response: llmResult.response,
+			currentWorkflow,
+			messages,
+			state,
+		});
+	}
+
+	/**
+	 * Handle tool calls from LLM response
+	 */
+	private async *handleToolCalls(params: {
+		toolCalls: Array<{ name: string; args: Record<string, unknown>; id?: string }>;
+		messages: BaseMessage[];
+		currentWorkflow?: WorkflowJSON;
+		textEditorEnabled: boolean;
+		textEditorHandler?: TextEditorHandler;
+		textEditorToolHandler?: TextEditorToolHandler;
+		state: AgenticLoopState;
+	}): AsyncGenerator<StreamOutput, { shouldBreak: boolean }, unknown> {
+		const {
+			toolCalls,
+			messages,
+			currentWorkflow,
+			textEditorEnabled,
+			textEditorHandler,
+			textEditorToolHandler,
+			state,
+		} = params;
+
+		state.consecutiveParseErrors = 0;
+
+		const dispatchResult = yield* this.toolDispatchHandler.dispatch({
+			toolCalls,
+			messages,
+			currentWorkflow,
+			iteration: state.iteration,
+			textEditorHandler,
+			textEditorToolHandler,
+			warningTracker: state.warningTracker,
+		});
+
+		// Update state from dispatch result
+		if (dispatchResult.workflow) {
+			state.workflow = dispatchResult.workflow;
+		}
+		if (dispatchResult.parseDuration !== undefined) {
+			state.parseDuration = dispatchResult.parseDuration;
+		}
+		if (dispatchResult.workflowReady) {
+			state.sourceCode = dispatchResult.sourceCode ?? null;
+			return { shouldBreak: true };
+		}
+
+		// Check if we should exit after text editor finalize
+		if (textEditorEnabled && state.workflow && !dispatchResult.validatePassedThisIteration) {
+			this.debugLog('CHAT', 'Workflow ready from text editor, exiting loop');
+			if (this.evalLogger && textEditorHandler) {
+				state.sourceCode = textEditorHandler.getWorkflowCode() ?? null;
+			}
+			return { shouldBreak: true };
+		}
+
+		// Track validate attempts
+		if (dispatchResult.validatePassedThisIteration) {
+			state.textEditorValidateAttempts++;
+		}
+
+		// Check for too many validate failures
+		if (textEditorEnabled && state.textEditorValidateAttempts >= MAX_VALIDATE_ATTEMPTS) {
+			throw new Error(
+				`Failed to generate valid workflow after ${MAX_VALIDATE_ATTEMPTS} validate attempts.`,
+			);
+		}
+
+		return { shouldBreak: false };
+	}
+
+	/**
+	 * Handle text editor auto-finalize when no tool calls
+	 */
+	private async *handleTextEditorAutoFinalize(params: {
+		textEditorHandler: TextEditorHandler;
+		currentWorkflow?: WorkflowJSON;
+		messages: BaseMessage[];
+		state: AgenticLoopState;
+	}): AsyncGenerator<StreamOutput, { shouldBreak: boolean }, unknown> {
+		const { textEditorHandler, currentWorkflow, messages, state } = params;
+
+		this.debugLog('CHAT', 'Text editor mode: no tool calls, auto-finalizing');
+		state.textEditorValidateAttempts++;
+
+		const autoFinalizeResult = yield* this.autoFinalizeHandler.execute({
+			code: textEditorHandler.getWorkflowCode(),
+			currentWorkflow,
+			messages,
+		});
+
+		if (autoFinalizeResult.success && autoFinalizeResult.workflow) {
+			state.workflow = autoFinalizeResult.workflow;
+			state.parseDuration = autoFinalizeResult.parseDuration ?? 0;
+			if (this.evalLogger) {
+				state.sourceCode = textEditorHandler.getWorkflowCode() ?? null;
+			}
+			return { shouldBreak: true };
+		}
+
+		if (autoFinalizeResult.parseDuration) {
+			state.parseDuration = autoFinalizeResult.parseDuration;
+		}
+
+		return { shouldBreak: false };
+	}
+
+	/**
+	 * Handle final response when no tool calls (non-text-editor mode)
+	 */
+	private async handleFinalResponse(params: {
+		response: AIMessage;
+		currentWorkflow?: WorkflowJSON;
+		messages: BaseMessage[];
+		state: AgenticLoopState;
+	}): Promise<{ shouldBreak: boolean }> {
+		const { response, currentWorkflow, messages, state } = params;
+
+		const finalResult = await this.finalResponseHandler.process({
+			response,
+			currentWorkflow,
+			messages,
+			warningTracker: state.warningTracker,
+		});
+
+		if (finalResult.parseDuration !== undefined) {
+			state.parseDuration = finalResult.parseDuration;
+		}
+		if (finalResult.isParseError) {
+			state.consecutiveParseErrors++;
+		}
+
+		if (finalResult.success && finalResult.workflow) {
+			state.workflow = finalResult.workflow;
+			if (this.evalLogger && finalResult.sourceCode) {
+				state.sourceCode = finalResult.sourceCode;
+			}
+			return { shouldBreak: true };
+		}
+
+		return { shouldBreak: false };
+	}
+}
+
+/**
+ * Parameters for the agentic loop
+ */
+interface AgenticLoopParams {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	llmWithTools: Runnable<any, any, any>;
+	messages: BaseMessage[];
+	textEditorEnabled: boolean;
+	currentWorkflow?: WorkflowJSON;
+	textEditorHandler?: TextEditorHandler;
+	textEditorToolHandler?: TextEditorToolHandler;
+	abortSignal?: AbortSignal;
+}
+
+/**
+ * Result of the agentic loop
+ */
+interface AgenticLoopResult {
+	workflow: WorkflowJSON | null;
+	parseDuration: number;
+	sourceCode: string | null;
+	iteration: number;
+}
+
+/**
+ * Mutable state for the agentic loop
+ */
+interface AgenticLoopState {
+	iteration: number;
+	consecutiveParseErrors: number;
+	workflow: WorkflowJSON | null;
+	parseDuration: number;
+	sourceCode: string | null;
+	textEditorValidateAttempts: number;
+	warningTracker: WarningTracker;
 }
