@@ -18,6 +18,7 @@ import {
 	expressionPrefixValidator,
 	fromAiValidator,
 	httpRequestValidator,
+	maxNodesValidator,
 	mergeNodeValidator,
 	missingTriggerValidator,
 	noNodesValidator,
@@ -47,6 +48,7 @@ const coreValidators: ValidatorPlugin[] = [
 	// Workflow-level validators (highest priority - run early)
 	noNodesValidator, // Check if workflow has any nodes
 	missingTriggerValidator, // Check if workflow has a trigger
+	maxNodesValidator, // Check max nodes per type constraint
 
 	// Node-specific validators (high priority)
 	agentValidator,

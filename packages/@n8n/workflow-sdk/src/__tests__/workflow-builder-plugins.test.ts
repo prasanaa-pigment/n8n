@@ -1405,4 +1405,176 @@ describe('WorkflowBuilder plugin integration', () => {
 			expect(handlerWithoutCollectPinData.collectPinData).toBeUndefined();
 		});
 	});
+
+	describe('Phase 13: maxNodesValidator plugin', () => {
+		it('validateWorkflow returns empty array when no nodeTypesProvider', () => {
+			const { maxNodesValidator } = require('../plugins/validators/max-nodes-validator');
+
+			const nodesMap = new Map();
+			nodesMap.set('Set 1', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+			nodesMap.set('Set 2', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+
+			const ctx: PluginContext = {
+				nodes: nodesMap as unknown as ReadonlyMap<string, import('../types/base').GraphNode>,
+				workflowId: 'test',
+				workflowName: 'Test',
+				settings: {},
+				// No nodeTypesProvider
+			};
+
+			const issues = maxNodesValidator.validateWorkflow!(ctx);
+
+			expect(issues.length).toBe(0);
+		});
+
+		it('validateWorkflow returns empty array when count <= maxNodes', () => {
+			const { maxNodesValidator } = require('../plugins/validators/max-nodes-validator');
+
+			const nodesMap = new Map();
+			nodesMap.set('Set 1', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+
+			const mockProvider = {
+				getByNameAndVersion: () => ({
+					description: { maxNodes: 2, displayName: 'Set' },
+				}),
+			};
+
+			const ctx: PluginContext = {
+				nodes: nodesMap as unknown as ReadonlyMap<string, import('../types/base').GraphNode>,
+				workflowId: 'test',
+				workflowName: 'Test',
+				settings: {},
+				validationOptions: { nodeTypesProvider: mockProvider },
+			};
+
+			const issues = maxNodesValidator.validateWorkflow!(ctx);
+
+			expect(issues.length).toBe(0);
+		});
+
+		it('validateWorkflow returns error when count > maxNodes', () => {
+			const { maxNodesValidator } = require('../plugins/validators/max-nodes-validator');
+
+			const nodesMap = new Map();
+			nodesMap.set('Set 1', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+			nodesMap.set('Set 2', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+			nodesMap.set('Set 3', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+
+			const mockProvider = {
+				getByNameAndVersion: () => ({
+					description: { maxNodes: 2, displayName: 'Set' },
+				}),
+			};
+
+			const ctx: PluginContext = {
+				nodes: nodesMap as unknown as ReadonlyMap<string, import('../types/base').GraphNode>,
+				workflowId: 'test',
+				workflowName: 'Test',
+				settings: {},
+				validationOptions: { nodeTypesProvider: mockProvider },
+			};
+
+			const issues = maxNodesValidator.validateWorkflow!(ctx);
+
+			expect(issues.length).toBe(1);
+			expect(issues[0].code).toBe('MAX_NODES_EXCEEDED');
+			expect(issues[0].severity).toBe('error');
+			expect(issues[0].message).toContain('3');
+			expect(issues[0].message).toContain('Set');
+			expect(issues[0].message).toContain('2');
+		});
+
+		it('validateWorkflow skips types with no maxNodes defined', () => {
+			const { maxNodesValidator } = require('../plugins/validators/max-nodes-validator');
+
+			const nodesMap = new Map();
+			nodesMap.set('Set 1', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+			nodesMap.set('Set 2', {
+				instance: { name: 'Set', type: 'n8n-nodes-base.set', version: 3.4 },
+				connections: new Map(),
+			});
+
+			const mockProvider = {
+				getByNameAndVersion: () => ({
+					description: { displayName: 'Set' }, // No maxNodes
+				}),
+			};
+
+			const ctx: PluginContext = {
+				nodes: nodesMap as unknown as ReadonlyMap<string, import('../types/base').GraphNode>,
+				workflowId: 'test',
+				workflowName: 'Test',
+				settings: {},
+				validationOptions: { nodeTypesProvider: mockProvider },
+			};
+
+			const issues = maxNodesValidator.validateWorkflow!(ctx);
+
+			expect(issues.length).toBe(0);
+		});
+
+		it('integration: workflow.validate() reports MAX_NODES_EXCEEDED error', () => {
+			const setNode1 = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'Set 1', parameters: {} },
+			});
+			const setNode2 = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'Set 2', parameters: {} },
+			});
+			const setNode3 = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'Set 3', parameters: {} },
+			});
+
+			const wf = workflow('test', 'Test')
+				.add(
+					trigger({
+						type: 'n8n-nodes-base.manualTrigger',
+						version: 1,
+						config: { name: 'Start' },
+					}),
+				)
+				.add(setNode1)
+				.add(setNode2)
+				.add(setNode3);
+
+			const mockProvider = {
+				getByNameAndVersion: (type: string) => {
+					if (type === 'n8n-nodes-base.set') {
+						return { description: { maxNodes: 2, displayName: 'Set' } };
+					}
+					return undefined;
+				},
+			};
+
+			const result = wf.validate({ nodeTypesProvider: mockProvider as never });
+
+			expect(result.errors.some((e) => e.code === 'MAX_NODES_EXCEEDED')).toBe(true);
+		});
+	});
 });

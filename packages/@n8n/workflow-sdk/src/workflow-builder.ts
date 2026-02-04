@@ -28,7 +28,7 @@ import type {
 registerDefaultPlugins(pluginRegistry);
 import { isNodeChain } from './types/base';
 import { isInputTarget, cloneNodeWithId } from './node-builder';
-import { parseVersion, generateDeterministicNodeId } from './workflow-builder/string-utils';
+import { generateDeterministicNodeId } from './workflow-builder/string-utils';
 import { NODE_SPACING_X, DEFAULT_Y, START_X } from './workflow-builder/constants';
 
 /**
@@ -550,38 +550,6 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		const errors: import('./validation/index').ValidationError[] = [];
 		const warnings: import('./validation/index').ValidationWarning[] = [];
 
-		// Check: maxNodes constraint
-		if (options.nodeTypesProvider) {
-			// Group nodes by type
-			const nodeCountByType = new Map<string, number>();
-			for (const graphNode of this._nodes.values()) {
-				const type = graphNode.instance.type;
-				nodeCountByType.set(type, (nodeCountByType.get(type) ?? 0) + 1);
-			}
-
-			// Check each type against its maxNodes limit
-			for (const [type, count] of nodeCountByType) {
-				if (count <= 1) continue;
-
-				const firstNode = Array.from(this._nodes.values()).find((n) => n.instance.type === type);
-				const versionRaw = firstNode?.instance.version;
-				const version = typeof versionRaw === 'number' ? versionRaw : parseVersion(versionRaw);
-
-				const nodeType = options.nodeTypesProvider.getByNameAndVersion(type, version);
-				const maxNodes = nodeType?.description?.maxNodes;
-
-				if (maxNodes !== undefined && count > maxNodes) {
-					const displayName = nodeType?.description?.displayName ?? type;
-					errors.push(
-						new ValidationError(
-							'MAX_NODES_EXCEEDED',
-							`Workflow has ${count} ${displayName} nodes. Maximum allowed is ${maxNodes}.`,
-						),
-					);
-				}
-			}
-		}
-
 		// Run plugin-based validators (use provided registry or global)
 		const registry = this._registry ?? pluginRegistry;
 		const pluginCtx: PluginContext = {
@@ -593,6 +561,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			validationOptions: {
 				allowDisconnectedNodes: options.allowDisconnectedNodes,
 				allowNoTrigger: options.allowNoTrigger,
+				nodeTypesProvider: options.nodeTypesProvider,
 			},
 		};
 

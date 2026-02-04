@@ -77,6 +77,23 @@ export interface ValidationIssue {
 // =============================================================================
 
 /**
+ * Provider interface for looking up node type metadata.
+ */
+export interface NodeTypesProvider {
+	getByNameAndVersion(
+		type: string,
+		version?: number,
+	):
+		| {
+				description?: {
+					maxNodes?: number;
+					displayName?: string;
+				};
+		  }
+		| undefined;
+}
+
+/**
  * Validation options that can be passed to validators via PluginContext.
  */
 export interface ValidationOptions {
@@ -84,6 +101,8 @@ export interface ValidationOptions {
 	readonly allowDisconnectedNodes?: boolean;
 	/** If true, skip validation for missing trigger nodes */
 	readonly allowNoTrigger?: boolean;
+	/** Optional provider for looking up node type metadata (e.g., maxNodes) */
+	readonly nodeTypesProvider?: NodeTypesProvider;
 }
 
 /**
