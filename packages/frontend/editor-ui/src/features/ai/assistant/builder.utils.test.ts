@@ -4,32 +4,11 @@ import {
 	extractRevertVersionIds,
 	fetchExistingVersionIds,
 	enrichMessagesWithRevertVersion,
-	createBuilderPayload,
 } from './builder.utils';
-import { CODE_WORKFLOW_BUILDER_EXPERIMENT } from '@/app/constants/experiments';
 
 // Mock workflowHistory API
 vi.mock('@n8n/rest-api-client/api/workflowHistory', () => ({
 	getWorkflowVersionsByIds: vi.fn(),
-}));
-
-// Mock usePostHog
-const mockGetVariant = vi.fn();
-vi.mock('@/app/stores/posthog.store', () => ({
-	usePostHog: () => ({
-		getVariant: mockGetVariant,
-	}),
-}));
-
-// Mock useAIAssistantHelpers
-const mockGetNodesSchemas = vi.fn();
-vi.mock('@/features/ai/assistant/composables/useAIAssistantHelpers', () => ({
-	useAIAssistantHelpers: () => ({
-		simplifyWorkflowForAssistant: vi.fn((workflow) => workflow),
-		simplifyResultData: vi.fn((data) => data),
-		extractExpressionsFromWorkflow: vi.fn().mockResolvedValue({}),
-		getNodesSchemas: mockGetNodesSchemas,
-	}),
 }));
 
 describe('builder.utils', () => {
@@ -313,77 +292,6 @@ describe('builder.utils', () => {
 			const result = enrichMessagesWithRevertVersion([], new Map());
 
 			expect(result).toEqual([]);
-		});
-	});
-
-	describe('createBuilderPayload', () => {
-		beforeEach(() => {
-			vi.resetAllMocks();
-			mockGetNodesSchemas.mockReturnValue([]);
-		});
-
-		it('should exclude schema values when code builder is disabled', async () => {
-			mockGetVariant.mockReturnValue('control');
-
-			await createBuilderPayload('test message', 'msg-1', {
-				nodesForSchema: ['Node1', 'Node2'],
-			});
-
-			expect(mockGetNodesSchemas).toHaveBeenCalledWith(['Node1', 'Node2'], true);
-		});
-
-		it('should include schema values when code builder is enabled', async () => {
-			mockGetVariant.mockImplementation((experimentName: string) => {
-				if (experimentName === CODE_WORKFLOW_BUILDER_EXPERIMENT.name) {
-					return CODE_WORKFLOW_BUILDER_EXPERIMENT.test;
-				}
-				return 'control';
-			});
-
-			await createBuilderPayload('test message', 'msg-1', {
-				nodesForSchema: ['Node1', 'Node2'],
-			});
-
-			expect(mockGetNodesSchemas).toHaveBeenCalledWith(['Node1', 'Node2'], false);
-		});
-
-		it('should set codeBuilder feature flag correctly when enabled', async () => {
-			mockGetVariant.mockImplementation((experimentName: string) => {
-				if (experimentName === CODE_WORKFLOW_BUILDER_EXPERIMENT.name) {
-					return CODE_WORKFLOW_BUILDER_EXPERIMENT.test;
-				}
-				return 'control';
-			});
-
-			const result = await createBuilderPayload('test message', 'msg-1', {});
-
-			expect(result.featureFlags?.codeBuilder).toBe(true);
-		});
-
-		it('should set codeBuilder feature flag correctly when disabled', async () => {
-			mockGetVariant.mockReturnValue('control');
-
-			const result = await createBuilderPayload('test message', 'msg-1', {});
-
-			expect(result.featureFlags?.codeBuilder).toBe(false);
-		});
-
-		it('should not call getNodesSchemas when nodesForSchema is empty', async () => {
-			mockGetVariant.mockReturnValue('control');
-
-			await createBuilderPayload('test message', 'msg-1', {
-				nodesForSchema: [],
-			});
-
-			expect(mockGetNodesSchemas).not.toHaveBeenCalled();
-		});
-
-		it('should not call getNodesSchemas when nodesForSchema is not provided', async () => {
-			mockGetVariant.mockReturnValue('control');
-
-			await createBuilderPayload('test message', 'msg-1', {});
-
-			expect(mockGetNodesSchemas).not.toHaveBeenCalled();
 		});
 	});
 });
