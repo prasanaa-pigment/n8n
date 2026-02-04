@@ -23,7 +23,6 @@ export default defineConfig(
 			'@typescript-eslint/no-unsafe-return': 'warn',
 			'@typescript-eslint/no-base-to-string': 'warn',
 			'@typescript-eslint/restrict-template-expressions': 'warn',
-			'@typescript-eslint/require-await': 'warn',
 			'@typescript-eslint/prefer-nullish-coalescing': 'warn',
 			'@typescript-eslint/no-require-imports': 'warn',
 			'@typescript-eslint/consistent-type-imports': 'warn',

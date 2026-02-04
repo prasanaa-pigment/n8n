@@ -45,7 +45,7 @@ export function fixturesExist(): boolean {
  * Ensure fixtures are available by extracting from zip and validating.
  * @throws FixtureDownloadError if zip doesn't exist or validation fails
  */
-export async function ensureFixtures(): Promise<void> {
+export function ensureFixtures(): void {
 	if (!zipExists()) {
 		throw new FixtureDownloadError(
 			'Workflow fixtures zip file not found. ' +
