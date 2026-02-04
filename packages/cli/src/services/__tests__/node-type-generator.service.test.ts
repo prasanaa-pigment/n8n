@@ -108,11 +108,7 @@ describe('NodeTypeGeneratorService', () => {
 
 			expect(result).toBe(true); // Types were regenerated
 			// New hash should be written
-			expect(fs.promises.writeFile).toHaveBeenCalledWith(
-				hashFilePath,
-				expect.any(String),
-				'utf-8',
-			);
+			expect(fs.promises.writeFile).toHaveBeenCalledWith(hashFilePath, expect.any(String), 'utf-8');
 		});
 	});
 
@@ -139,11 +135,7 @@ describe('NodeTypeGeneratorService', () => {
 			await service.generate(nodesJsonPath);
 
 			// Should write hash file
-			expect(fs.promises.writeFile).toHaveBeenCalledWith(
-				hashFilePath,
-				expect.any(String),
-				'utf-8',
-			);
+			expect(fs.promises.writeFile).toHaveBeenCalledWith(hashFilePath, expect.any(String), 'utf-8');
 		});
 
 		it('should generate node type files in the nodes subdirectory', async () => {
