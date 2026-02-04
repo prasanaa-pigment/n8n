@@ -198,7 +198,7 @@ const onValueDrop = async (droppedExpression: string) => {
 						@blur="onBlur"
 					/>
 				</template>
-				<template v-if="!hideType" #middle="{ breakpoint }">
+				<template v-if="!hideType" #middle>
 					<div :class="$style.typeSelectWrapper">
 						<N8nTooltip placement="left" :disabled="assignment.type !== 'binary'">
 							<template #content>
@@ -207,13 +207,13 @@ const onValueDrop = async (droppedExpression: string) => {
 							<TypeSelect
 								:model-value="assignment.type ?? 'string'"
 								:is-read-only="disableType || isReadOnly"
-								:stacked="breakpoint === 'stacked'"
+								:stacked="false"
 								@update:model-value="onAssignmentTypeChange"
 							/>
 						</N8nTooltip>
 					</div>
 				</template>
-				<template #right="{ breakpoint }">
+				<template #right>
 					<div :class="$style.value">
 						<ParameterInputFull
 							display-options
@@ -222,7 +222,7 @@ const onValueDrop = async (droppedExpression: string) => {
 							hide-hint
 							is-assignment
 							:is-read-only="isReadOnly"
-							:options-position="breakpoint === 'default' ? 'top' : 'bottom'"
+							options-position="top"
 							:parameter="valueParameter"
 							:value="assignment.value"
 							:path="`${path}.value`"
@@ -235,11 +235,7 @@ const onValueDrop = async (droppedExpression: string) => {
 						<ParameterInputHint
 							v-if="resolvedExpressionString"
 							data-test-id="parameter-expression-preview-value"
-							:class="{
-								[$style.hint]: true,
-								[$style.optionsPadding]:
-									breakpoint !== 'default' && !isReadOnly && valueInputHovered,
-							}"
+							:class="[$style.hint]"
 							:highlight="highlightHint"
 							:hint="hint"
 							single-line

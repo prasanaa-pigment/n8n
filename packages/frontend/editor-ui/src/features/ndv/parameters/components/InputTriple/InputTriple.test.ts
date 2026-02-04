@@ -9,7 +9,7 @@ describe('InputTriple.vue', () => {
 	});
 
 	it('renders layout correctly', async () => {
-		const { getByText, container } = renderComponent({
+		const { getByText } = renderComponent({
 			props: { middleWidth: '200px' },
 			slots: {
 				left: '<div>left</div>',
