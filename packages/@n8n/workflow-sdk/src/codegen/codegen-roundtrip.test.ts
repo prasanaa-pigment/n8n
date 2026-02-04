@@ -1974,14 +1974,14 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					)) {
 						// Filter each output slot to remove connections to non-existent target nodes
 						const filteredOutputs = (outputs || []).map((slot: unknown) => {
-							if (!Array.isArray(slot)) return slot;
+							if (!Array.isArray(slot)) return slot as unknown[];
 							// Filter out connections to non-existent nodes
 							if (validNodeNames) {
 								return slot.filter(
 									(conn: { node?: string }) => conn.node && validNodeNames.has(conn.node),
-								);
+								) as unknown[];
 							}
-							return slot;
+							return slot as unknown[];
 						});
 						// Only include non-empty output slots
 						const nonEmptyOutputs = filteredOutputs.filter(
