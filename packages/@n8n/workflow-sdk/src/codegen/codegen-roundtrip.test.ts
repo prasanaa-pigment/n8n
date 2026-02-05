@@ -2000,6 +2000,25 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 				return result;
 			};
 
+			// Helper function to normalize expressions (strip leading = from ==)
+			const normalizeExpressions = (value: unknown): unknown => {
+				if (typeof value === 'string') {
+					// Strip leading = from double-equals expressions (e.g., "=={{ $json.x }}" -> "={{ $json.x }}")
+					return value.startsWith('==') ? value.slice(1) : value;
+				}
+				if (Array.isArray(value)) {
+					return value.map(normalizeExpressions);
+				}
+				if (value && typeof value === 'object') {
+					const result: Record<string, unknown> = {};
+					for (const [k, v] of Object.entries(value)) {
+						result[k] = normalizeExpressions(v);
+					}
+					return result;
+				}
+				return value;
+			};
+
 			// Helper function for normalizing parameters
 			const normalizeParams = (p: unknown, nodeType: string) => {
 				if (!p || typeof p !== 'object') return p;
@@ -2011,7 +2030,8 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 				}
 				// Normalize resource locators (add __rl: true) for fair comparison
 				// since SDK-generated code adds __rl: true to all resource locators
-				return normalizeResourceLocators(p);
+				// Also normalize expressions (strip leading = from double-equals)
+				return normalizeExpressions(normalizeResourceLocators(p));
 			};
 
 			// Helper function for filtering empty connections, orphaned connections (from non-existent nodes),

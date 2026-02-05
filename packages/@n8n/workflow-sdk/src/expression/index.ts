@@ -165,8 +165,8 @@ export function serializeExpression<T>(fn: Expression<T>): string {
  * Mark a string as an n8n expression by adding the required '=' prefix.
  *
  * Use this for any parameter value that contains {{ }} expression syntax.
- * Always adds '=' prefix unconditionally - the code generator strips one '='
- * from all expressions, so this restores it.
+ * Strips any existing leading '=' to prevent double-equals from LLM output,
+ * then adds the '=' prefix.
  *
  * @param expression - Expression string (should contain {{ }} syntax)
  * @returns String with '=' prefix
@@ -175,11 +175,13 @@ export function serializeExpression<T>(fn: Expression<T>): string {
  * ```typescript
  * expr('{{ $json.name }}')           // '={{ $json.name }}'
  * expr('Hello {{ $json.name }}')     // '=Hello {{ $json.name }}'
- * expr('={{ $json.x }}')             // '=={{ $json.x }}' (preserves double =)
+ * expr('={{ $json.x }}')             // '={{ $json.x }}' (strips redundant =)
  * ```
  */
 export function expr(expression: string): string {
-	return '=' + expression;
+	// Strip any leading '=' to prevent double-equals patterns from LLM output
+	const normalized = expression.startsWith('=') ? expression.slice(1) : expression;
+	return '=' + normalized;
 }
 
 // =============================================================================
