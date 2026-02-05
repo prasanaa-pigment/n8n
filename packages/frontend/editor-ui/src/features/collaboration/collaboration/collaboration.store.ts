@@ -249,24 +249,39 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 	}
 
 	function setRefreshCanvasCallback(fn: (workflow: IWorkflowDb) => void) {
+		console.log('[Collaboration] setRefreshCanvasCallback called');
 		refreshCanvasCallback = fn;
 	}
 
 	async function handleWorkflowUpdate() {
+		console.log('[Collaboration] handleWorkflowUpdate called');
+		console.log('[Collaboration] isCurrentUserWriter:', isCurrentUserWriter.value);
+		console.log('[Collaboration] currentWriterId:', currentWriterId.value);
+		console.log('[Collaboration] currentUserId:', usersStore.currentUserId);
+
 		if (isCurrentUserWriter.value) {
+			console.log('[Collaboration] Skipping update - current user is writer');
 			return;
 		}
 
 		try {
+			console.log('[Collaboration] Fetching workflow:', workflowsStore.workflowId);
 			// Fetch the latest workflow data
 			const updatedWorkflow = await workflowsListStore.fetchWorkflow(workflowsStore.workflowId);
+			console.log('[Collaboration] Fetched workflow:', updatedWorkflow);
 
 			// Refresh the canvas with the new workflow data
+			console.log('[Collaboration] refreshCanvasCallback exists:', !!refreshCanvasCallback);
 			if (refreshCanvasCallback) {
+				console.log('[Collaboration] Calling refreshCanvasCallback');
 				refreshCanvasCallback(updatedWorkflow);
+				console.log('[Collaboration] refreshCanvasCallback completed');
+			} else {
+				console.log('[Collaboration] WARNING: No refreshCanvasCallback registered!');
 			}
 			return true;
-		} catch {
+		} catch (error) {
+			console.error('[Collaboration] Error in handleWorkflowUpdate:', error);
 			return false;
 		}
 	}
@@ -282,7 +297,14 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 	}
 
 	async function initialize() {
+		console.log('[Collaboration] initialize called');
+		console.log(
+			'[Collaboration] pushStoreEventListenerRemovalFn exists:',
+			!!pushStoreEventListenerRemovalFn.value,
+		);
+
 		if (pushStoreEventListenerRemovalFn.value) {
+			console.log('[Collaboration] Already initialized, returning early');
 			return;
 		}
 
@@ -301,6 +323,9 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 		}
 
 		pushStoreEventListenerRemovalFn.value = pushStore.addEventListener((event) => {
+			console.log('[Collaboration] Event listener received:', event.type, event);
+			console.log('[Collaboration] Current workflowId:', workflowsStore.workflowId);
+
 			if (
 				event.type === 'collaboratorsChanged' &&
 				event.data.workflowId === workflowsStore.workflowId
@@ -338,11 +363,23 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 				return;
 			}
 
-			if (event.type === 'workflowUpdated' && event.data.workflowId === workflowsStore.workflowId) {
-				void handleWorkflowUpdate();
+			if (event.type === 'workflowUpdated') {
+				console.log('[Collaboration] workflowUpdated event received');
+				console.log('[Collaboration] Event workflowId:', event.data.workflowId);
+				console.log('[Collaboration] Store workflowId:', workflowsStore.workflowId);
+				console.log('[Collaboration] Match:', event.data.workflowId === workflowsStore.workflowId);
+
+				if (event.data.workflowId === workflowsStore.workflowId) {
+					console.log('[Collaboration] Calling handleWorkflowUpdate');
+					void handleWorkflowUpdate();
+				} else {
+					console.log('[Collaboration] Skipping - workflowId mismatch');
+				}
 				return;
 			}
 		});
+
+		console.log('[Collaboration] Event listener registered successfully');
 
 		addBeforeUnloadEventBindings();
 		notifyWorkflowOpened();

@@ -74,7 +74,14 @@ export const usePushConnectionStore = defineStore(STORES.PUSH, () => {
 			return;
 		}
 
-		onMessageReceivedHandlers.value.forEach((handler) => handler(parsedData));
+		// DEBUG: Log all incoming push messages
+		console.log('[PushConnection] Received message:', parsedData.type, parsedData);
+		console.log('[PushConnection] Number of handlers:', onMessageReceivedHandlers.value.length);
+
+		onMessageReceivedHandlers.value.forEach((handler, index) => {
+			console.log('[PushConnection] Dispatching to handler', index);
+			handler(parsedData);
+		});
 	}
 
 	const url = getConnectionUrl();

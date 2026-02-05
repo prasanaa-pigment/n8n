@@ -2168,7 +2168,17 @@ export function useCanvasOperations() {
 	}
 
 	async function initializeWorkspace(data: IWorkflowDb) {
+		console.log('[CanvasOperations] initializeWorkspace called');
+		console.log('[CanvasOperations] Workflow data:', data);
+		console.log('[CanvasOperations] Number of nodes:', data.nodes?.length);
+		console.log(
+			'[CanvasOperations] Node names:',
+			data.nodes?.map((n) => n.name),
+		);
+
 		await workflowHelpers.initState(data, useWorkflowState());
+		console.log('[CanvasOperations] initState completed');
+
 		data.nodes.forEach((node) => {
 			const nodeTypeDescription = requireNodeTypeDescription(node.type, node.typeVersion);
 			const isUnknownNode =
@@ -2181,10 +2191,13 @@ export function useCanvasOperations() {
 				resolveNodeWebhook(node, nodeTypeDescription);
 			}
 		});
+
+		console.log('[CanvasOperations] Setting nodes and connections');
 		workflowsStore.setNodes(data.nodes);
 		workflowsStore.setConnections(data.connections);
 		workflowState.setWorkflowProperty('createdAt', data.createdAt);
 		workflowState.setWorkflowProperty('updatedAt', data.updatedAt);
+		console.log('[CanvasOperations] initializeWorkspace completed');
 	}
 
 	const initializeUnknownNodes = (nodes: INode[]) => {

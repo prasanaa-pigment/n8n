@@ -1805,8 +1805,12 @@ onMounted(async () => {
 
 	// Register callback for collaboration store to refresh canvas when workflow updates arrive
 	collaborationStore.setRefreshCanvasCallback(async (workflow) => {
+		console.log('[NodeView] refreshCanvasCallback invoked');
+		console.log('[NodeView] Received workflow:', workflow);
+		console.log('[NodeView] Workflow nodes:', workflow.nodes?.length);
 		// Refresh the canvas with updated workflow
 		await initializeWorkspace(workflow);
+		console.log('[NodeView] initializeWorkspace completed');
 	});
 
 	try {

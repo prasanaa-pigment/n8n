@@ -184,7 +184,10 @@ export const useWorkflowsListStore = defineStore(STORES.WORKFLOWS_LIST, () => {
 	}
 
 	async function fetchWorkflow(id: string): Promise<IWorkflowDb> {
+		console.log('[WorkflowsList] fetchWorkflow called with id:', id);
 		const workflowData = await workflowsApi.getWorkflow(rootStore.restApiContext, id);
+		console.log('[WorkflowsList] fetchWorkflow returned:', workflowData);
+		console.log('[WorkflowsList] Nodes in fetched workflow:', workflowData.nodes?.length);
 		addWorkflow(workflowData);
 		return workflowData;
 	}
