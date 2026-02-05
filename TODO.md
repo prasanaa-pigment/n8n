@@ -1,35 +1,31 @@
 # TODO (MVP)
 
 ## workflow-sdk
+- [ ] add more tests with output data / expression evals
 
 ## agent
-- [ ] clarify append merge mode. 1 item for each branch, returns 2 items.
-	- for combine, return 1 item
-- [ ] generate mock data for output data based on schema
 - [ ] for webhook path should not use placeholder
 - [ ] remove agent check in req
-- [ ] get nodes should fail if search was not done for the same node type
-- [ ] "Workflow generated" -> to something else if code building
-- [ ] move nodes in sticky out of config
+- [ ] "Use str_replace to fix these issues." or insert
+- [ ] skipping validation issues in nodes the builder did not touch
 
 ## clean up
 - [ ] maybe don't write to .n8n folder? move to /tmp/
-- [ ] extract thinking only if codeBuilder is enabled
-- [ ] remove workflow settings from workflow-sdk
+	- [ ] skipped schema tests
 - [ ] wrap prompt sections in xml?
 - [ ] print the prompt again reread
 
 ## ready to release
 - [ ] Get PR reviewed
 - [ ] rerun evals comparing - Fri
-- [ ] credit tracking
 - [ ] Remove logging from agent. also remove the generated log files.
 - [ ] Add sentry tracking if workflow code generation step fails in prod.
-- [ ] caching the requests. make sure system prompt
-- [ ] caching the type requests? talk to oleg
-- [ ] Update telemetry and prompt viewer app to support the code and workflow generated
+- [ ] Update telemetry
+- [ ] Update prompt viewer app to support the code and workflow generated
+- [ ] caching the tool requests? talk to oleg
 
 ## manual testing
+- [ ] test hard prompts
 - [ ] credit tracking
 - [ ] revert to previous version etc?
 - [ ] success/error states, expression, execution data resolving etc.
@@ -37,7 +33,7 @@
 - [ ] context limits with many types of nodes
 - [ ] long conversations and compaction
 - [ ] stickies
-- [ ] fromAi
+- [ ] fromAi (when editing worklfow with those already set)
 - [ ] execute and refine
 - [ ] unknown nodes
 - [ ] community nodes
@@ -47,6 +43,12 @@
 - [ ] test with/out text editor enabled
 
 ## Nice to haves / tech debt
+- [ ] workflow configuration node
+- [ ] remove workflow settings from workflow-sdk
+- [ ] validation if parameter does not support placeholder()
+- [ ] get nodes maybe should fail if search was not done for the same node type
+- [ ] clarify merge nodes modes better
+- [ ] strip urls from descriptions of generated node-types
 - [ ] fix up sticky sizing and positioning to cover nodes
 - [ ] improve position of branches (i.e. split in batches, error branches)
 - [ ] toolsWithoutParameters in sdk
@@ -113,7 +115,7 @@ Feature Support Summary
  ├──────────────────────────────┼─────────────────┼──────────────────┤
  │ RLC Tool                     │ ✅              │ ❌  (NOT MVP)     │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
- │ Integration with planning    │ ✅              │ ❌  (If time allows)     │
+ │ Integration with planning    │ ✅              │ ❌  (If planning is merged / time allows)     │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
  │ Template Search              │ ✅              │ ❌   (NOT MVP, should go into planning)     │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
@@ -121,7 +123,9 @@ Feature Support Summary
  ├──────────────────────────────┼─────────────────┼──────────────────┤
  │ Template Caching             │ ✅              │ ❌   (NOT MVP, should go into planning)    │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
- │ Credit tracking              │ ✅              │ WIP              │
+ │ Credit tracking              │ ✅              │ ✅                │
+ ├──────────────────────────────┼─────────────────┼──────────────────┤
+ │ Telemetry tracking					  │ ✅              │ WIP              │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
  │ Execution Data               │ ✅              │ ✅               │
  ├──────────────────────────────┼─────────────────┼──────────────────┤
