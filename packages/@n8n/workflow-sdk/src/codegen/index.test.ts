@@ -173,9 +173,9 @@ describe('codegen index', () => {
 
 				const code = generateWorkflowCode({ workflow: json, executionSchema });
 
-				// Should have output property with sample data, not @output JSDoc
+				// Should have output property with redacted values (strings→'', numbers→0, booleans→false)
 				expect(code).not.toContain('@output');
-				expect(code).toContain("output: [{ id: 'usr_123', name: 'John' }]");
+				expect(code).toContain("output: [{ id: '', name: '' }]");
 			});
 
 			it('accepts options object with expression values', () => {
@@ -253,6 +253,116 @@ describe('codegen index', () => {
 
 				expect(code).toContain("workflow('', 'Test')");
 				expect(code).toContain('trigger(');
+			});
+
+			it('adds redaction comment when valuesExcluded is true', () => {
+				const json: WorkflowJSON = {
+					name: 'Test',
+					nodes: [
+						{
+							id: '1',
+							name: 'Fetch Users',
+							type: 'n8n-nodes-base.httpRequest',
+							typeVersion: 4.2,
+							position: [0, 0],
+							parameters: { url: 'https://api.example.com/users' },
+						},
+					],
+					connections: {},
+				};
+
+				const executionSchema = [
+					{
+						nodeName: 'Fetch Users',
+						schema: {
+							type: 'object' as const,
+							path: '',
+							value: [
+								{ type: 'string' as const, key: 'id', value: 'usr_123', path: 'id' },
+								{ type: 'string' as const, key: 'name', value: 'John', path: 'name' },
+							],
+						},
+					},
+				];
+
+				const code = generateWorkflowCode({
+					workflow: json,
+					executionSchema,
+					valuesExcluded: true,
+				});
+
+				expect(code).toContain('// Output values redacted');
+				expect(code).toContain("output: [{ id: '', name: '' }]");
+			});
+
+			it('does not add redaction comment when valuesExcluded is false', () => {
+				const json: WorkflowJSON = {
+					name: 'Test',
+					nodes: [
+						{
+							id: '1',
+							name: 'Fetch Users',
+							type: 'n8n-nodes-base.httpRequest',
+							typeVersion: 4.2,
+							position: [0, 0],
+							parameters: { url: 'https://api.example.com/users' },
+						},
+					],
+					connections: {},
+				};
+
+				const executionSchema = [
+					{
+						nodeName: 'Fetch Users',
+						schema: {
+							type: 'object' as const,
+							path: '',
+							value: [{ type: 'string' as const, key: 'id', value: 'usr_123', path: 'id' }],
+						},
+					},
+				];
+
+				const code = generateWorkflowCode({
+					workflow: json,
+					executionSchema,
+					valuesExcluded: false,
+				});
+
+				expect(code).not.toContain('// Output values redacted');
+				expect(code).toContain("output: [{ id: '' }]");
+			});
+
+			it('does not add redaction comment when valuesExcluded is undefined', () => {
+				const json: WorkflowJSON = {
+					name: 'Test',
+					nodes: [
+						{
+							id: '1',
+							name: 'Fetch Users',
+							type: 'n8n-nodes-base.httpRequest',
+							typeVersion: 4.2,
+							position: [0, 0],
+							parameters: { url: 'https://api.example.com/users' },
+						},
+					],
+					connections: {},
+				};
+
+				const executionSchema = [
+					{
+						nodeName: 'Fetch Users',
+						schema: {
+							type: 'object' as const,
+							path: '',
+							value: [{ type: 'string' as const, key: 'id', value: 'usr_123', path: 'id' }],
+						},
+					},
+				];
+
+				// Without valuesExcluded, should not add comment
+				const code = generateWorkflowCode({ workflow: json, executionSchema });
+
+				expect(code).not.toContain('// Output values redacted');
 			});
 		});
 	});

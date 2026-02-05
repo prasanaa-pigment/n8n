@@ -52,6 +52,8 @@ export interface ExecutionContextOptions {
 	expressionAnnotations?: Map<string, string>;
 	/** Workflow-level execution status JSDoc content */
 	workflowStatusJSDoc?: string;
+	/** Whether execution schema values were excluded (redacted). When true, adds a comment indicating values are redacted. */
+	valuesExcluded?: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ interface GenerationContext {
 	nodeExecutionStatus?: Map<string, NodeExecutionStatus>;
 	expressionAnnotations?: Map<string, string>;
 	workflowStatusJSDoc?: string;
+	valuesExcluded?: boolean;
 }
 
 /**
@@ -420,6 +423,10 @@ function generateNodeConfig(node: SemanticNode, ctx: GenerationContext): string 
 		const schema = ctx.nodeSchemas.get(nodeName)!;
 		const outputSample = schemaToOutputSample(schema);
 		if (outputSample && Object.keys(outputSample).length > 0) {
+			// Add comment if values are excluded (redacted)
+			if (ctx.valuesExcluded) {
+				parts.push(`${innerIndent}// Output values redacted`);
+			}
 			parts.push(`${innerIndent}output: [${formatValue(outputSample, ctx)}]`);
 		} else {
 			// Schema exists but is empty - show output: [{}]
@@ -1206,6 +1213,7 @@ export function generateCode(
 		nodeExecutionStatus: executionContext?.nodeExecutionStatus,
 		expressionAnnotations: executionContext?.expressionAnnotations,
 		workflowStatusJSDoc: executionContext?.workflowStatusJSDoc,
+		valuesExcluded: executionContext?.valuesExcluded,
 	};
 
 	// Collect all subnodes from all nodes in the graph (not just variable nodes)

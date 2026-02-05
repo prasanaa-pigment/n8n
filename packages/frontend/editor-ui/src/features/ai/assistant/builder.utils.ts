@@ -71,12 +71,13 @@ export async function createBuilderPayload(
 	};
 
 	if (options.nodesForSchema?.length) {
-		// Include schema values when code builder is enabled (excludeValues = false)
-		const excludeValues = !isCodeBuilderEnabled;
+		// Always exclude values for privacy (they will be redacted by the code generator)
+		const excludeValues = true;
 		workflowContext.executionSchema = assistantHelpers.getNodesSchemas(
 			options.nodesForSchema,
 			excludeValues,
 		);
+		workflowContext.valuesExcluded = excludeValues;
 	}
 
 	return {

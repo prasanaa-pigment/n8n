@@ -2525,9 +2525,9 @@ describe('code-generator', () => {
 
 				const code = generateCode(tree, json, graph, { nodeSchemas });
 
-				// Should have output property with sample data, not @output JSDoc
+				// Should have output property with redacted values (strings→''), not @output JSDoc
 				expect(code).not.toContain('@output');
-				expect(code).toContain("output: [{ id: 'usr_123', name: 'John' }]");
+				expect(code).toContain("output: [{ id: '', name: '' }]");
 			});
 
 			it('adds @nodeExecutionStatus success/error annotations in JSDoc', () => {

@@ -44,6 +44,8 @@ export interface GenerateWorkflowCodeOptions {
 	expressionValues?: Record<string, ExpressionValue[]>;
 	/** Execution result data for status and error info */
 	executionData?: IRunExecutionData['resultData'];
+	/** Whether execution schema values were excluded (redacted). When true, adds a comment indicating values are redacted. */
+	valuesExcluded?: boolean;
 }
 
 // Re-export individual functions for testing and extension
@@ -91,14 +93,16 @@ function isOptionsObject(
  */
 export function generateWorkflowCode(input: WorkflowJSON | GenerateWorkflowCodeOptions): string {
 	// Support both old API (just WorkflowJSON) and new API (options object)
-	const { workflow, executionSchema, expressionValues, executionData } = isOptionsObject(input)
-		? input
-		: {
-				workflow: input,
-				executionSchema: undefined,
-				expressionValues: undefined,
-				executionData: undefined,
-			};
+	const { workflow, executionSchema, expressionValues, executionData, valuesExcluded } =
+		isOptionsObject(input)
+			? input
+			: {
+					workflow: input,
+					executionSchema: undefined,
+					expressionValues: undefined,
+					executionData: undefined,
+					valuesExcluded: undefined,
+				};
 
 	// Phase 1: Build semantic graph
 	const graph = buildSemanticGraph(workflow);
@@ -130,5 +134,6 @@ export function generateWorkflowCode(input: WorkflowJSON | GenerateWorkflowCodeO
 		nodeExecutionStatus: nodeExecutionStatus.size > 0 ? nodeExecutionStatus : undefined,
 		nodeSchemas: nodeSchemas.size > 0 ? nodeSchemas : undefined,
 		workflowStatusJSDoc: workflowStatusJSDoc || undefined,
+		valuesExcluded,
 	});
 }

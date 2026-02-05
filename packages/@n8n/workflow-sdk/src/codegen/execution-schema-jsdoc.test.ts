@@ -4,8 +4,68 @@ import type { Schema } from 'n8n-workflow';
 import { generateSchemaJSDoc, schemaToOutputSample } from './execution-schema-jsdoc';
 
 describe('execution-schema-jsdoc', () => {
-	describe('schemaToOutputSample', () => {
-		it('converts object schema with primitive fields to sample object', () => {
+	describe('schemaToOutputSample - value redaction', () => {
+		it('redacts string values to empty string', () => {
+			const schema: Schema = {
+				type: 'object',
+				path: '',
+				value: [{ key: 'name', type: 'string', value: 'John Doe', path: '' }],
+			};
+			const result = schemaToOutputSample(schema);
+			expect(result).toEqual({ name: '' });
+		});
+
+		it('redacts number values to 0', () => {
+			const schema: Schema = {
+				type: 'object',
+				path: '',
+				value: [{ key: 'count', type: 'number', value: '42', path: '' }],
+			};
+			const result = schemaToOutputSample(schema);
+			expect(result).toEqual({ count: 0 });
+		});
+
+		it('redacts boolean values to false', () => {
+			const schema: Schema = {
+				type: 'object',
+				path: '',
+				value: [{ key: 'active', type: 'boolean', value: 'true', path: '' }],
+			};
+			const result = schemaToOutputSample(schema);
+			expect(result).toEqual({ active: false });
+		});
+
+		it('preserves null values', () => {
+			const schema: Schema = {
+				type: 'object',
+				path: '',
+				value: [{ key: 'data', type: 'null', value: 'null', path: '' }],
+			};
+			const result = schemaToOutputSample(schema);
+			expect(result).toEqual({ data: null });
+		});
+
+		it('redacts nested object values', () => {
+			const schema: Schema = {
+				type: 'object',
+				path: '',
+				value: [
+					{
+						key: 'user',
+						type: 'object',
+						path: '',
+						value: [
+							{ key: 'name', type: 'string', value: 'John', path: '' },
+							{ key: 'age', type: 'number', value: '30', path: '' },
+						],
+					},
+				],
+			};
+			const result = schemaToOutputSample(schema);
+			expect(result).toEqual({ user: { name: '', age: 0 } });
+		});
+
+		it('redacts all values in object with multiple fields', () => {
 			const schema: Schema = {
 				type: 'object',
 				path: '',
@@ -20,13 +80,15 @@ describe('execution-schema-jsdoc', () => {
 			const result = schemaToOutputSample(schema);
 
 			expect(result).toEqual({
-				id: 'usr_12345',
-				name: 'John Doe',
-				age: 30,
-				active: true,
+				id: '',
+				name: '',
+				age: 0,
+				active: false,
 			});
 		});
+	});
 
+	describe('schemaToOutputSample - structure handling', () => {
 		it('returns null for non-object schemas', () => {
 			const stringSchema: Schema = {
 				type: 'string',
@@ -54,10 +116,11 @@ describe('execution-schema-jsdoc', () => {
 
 			const result = schemaToOutputSample(schema);
 
+			// Values are redacted: strings become '', booleans become false
 			expect(result).toEqual({
-				id: '123',
+				id: '',
 				data: {
-					approved: true,
+					approved: false,
 				},
 			});
 		});
@@ -114,8 +177,9 @@ describe('execution-schema-jsdoc', () => {
 
 			const result = schemaToOutputSample(schema);
 
+			// String value is redacted to ''
 			expect(result).toEqual({
-				valid: 'value',
+				valid: '',
 			});
 		});
 	});

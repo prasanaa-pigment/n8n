@@ -18,18 +18,16 @@ export function schemaToOutputSample(schema: Schema): Record<string, unknown> | 
 	for (const field of schema.value) {
 		if (!field.key) continue;
 
-		// Use the example value if it's a string (primitive value), otherwise use a type-appropriate default
-		if (typeof field.value === 'string') {
-			// Try to parse the string value to its actual type
-			sample[field.key] = parseSchemaValue(field.value, field.type);
-		} else if (field.type === 'object' && Array.isArray(field.value)) {
-			// Recursively convert nested objects
+		// Always use redacted values for privacy (strings→'', numbers→0, booleans→false)
+		if (field.type === 'object' && Array.isArray(field.value)) {
+			// Recursively convert nested objects (values will be redacted)
 			const nestedSample = schemaToOutputSample(field);
 			sample[field.key] = nestedSample ?? {};
 		} else if (field.type === 'array' && Array.isArray(field.value)) {
-			// For arrays, try to get a sample from the first element if available
+			// For arrays, use empty array
 			sample[field.key] = [];
 		} else {
+			// Use type-appropriate default (redacted value)
 			sample[field.key] = getDefaultForType(field.type);
 		}
 	}
@@ -37,23 +35,7 @@ export function schemaToOutputSample(schema: Schema): Record<string, unknown> | 
 }
 
 /**
- * Parse a string value from Schema to its actual type
- */
-function parseSchemaValue(value: string, type: string): unknown {
-	switch (type) {
-		case 'number':
-			return parseFloat(value) || 0;
-		case 'boolean':
-			return value === 'true';
-		case 'null':
-			return null;
-		default:
-			return value;
-	}
-}
-
-/**
- * Get a default value for a given schema type
+ * Get a default/redacted value for a given schema type
  */
 function getDefaultForType(type: string): unknown {
 	switch (type) {

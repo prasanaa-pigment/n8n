@@ -30,6 +30,8 @@ export namespace ChatRequest {
 		currentWorkflow?: Partial<IWorkflowDb>;
 		executionData?: IRunExecutionData['resultData'];
 		expressionValues?: Record<string, ExpressionValue[]>;
+		/** Whether execution schema values were excluded (redacted) for privacy */
+		valuesExcluded?: boolean;
 	}
 
 	export interface ExecutionResultData {
