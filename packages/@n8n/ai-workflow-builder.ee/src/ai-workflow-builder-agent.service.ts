@@ -12,7 +12,12 @@ import type { IUser, INodeTypeDescription, ITelemetryTrackProperties } from 'n8n
 import { LLMServiceError } from '@/errors';
 import { anthropicClaudeSonnet45 } from '@/llm-config';
 import { SessionManagerService } from '@/session-manager.service';
-import { ResourceLocatorCallbackFactory } from '@/types/callbacks';
+import type { ResourceLocatorCallback } from '@/types/callbacks';
+import type {
+	HITLInterruptValue,
+	PlanInterruptValue,
+	QuestionsInterruptValue,
+} from '@/types/planning';
 import {
 	BuilderFeatureFlags,
 	WorkflowBuilderAgent,
@@ -22,6 +27,8 @@ import {
 type OnCreditsUpdated = (userId: string, creditsQuota: number, creditsClaimed: number) => void;
 
 type OnTelemetryEvent = (event: string, properties: ITelemetryTrackProperties) => void;
+
+type ResourceLocatorCallbackFactory = (userId: string) => ResourceLocatorCallback;
 
 @Service()
 export class AiWorkflowBuilderService {
@@ -238,7 +245,24 @@ export class AiWorkflowBuilderService {
 		const userId = user?.id?.toString();
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
 
-		for await (const output of agent.chat(payload, userId, abortSignal)) {
+		const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+
+		const resumeInterrupt = payload.resumeData
+			? this.sessionManager.getPendingHitl(threadId)
+			: undefined;
+
+		if (payload.resumeData) {
+			this.sessionManager.clearPendingHitl(threadId);
+		}
+
+		const agentPayload = resumeInterrupt ? { ...payload, resumeInterrupt } : payload;
+
+		for await (const output of agent.chat(agentPayload, userId, abortSignal)) {
+			const pendingHitl = this.extractHitlFromStreamOutput(output);
+			if (pendingHitl) {
+				this.sessionManager.setPendingHitl(threadId, pendingHitl);
+			}
+
 			yield output;
 		}
 
@@ -332,5 +356,34 @@ export class AiWorkflowBuilderService {
 		messageId: string,
 	): Promise<boolean> {
 		return await this.sessionManager.truncateMessagesAfter(workflowId, user.id, messageId);
+	}
+
+	private extractHitlFromStreamOutput(output: unknown): HITLInterruptValue | null {
+		if (typeof output !== 'object' || output === null) return null;
+		if (!('messages' in output)) return null;
+
+		const messages = (output as { messages?: unknown }).messages;
+		if (!Array.isArray(messages)) return null;
+
+		for (const message of messages) {
+			if (typeof message !== 'object' || message === null) continue;
+			const m = message as Record<string, unknown>;
+			if (m.type === 'questions' && Array.isArray(m.questions)) {
+				const introMessage = typeof m.introMessage === 'string' ? m.introMessage : undefined;
+				return {
+					type: 'questions',
+					questions: m.questions as QuestionsInterruptValue['questions'],
+					...(introMessage ? { introMessage } : {}),
+				};
+			}
+			if (m.type === 'plan' && typeof m.plan === 'object' && m.plan !== null) {
+				return {
+					type: 'plan',
+					plan: m.plan as PlanInterruptValue['plan'],
+				};
+			}
+		}
+
+		return null;
 	}
 }

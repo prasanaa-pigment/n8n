@@ -5,6 +5,7 @@ import { Service } from '@n8n/di';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
 import { getBuilderToolsForDisplay } from '@/tools/builder-tools';
+import type { HITLInterruptValue } from '@/types/planning';
 import { isLangchainMessagesArray, LangchainMessage, Session } from '@/types/sessions';
 import { formatMessages } from '@/utils/stream-processor';
 
@@ -13,6 +14,8 @@ export class SessionManagerService {
 	private checkpointer: MemorySaver;
 
 	private nodeTypes: INodeTypeDescription[];
+
+	private pendingHitlByThreadId = new Map<string, HITLInterruptValue>();
 
 	constructor(
 		parsedNodeTypes: INodeTypeDescription[],
@@ -44,6 +47,18 @@ export class SessionManagerService {
 	 */
 	getCheckpointer(): MemorySaver {
 		return this.checkpointer;
+	}
+
+	setPendingHitl(threadId: string, value: HITLInterruptValue) {
+		this.pendingHitlByThreadId.set(threadId, value);
+	}
+
+	clearPendingHitl(threadId: string) {
+		this.pendingHitlByThreadId.delete(threadId);
+	}
+
+	getPendingHitl(threadId: string) {
+		return this.pendingHitlByThreadId.get(threadId);
 	}
 
 	/**
@@ -82,6 +97,22 @@ export class SessionManagerService {
 							nodeTypes: this.nodeTypes,
 						}),
 					);
+
+					const pendingHitl = this.getPendingHitl(threadId);
+					if (pendingHitl) {
+						formattedMessages.push({
+							role: 'assistant',
+							type: pendingHitl.type,
+							...(pendingHitl.type === 'questions'
+								? {
+										questions: pendingHitl.questions,
+										...(pendingHitl.introMessage ? { introMessage: pendingHitl.introMessage } : {}),
+									}
+								: {
+										plan: pendingHitl.plan,
+									}),
+						});
+					}
 
 					sessions.push({
 						sessionId: threadId,
