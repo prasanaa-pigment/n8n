@@ -175,7 +175,9 @@ function isPlanInterruptValue(value: unknown): value is PlanInterruptValue {
 	return value.type === 'plan' && isRecord(value.plan);
 }
 
-function extractInterruptValue(update: unknown): HITLInterruptValue | null {
+function extractInterruptPayload(
+	update: unknown,
+): { value: HITLInterruptValue; id?: string } | null {
 	if (!isRecord(update)) return null;
 
 	const rawInterrupts = update.__interrupt__;
@@ -186,15 +188,16 @@ function extractInterruptValue(update: unknown): HITLInterruptValue | null {
 
 	const value = first.value;
 	if (!isRecord(value)) return null;
+	const id = typeof first.id === 'string' ? first.id : undefined;
 
 	if (isQuestionsInterruptValue(value) || isPlanInterruptValue(value)) {
-		return value;
+		return { value, id };
 	}
 
 	return null;
 }
 
-function processInterrupt(interruptValue: HITLInterruptValue): StreamOutput {
+function processInterrupt(interruptValue: HITLInterruptValue, id?: string): StreamOutput {
 	if (interruptValue.type === 'questions') {
 		const chunk: QuestionsChunk = {
 			role: 'assistant',
@@ -202,7 +205,7 @@ function processInterrupt(interruptValue: HITLInterruptValue): StreamOutput {
 			introMessage: interruptValue.introMessage,
 			questions: interruptValue.questions,
 		};
-		return { messages: [chunk] };
+		return { messages: [chunk], ...(id ? { interruptId: id } : {}) };
 	}
 
 	const chunk: PlanChunk = {
@@ -210,7 +213,23 @@ function processInterrupt(interruptValue: HITLInterruptValue): StreamOutput {
 		type: 'plan',
 		plan: interruptValue.plan,
 	};
-	return { messages: [chunk] };
+	return { messages: [chunk], ...(id ? { interruptId: id } : {}) };
+}
+
+function stableStringify(value: unknown): string {
+	if (value === undefined) return 'null';
+	if (value === null || typeof value !== 'object') return JSON.stringify(value);
+	if (Array.isArray(value)) {
+		return `[${value.map((entry) => stableStringify(entry)).join(',')}]`;
+	}
+	const record = value as Record<string, unknown>;
+	const keys = Object.keys(record).sort();
+	const props = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
+	return `{${props.join(',')}}`;
+}
+
+function getInterruptSignature(payload: { value: HITLInterruptValue; id?: string }): string {
+	return payload.id ? `id:${payload.id}` : stableStringify(payload.value);
 }
 
 // ============================================================================
@@ -270,9 +289,14 @@ function processUpdatesChunk(nodeUpdate: Record<string, unknown>): StreamOutput 
 	}
 
 	// Human-in-the-loop interrupts (questions/plan)
-	const interruptValue = extractInterruptValue(nodeUpdate);
-	if (interruptValue) {
-		return processInterrupt(interruptValue);
+	const interruptPayload = extractInterruptPayload(nodeUpdate);
+	if (interruptPayload) {
+		console.log('[plan-debug] interrupt_event', {
+			source: 'parent',
+			signature: getInterruptSignature(interruptPayload),
+			keys: Object.keys(nodeUpdate),
+		});
+		return processInterrupt(interruptPayload.value, interruptPayload.id);
 	}
 
 	// Process operations emits workflow updates
@@ -307,6 +331,28 @@ export function processStreamChunk(streamMode: string, chunk: unknown): StreamOu
 /** Process a subgraph event */
 function processSubgraphEvent(event: SubgraphEvent): StreamOutput | null {
 	const [namespace, streamMode, data] = event;
+
+	// Always surface interrupts, even from skipped subgraphs
+	if (streamMode === 'updates') {
+		const interruptPayload = extractInterruptPayload(data);
+		if (interruptPayload) {
+			const shouldEmit = namespace.length > 0;
+			console.log('[plan-debug] interrupt_event', {
+				source: 'subgraph',
+				signature: getInterruptSignature(interruptPayload),
+				namespace,
+				shouldEmit,
+			});
+			if (shouldEmit) {
+				return processInterrupt(interruptPayload.value, interruptPayload.id);
+			}
+			console.log('[plan-debug] interrupt_skipped', {
+				reason: 'shallow_namespace',
+				namespace,
+			});
+			return null;
+		}
+	}
 
 	// Filter out message updates from internal subgraphs
 	if (
@@ -350,11 +396,22 @@ function processEvent(event: StreamEvent): StreamOutput | null {
 export async function* createStreamProcessor(
 	stream: AsyncIterable<StreamEvent>,
 ): AsyncGenerator<StreamOutput> {
+	const seenInterruptIds = new Set<string>();
 	for await (const event of stream) {
 		const result = processEvent(event);
-		if (result) {
-			yield result;
+		if (!result) continue;
+
+		if (result.interruptId) {
+			if (seenInterruptIds.has(result.interruptId)) {
+				console.log('[plan-debug] interrupt_deduped', {
+					id: result.interruptId,
+				});
+				continue;
+			}
+			seenInterruptIds.add(result.interruptId);
 		}
+
+		yield result;
 	}
 }
 

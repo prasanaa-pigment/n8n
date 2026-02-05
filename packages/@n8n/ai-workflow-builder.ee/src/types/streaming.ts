@@ -66,6 +66,8 @@ export type StreamChunk =
  */
 export interface StreamOutput {
 	messages: StreamChunk[];
+	/** Optional interrupt id for deduping repeated interrupt emissions */
+	interruptId?: string;
 }
 
 /**
