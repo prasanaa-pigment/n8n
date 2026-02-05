@@ -42,6 +42,8 @@ interface Props {
 	workflowId?: string;
 	pruneTimeHours?: number;
 	enableThinkingParse?: boolean;
+	/** Custom message to show when all tools complete (instead of default "Workflow generated") */
+	thinkingCompletionMessage?: string;
 }
 
 const emit = defineEmits<{
@@ -93,6 +95,7 @@ function groupToolMessagesIntoThinking(
 	options: {
 		streaming?: boolean;
 		loadingMessage?: string;
+		thinkingCompletionMessage?: string;
 		t: (key: string) => string;
 	},
 ): ChatUI.AssistantMessage[] {
@@ -182,7 +185,8 @@ function groupToolMessagesIntoThinking(
 			// Still streaming after tools completed - show thinking message
 			latestStatus = options.loadingMessage;
 		} else if (allToolsCompleted && !options.streaming) {
-			latestStatus = options.t('assistantChat.thinking.workflowGenerated');
+			latestStatus =
+				options.thinkingCompletionMessage ?? options.t('assistantChat.thinking.workflowGenerated');
 		} else if (allToolsCompleted) {
 			latestStatus = options.loadingMessage ?? options.t('assistantChat.thinking.processing');
 		} else {
@@ -212,6 +216,7 @@ const normalizedMessages = computed(() => {
 	return groupToolMessagesIntoThinking(filterOutHiddenMessages(normalized), {
 		streaming: props.streaming,
 		loadingMessage: props.loadingMessage,
+		thinkingCompletionMessage: props.thinkingCompletionMessage,
 		t,
 	});
 });
