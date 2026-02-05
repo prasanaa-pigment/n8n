@@ -78,6 +78,9 @@ const isStacked = computed(() => width.value > 0 && width.value <= STACKED_BREAK
 	}
 
 	// Expression input: fx icon keeps left radius, cm-editor has no radius
+	// TODO: .el-input-group__prepend is an Element Plus class. When removing Element Plus,
+	// copy its styles to ExpressionParameterInput.vue and FromAiOverrideField.vue,
+	// then replace with a semantic class like .n8n-input-prepend
 	:global(.el-input-group__prepend) {
 		border-top-right-radius: 0;
 		border-bottom-right-radius: 0;
