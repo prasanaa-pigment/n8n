@@ -392,12 +392,28 @@ export interface ChatHubSessionDto {
 	tools: INode[];
 }
 
+export type ChatMessageContentChunk =
+	| { type: 'text'; content: string }
+	| { type: 'hidden'; content: string }
+	| {
+			type: 'artifact-create';
+			content: string;
+			command: ChatArtifactCreateCommand;
+			isIncomplete: boolean;
+	  }
+	| {
+			type: 'artifact-edit';
+			content: string;
+			command: ChatArtifactEditCommand;
+			isIncomplete: boolean;
+	  };
+
 export interface ChatHubMessageDto {
 	id: ChatMessageId;
 	sessionId: ChatSessionId;
 	type: ChatHubMessageType;
 	name: string;
-	content: string;
+	content: ChatMessageContentChunk[];
 	provider: ChatHubProvider | null;
 	model: string | null;
 	workflowId: string | null;
@@ -508,4 +524,62 @@ export class UpdateChatSettingsRequest extends Z.class({
 export interface ChatHubModuleSettings {
 	enabled: boolean;
 	providers: Record<ChatHubLLMProvider, ChatProviderSettingsDto>;
+}
+
+/**
+ * Response returned immediately when sending a message via WebSocket streaming.
+ * Message IDs are not included as they come via WebSocket events (chatHubStreamBegin).
+ */
+export interface ChatSendMessageResponse {
+	/** Status indicating streaming has started */
+	status: 'streaming';
+}
+
+/**
+ * Request query parameters for reconnecting to a chat stream
+ */
+export class ChatReconnectRequest extends Z.class({
+	lastSequence: z.coerce.number().int().min(0).optional(),
+}) {}
+
+/**
+ * Response containing pending chunks for reconnection replay
+ */
+export interface ChatReconnectResponse {
+	/** Whether there is an active stream for this session */
+	hasActiveStream: boolean;
+	/** Current message ID being streamed, if any */
+	currentMessageId: ChatMessageId | null;
+	/** Pending chunks that were missed during disconnection */
+	pendingChunks: Array<{
+		sequenceNumber: number;
+		content: string;
+	}>;
+	/** Last sequence number received by client (for gap detection) */
+	lastSequenceNumber: number;
+}
+
+/**
+ * Artifact generated during chat interaction
+ */
+export interface ChatArtifact {
+	title: string;
+	/**
+	 * Document type (html, md, csv, js etc.)
+	 */
+	type: string;
+	content: string;
+}
+
+export interface ChatArtifactCreateCommand {
+	title: string;
+	type: string;
+	content: string;
+}
+
+export interface ChatArtifactEditCommand {
+	title: string;
+	oldString: string;
+	newString: string;
+	replaceAll: boolean;
 }
