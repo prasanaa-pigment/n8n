@@ -1,7 +1,8 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeAll } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { ensureFixtures } from '../__tests__/fixtures-download';
 import { generateCode } from './code-generator';
 import { buildCompositeTree } from './composite-builder';
 import { annotateGraph } from './graph-annotator';
@@ -1822,6 +1823,11 @@ describe('code-generator', () => {
 		});
 
 		describe('composite node parameters roundtrip', () => {
+			// Ensure fixtures are extracted for tests that use real workflow files
+			beforeAll(() => {
+				ensureFixtures();
+			});
+
 			it('preserves switchCase parameters through roundtrip', () => {
 				const json: WorkflowJSON = {
 					id: 'switch-params-test',
