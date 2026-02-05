@@ -211,6 +211,14 @@ export class ParseValidateHandler {
 				this.logger?.warn('Workflow validation errors', {
 					errors: validationResult.errors.map((e: { message: string }) => e.message),
 				});
+				// Add JSON validation errors to allWarnings for agent self-correction
+				for (const e of validationResult.errors) {
+					allWarnings.push({
+						code: e.code,
+						message: e.message,
+						nodeName: e.nodeName,
+					});
+				}
 			}
 
 			if (validationResult.warnings.length > 0) {

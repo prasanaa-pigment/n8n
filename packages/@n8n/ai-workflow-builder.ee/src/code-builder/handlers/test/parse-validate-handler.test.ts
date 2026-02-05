@@ -134,6 +134,67 @@ describe('ParseValidateHandler', () => {
 			expect(result.warnings[0].code).toBe('JSON_WARN');
 		});
 
+		it('should collect errors from JSON validation as warnings for agent self-correction', async () => {
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test Workflow',
+				nodes: [],
+				connections: {},
+			};
+
+			const mockBuilder = {
+				regenerateNodeIds: jest.fn(),
+				validate: jest.fn().mockReturnValue({ valid: true, errors: [], warnings: [] }),
+				generatePinData: jest.fn(),
+				toJSON: jest.fn().mockReturnValue(mockWorkflow),
+			};
+
+			mockParseWorkflowCodeToBuilder.mockReturnValue(mockBuilder);
+			mockValidateWorkflow.mockReturnValue({
+				valid: false,
+				errors: [{ code: 'JSON_ERR', message: 'JSON validation error', nodeName: 'TestNode' }],
+				warnings: [],
+			});
+
+			const result = await handler.parseAndValidate('code');
+
+			// JSON validation errors should be included as warnings for agent self-correction
+			expect(result.warnings).toHaveLength(1);
+			expect(result.warnings[0].code).toBe('JSON_ERR');
+			expect(result.warnings[0].message).toBe('JSON validation error');
+			expect(result.warnings[0].nodeName).toBe('TestNode');
+		});
+
+		it('should collect both errors and warnings from JSON validation', async () => {
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test Workflow',
+				nodes: [],
+				connections: {},
+			};
+
+			const mockBuilder = {
+				regenerateNodeIds: jest.fn(),
+				validate: jest.fn().mockReturnValue({ valid: true, errors: [], warnings: [] }),
+				generatePinData: jest.fn(),
+				toJSON: jest.fn().mockReturnValue(mockWorkflow),
+			};
+
+			mockParseWorkflowCodeToBuilder.mockReturnValue(mockBuilder);
+			mockValidateWorkflow.mockReturnValue({
+				valid: false,
+				errors: [{ code: 'JSON_ERR', message: 'JSON error' }],
+				warnings: [{ code: 'JSON_WARN', message: 'JSON warning' }],
+			});
+
+			const result = await handler.parseAndValidate('code');
+
+			// Both errors and warnings should be collected for agent self-correction
+			expect(result.warnings).toHaveLength(2);
+			expect(result.warnings.map((w) => w.code)).toContain('JSON_ERR');
+			expect(result.warnings.map((w) => w.code)).toContain('JSON_WARN');
+		});
+
 		it('should pass currentWorkflow to generatePinData', async () => {
 			const currentWorkflow = { id: 'current', name: 'Current', nodes: [], connections: {} };
 			const mockWorkflow = {
