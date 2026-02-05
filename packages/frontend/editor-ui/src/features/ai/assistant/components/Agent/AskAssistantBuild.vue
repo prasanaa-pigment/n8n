@@ -31,10 +31,16 @@ import AISettingsButton from '@/features/ai/assistant/components/Chat/AISettings
 import { useAssistantStore } from '@/features/ai/assistant/assistant.store';
 
 import { N8nAskAssistantChat, N8nText } from '@n8n/design-system';
-import { isPlanModePlanMessage, isPlanModeQuestionsMessage } from '../../assistant.types';
+import {
+	isPlanModePlanMessage,
+	isPlanModeQuestionsMessage,
+	isPlanModeUserAnswersMessage,
+	type PlanMode,
+} from '../../assistant.types';
 import PlanDisplayMessage from './PlanDisplayMessage.vue';
 import PlanModeSelector from './PlanModeSelector.vue';
 import PlanQuestionsMessage from './PlanQuestionsMessage.vue';
+import UserAnswersMessage from './UserAnswersMessage.vue';
 
 const emit = defineEmits<{
 	close: [];
@@ -157,7 +163,7 @@ const isInputDisabled = computed(() => {
 });
 
 const isChatInputDisabled = computed(() => {
-	return isInputDisabled.value || builderStore.isInterrupted;
+	return isInputDisabled.value || builderStore.shouldDisableChatInput;
 });
 
 const disabledTooltip = computed(() => {
@@ -176,6 +182,30 @@ const disabledTooltip = computed(() => {
 const isPlanModeSelectorDisabled = computed(() => {
 	return builderStore.streaming || isChatInputDisabled.value;
 });
+
+/**
+ * Check if questions have been answered (there's a user_answers message after this questions message)
+ */
+function isQuestionsAnswered(questionsMessage: { id?: string }): boolean {
+	const messages = builderStore.chatMessages;
+	const questionsIndex = messages.findIndex((m) => m.id === questionsMessage.id);
+	if (questionsIndex === -1) return false;
+
+	for (let i = questionsIndex + 1; i < messages.length; i++) {
+		if (isPlanModeUserAnswersMessage(messages[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Check if this plan message is the last one (to show actions only on the latest)
+ */
+function isLastPlanMessage(message: PlanMode.PlanMessage): boolean {
+	const planMessages = builderStore.chatMessages.filter(isPlanModePlanMessage);
+	return planMessages[planMessages.length - 1]?.id === message.id;
+}
 
 async function onUserMessage(content: string) {
 	// Record activity to maintain write lock while building
@@ -432,20 +462,19 @@ defineExpose({
 			<template #header>
 				<div :class="{ [$style.header]: true, [$style['with-slot']]: !!slots.header }">
 					<slot name="header" />
-					<div :class="$style.headerActions">
-						<PlanModeSelector
-							v-if="builderStore.isPlanModeAvailable"
-							:model-value="builderStore.builderMode"
-							:disabled="isPlanModeSelectorDisabled"
-							@update:model-value="builderStore.setBuilderMode"
-						/>
-						<AISettingsButton
-							v-if="showSettingsButton"
-							:show-usability-notice="false"
-							:disabled="builderStore.streaming"
-						/>
-					</div>
+					<AISettingsButton
+						v-if="showSettingsButton"
+						:show-usability-notice="false"
+						:disabled="builderStore.streaming"
+					/>
 				</div>
+			</template>
+			<template v-if="builderStore.isPlanModeAvailable" #before-actions>
+				<PlanModeSelector
+					:model-value="builderStore.builderMode"
+					:disabled="isPlanModeSelectorDisabled"
+					@update:model-value="builderStore.setBuilderMode"
+				/>
 			</template>
 			<template #inputHeader>
 				<Transition name="slide">
@@ -461,9 +490,11 @@ defineExpose({
 				</N8nText>
 			</template>
 			<template #custom-message="{ message }">
+				<!-- Show questions form only if not yet answered; hide completely when answered -->
 				<PlanQuestionsMessage
-					v-if="isPlanModeQuestionsMessage(message)"
-					:message="message"
+					v-if="isPlanModeQuestionsMessage(message) && !isQuestionsAnswered(message)"
+					:questions="message.data.questions"
+					:intro-message="message.data.introMessage"
 					:disabled="builderStore.streaming"
 					@submit="builderStore.resumeWithQuestionsAnswers"
 				/>
@@ -471,7 +502,12 @@ defineExpose({
 					v-else-if="isPlanModePlanMessage(message)"
 					:message="message"
 					:disabled="builderStore.streaming"
+					:show-actions="isLastPlanMessage(message)"
 					@decision="builderStore.resumeWithPlanDecision"
+				/>
+				<UserAnswersMessage
+					v-else-if="isPlanModeUserAnswersMessage(message)"
+					:answers="message.data.answers"
 				/>
 			</template>
 		</N8nAskAssistantChat>
@@ -505,12 +541,6 @@ defineExpose({
 	&.with-slot {
 		justify-content: space-between;
 	}
-}
-
-.headerActions {
-	display: flex;
-	align-items: center;
-	gap: var(--spacing--2xs);
 }
 
 .topText {
