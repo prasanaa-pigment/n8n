@@ -25,6 +25,7 @@ import {
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
 import { createPlannerAgent, plannerOutputSchema } from '@/agents/planner.agent';
+import { buildPlannerContext } from '@/prompts/agents/planner.prompt';
 import { formatPlanAsText } from '@/utils/plan-helpers';
 import type { ParentGraphState } from '@/parent-graph-state';
 import { createGetDocumentationTool } from '@/tools/get-documentation.tool';
@@ -339,41 +340,17 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			return {};
 		}
 
-		const userRequest = state.userRequest || 'Build a workflow';
-		const discoveryContext: DiscoveryContext = {
-			nodesFound: state.nodesFound ?? [],
-			bestPractices: state.bestPractices,
-		};
-
-		const contextParts: string[] = [];
-		contextParts.push('=== USER REQUEST ===');
-		contextParts.push(userRequest);
-
-		if (discoveryContext.nodesFound.length > 0) {
-			contextParts.push('=== DISCOVERY CONTEXT (SUGGESTED NODES) ===');
-			contextParts.push(
-				discoveryContext.nodesFound
-					.map((node) => `- ${node.nodeName} v${node.version}: ${node.reasoning}`)
-					.join('\n'),
-			);
-		}
-
-		if (state.workflowJSON.nodes.length > 0) {
-			contextParts.push('=== EXISTING WORKFLOW SUMMARY ===');
-			contextParts.push(buildWorkflowSummary(state.workflowJSON));
-		}
-
-		if (state.planPrevious) {
-			contextParts.push('=== PREVIOUS PLAN ===');
-			contextParts.push(formatPlanAsText(state.planPrevious));
-		}
-
-		if (state.planFeedback) {
-			contextParts.push('=== USER FEEDBACK ===');
-			contextParts.push(state.planFeedback);
-		}
-
-		const contextMessage = createContextMessage(contextParts);
+		const contextContent = buildPlannerContext({
+			userRequest: state.userRequest || 'Build a workflow',
+			discoveryContext: {
+				nodesFound: state.nodesFound ?? [],
+				bestPractices: state.bestPractices,
+			},
+			workflowJSON: state.workflowJSON,
+			planPrevious: state.planPrevious,
+			planFeedback: state.planFeedback,
+		});
+		const contextMessage = createContextMessage([contextContent]);
 		const output = await this.plannerAgent.invoke({ messages: [contextMessage] }, runnableConfig);
 		const parsedPlan = plannerOutputSchema.safeParse(output.structuredResponse);
 		if (!parsedPlan.success) {
