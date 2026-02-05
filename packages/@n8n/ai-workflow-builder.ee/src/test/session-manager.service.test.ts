@@ -96,6 +96,21 @@ describe('SessionManagerService', () => {
 				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
 			);
 		});
+
+		it('should append -code suffix when agentType is code-builder', () => {
+			const threadId = SessionManagerService.generateThreadId(
+				'workflow-123',
+				'user-456',
+				'code-builder',
+			);
+			expect(threadId).toBe('workflow-workflow-123-user-user-456-code');
+		});
+
+		it('should not append suffix when agentType is undefined', () => {
+			const threadId = SessionManagerService.generateThreadId('workflow-123', 'user-456');
+			expect(threadId).toBe('workflow-workflow-123-user-user-456');
+			expect(threadId).not.toContain('-code');
+		});
 	});
 
 	describe('getCheckpointer', () => {
@@ -325,6 +340,54 @@ describe('SessionManagerService', () => {
 			const result = await service.getSessions('', 'user-123');
 			expect(result).toEqual({ sessions: [] });
 			expect(mockMemorySaver.getTuple).not.toHaveBeenCalled();
+		});
+
+		it('should query code-builder thread when agentType is code-builder', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const mockCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [new HumanMessage('Hello'), new AIMessage('Hi there!')],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(mockCheckpoint);
+
+			const result = await service.getSessions(workflowId, userId, 'code-builder');
+
+			expect(result.sessions).toHaveLength(1);
+			expect(result.sessions[0].sessionId).toBe('workflow-test-workflow-user-test-user-code');
+			expect(mockMemorySaver.getTuple).toHaveBeenCalledWith({
+				configurable: {
+					thread_id: 'workflow-test-workflow-user-test-user-code',
+				},
+			});
+		});
+
+		it('should query default thread when agentType is not provided', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const mockCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [new HumanMessage('Hello')],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(mockCheckpoint);
+
+			await service.getSessions(workflowId, userId);
+
+			expect(mockMemorySaver.getTuple).toHaveBeenCalledWith({
+				configurable: {
+					thread_id: 'workflow-test-workflow-user-test-user',
+				},
+			});
 		});
 	});
 

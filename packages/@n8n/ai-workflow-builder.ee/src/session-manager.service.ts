@@ -32,11 +32,20 @@ export class SessionManagerService {
 
 	/**
 	 * Generate a thread ID for a given workflow and user
+	 * @param workflowId - The workflow ID
+	 * @param userId - The user ID
+	 * @param agentType - Optional agent type to isolate sessions between different agents
 	 */
-	static generateThreadId(workflowId?: string, userId?: string): string {
-		return workflowId
+	static generateThreadId(
+		workflowId?: string,
+		userId?: string,
+		agentType?: 'code-builder',
+	): string {
+		const baseId = workflowId
 			? `workflow-${workflowId}-user-${userId ?? new Date().getTime()}`
 			: crypto.randomUUID();
+
+		return agentType === 'code-builder' ? `${baseId}-code` : baseId;
 	}
 
 	/**
@@ -48,10 +57,14 @@ export class SessionManagerService {
 
 	/**
 	 * Get sessions for a given workflow and user
+	 * @param workflowId - The workflow ID
+	 * @param userId - The user ID
+	 * @param agentType - Optional agent type to query the correct session thread
 	 */
 	async getSessions(
 		workflowId: string | undefined,
 		userId: string | undefined,
+		agentType?: 'code-builder',
 	): Promise<{ sessions: Session[] }> {
 		// For now, we'll return the current session if we have a workflowId
 		// MemorySaver doesn't expose a way to list all threads, so we'll need to
@@ -59,7 +72,7 @@ export class SessionManagerService {
 		const sessions: Session[] = [];
 
 		if (workflowId) {
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, agentType);
 			const threadConfig: RunnableConfig = {
 				configurable: {
 					thread_id: threadId,

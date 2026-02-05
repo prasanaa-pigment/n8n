@@ -309,9 +309,10 @@ export class AiWorkflowBuilderService {
 		this.onTelemetryEvent('Builder replied to user message', properties);
 	}
 
-	async getSessions(workflowId: string | undefined, user?: IUser) {
+	async getSessions(workflowId: string | undefined, user?: IUser, codeBuilder?: boolean) {
 		const userId = user?.id?.toString();
-		return await this.sessionManager.getSessions(workflowId, userId);
+		const agentType = codeBuilder ? 'code-builder' : undefined;
+		return await this.sessionManager.getSessions(workflowId, userId, agentType);
 	}
 
 	async getBuilderInstanceCredits(

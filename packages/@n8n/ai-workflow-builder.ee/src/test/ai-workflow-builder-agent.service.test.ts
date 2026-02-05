@@ -466,7 +466,11 @@ describe('AiWorkflowBuilderService', () => {
 			const result = await service.getSessions(undefined, mockUser);
 
 			expect(result.sessions).toEqual([]);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(undefined, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				undefined,
+				'test-user-id',
+				undefined,
+			);
 		});
 
 		it('should return session when workflowId exists', async () => {
@@ -493,7 +497,11 @@ describe('AiWorkflowBuilderService', () => {
 				lastUpdated: '2023-12-01T12:00:00Z',
 			});
 			expect(result.sessions[0].messages).toHaveLength(2);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 
 		it('should handle missing checkpoint gracefully', async () => {
@@ -505,7 +513,11 @@ describe('AiWorkflowBuilderService', () => {
 			const result = await service.getSessions(workflowId, mockUser);
 
 			expect(result.sessions).toEqual([]);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 
 		it('should handle checkpoint without messages', async () => {
@@ -525,7 +537,11 @@ describe('AiWorkflowBuilderService', () => {
 
 			expect(result.sessions).toHaveLength(1);
 			expect(result.sessions[0].messages).toEqual([]);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 
 		it('should handle checkpoint with null messages', async () => {
@@ -545,7 +561,11 @@ describe('AiWorkflowBuilderService', () => {
 
 			expect(result.sessions).toHaveLength(1);
 			expect(result.sessions[0].messages).toEqual([]);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 
 		it('should work without user', async () => {
@@ -557,7 +577,33 @@ describe('AiWorkflowBuilderService', () => {
 			const result = await service.getSessions(workflowId);
 
 			expect(result.sessions).toEqual([]);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, undefined);
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, undefined, undefined);
+		});
+
+		it('should pass codeBuilder flag to sessionManager', async () => {
+			const workflowId = 'test-workflow';
+			(mockSessionManager.getSessions as jest.Mock).mockResolvedValue({ sessions: [] });
+
+			await service.getSessions(workflowId, mockUser, true);
+
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				'code-builder',
+			);
+		});
+
+		it('should not pass code-builder agentType when codeBuilder is false', async () => {
+			const workflowId = 'test-workflow';
+			(mockSessionManager.getSessions as jest.Mock).mockResolvedValue({ sessions: [] });
+
+			await service.getSessions(workflowId, mockUser, false);
+
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 	});
 
@@ -601,7 +647,11 @@ describe('AiWorkflowBuilderService', () => {
 			expect(sessions.sessions[0].sessionId).toBe(
 				'workflow-integration-test-workflow-user-test-user-id',
 			);
-			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(workflowId, 'test-user-id');
+			expect(mockSessionManager.getSessions).toHaveBeenCalledWith(
+				workflowId,
+				'test-user-id',
+				undefined,
+			);
 		});
 	});
 

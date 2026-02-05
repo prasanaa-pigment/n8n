@@ -297,7 +297,7 @@ describe('code-builder-session', () => {
 			await saveSessionMessages(checkpointer, workflowId, userId, messages);
 
 			// Verify by reading from the SessionManager thread format
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -329,7 +329,7 @@ describe('code-builder-session', () => {
 
 			await saveSessionMessages(checkpointer, workflowId, userId, messages, versionId);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -352,7 +352,7 @@ describe('code-builder-session', () => {
 			const secondMessages = [new HumanMessage('Second message'), new AIMessage('Second response')];
 			await saveSessionMessages(checkpointer, workflowId, userId, secondMessages);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -376,7 +376,7 @@ describe('code-builder-session', () => {
 
 			await saveSessionMessages(checkpointer, workflowId, userId, messages);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -387,7 +387,7 @@ describe('code-builder-session', () => {
 			expect(savedMessages[0]).toBeInstanceOf(HumanMessage);
 		});
 
-		it('should use correct SessionManager thread format', async () => {
+		it('should use code-builder thread format with -code suffix', async () => {
 			const checkpointer = new MemorySaver();
 			const workflowId = 'wf-test';
 			const userId = 'user-test';
@@ -396,13 +396,20 @@ describe('code-builder-session', () => {
 
 			await saveSessionMessages(checkpointer, workflowId, userId, messages);
 
-			// Verify thread ID matches SessionManagerService format
-			const expectedThreadId = `workflow-${workflowId}-user-${userId}`;
+			// Verify thread ID uses code-builder format with -code suffix
+			const expectedThreadId = `workflow-${workflowId}-user-${userId}-code`;
 			const config = { configurable: { thread_id: expectedThreadId } };
 			const tuple = await checkpointer.getTuple(config);
 
 			expect(tuple).toBeDefined();
 			expect(tuple?.checkpoint.channel_values?.messages).toBeDefined();
+
+			// Verify the old format without -code suffix does NOT have the messages
+			const oldThreadId = `workflow-${workflowId}-user-${userId}`;
+			const oldConfig = { configurable: { thread_id: oldThreadId } };
+			const oldTuple = await checkpointer.getTuple(oldConfig);
+
+			expect(oldTuple).toBeUndefined();
 		});
 
 		it('should add messageId to first HumanMessage even when SystemMessage is at index 0', async () => {
@@ -419,7 +426,7 @@ describe('code-builder-session', () => {
 
 			await saveSessionMessages(checkpointer, workflowId, userId, messages);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -462,7 +469,7 @@ describe('code-builder-session', () => {
 			];
 			await saveSessionMessages(checkpointer, workflowId, userId, secondMessages);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 
@@ -499,7 +506,7 @@ describe('code-builder-session', () => {
 
 			await saveSessionMessages(checkpointer, workflowId, userId, messages, versionId);
 
-			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 			const config = { configurable: { thread_id: threadId } };
 			const tuple = await checkpointer.getTuple(config);
 

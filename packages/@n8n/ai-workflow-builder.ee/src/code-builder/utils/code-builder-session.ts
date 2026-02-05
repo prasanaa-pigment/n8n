@@ -234,7 +234,7 @@ export async function saveSessionMessages(
 	messages: unknown[],
 	versionId?: string,
 ): Promise<void> {
-	const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+	const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
 
 	const config: RunnableConfig = {
 		configurable: {
