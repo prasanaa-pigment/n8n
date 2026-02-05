@@ -435,7 +435,10 @@ export class DiscoverySubgraph extends BaseSubgraph<
 		const latestVersionMap = new Map<string, number>();
 		for (const nt of this.parsedNodeTypes) {
 			const ver = Array.isArray(nt.version) ? Math.max(...nt.version) : nt.version;
-			latestVersionMap.set(nt.name, ver);
+			const existing = latestVersionMap.get(nt.name);
+			if (existing === undefined || ver > existing) {
+				latestVersionMap.set(nt.name, ver);
+			}
 		}
 
 		for (const node of output.nodesFound) {
