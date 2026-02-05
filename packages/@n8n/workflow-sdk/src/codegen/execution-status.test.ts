@@ -55,8 +55,32 @@ describe('execution-status', () => {
 			});
 		});
 
+		it('includes error description when available', () => {
+			const data = {
+				runData: {
+					'API Node': [
+						mockTaskData({
+							executionTime: 50,
+							error: {
+								message: 'The resource you are requesting could not be found',
+								description: 'city not found',
+								name: 'NodeApiError',
+							},
+						}),
+					],
+				},
+			} as ExecutionResultData;
+
+			const result = buildNodeExecutionStatus(data);
+
+			expect(result.get('API Node')).toEqual({
+				status: 'error',
+				errorMessage: 'The resource you are requesting could not be found: city not found',
+			});
+		});
+
 		it('truncates long error messages', () => {
-			const longMessage = 'Error: ' + 'x'.repeat(150);
+			const longMessage = 'Error: ' + 'x'.repeat(200);
 			const data = {
 				runData: {
 					Node: [mockTaskData({ executionTime: 10, error: mockError(longMessage) })],
@@ -67,7 +91,7 @@ describe('execution-status', () => {
 			const status = result.get('Node');
 
 			expect(status?.status).toBe('error');
-			expect(status?.errorMessage?.length).toBeLessThanOrEqual(103); // 100 + "..."
+			expect(status?.errorMessage?.length).toBeLessThanOrEqual(153); // 150 + "..."
 			expect(status?.errorMessage).toContain('...');
 		});
 

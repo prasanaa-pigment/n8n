@@ -25,7 +25,9 @@ export function buildNodeExecutionStatus(
 		for (const taskData of taskDataArray) {
 			if (taskData.error) {
 				const msg = taskData.error.message ?? 'Unknown error';
-				const truncated = msg.length > 100 ? msg.slice(0, 100) + '...' : msg;
+				const desc = (taskData.error as { description?: string }).description;
+				const fullMsg = desc ? `${msg}: ${desc}` : msg;
+				const truncated = fullMsg.length > 150 ? fullMsg.slice(0, 150) + '...' : fullMsg;
 				statuses.set(nodeName, { status: 'error', errorMessage: truncated });
 			} else {
 				statuses.set(nodeName, { status: 'success' });
