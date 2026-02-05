@@ -10,6 +10,7 @@ import type { BaseMessage, AIMessage } from '@langchain/core/messages';
 import type { Runnable } from '@langchain/core/runnables';
 
 import type { StreamOutput, AgentMessageChunk } from '../../types/streaming';
+import { applySubgraphCacheMarkers } from '../../utils/cache-control/helpers';
 import { extractTextContent, extractThinkingContent } from '../utils/content-extractors';
 
 /**
@@ -111,6 +112,9 @@ export class AgentIterationHandler {
 			this.debugLog('ITERATION', 'Abort signal received');
 			throw new Error('Aborted');
 		}
+
+		// Apply cache markers for prompt caching optimization
+		applySubgraphCacheMarkers(messages);
 
 		// Invoke LLM
 		this.debugLog('ITERATION', 'Invoking LLM with message history...');
