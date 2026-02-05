@@ -638,5 +638,148 @@ describe('useBuilderTodos', () => {
 			expect(workflowTodos.value).toHaveLength(1);
 			expect(workflowTodos.value[0].node).toBe('Unpinned Node');
 		});
+
+		it('excludes placeholder issues from disabled nodes', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup a disabled node with placeholder in parameters
+			const disabledNode = createMockNode({
+				name: 'HTTP Request',
+				disabled: true,
+				parameters: {
+					url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+				},
+			});
+
+			workflowsStore.workflow.nodes = [disabledNode];
+			workflowsStore.workflow.pinData = {};
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Since the node is disabled, the placeholder issue should be excluded
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('excludes validation issues from disabled nodes', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup a disabled node with credential issues
+			const disabledNode = createMockNode({
+				name: 'HTTP Request',
+				disabled: true,
+				issues: {
+					credentials: {
+						httpBasicAuth: ['Credentials not set'],
+					},
+				},
+			});
+
+			workflowsStore.workflow.nodes = [disabledNode];
+			workflowsStore.workflow.connections = {
+				'HTTP Request': {
+					main: [[{ node: 'Other Node', type: 'main' as const, index: 0 }]],
+				},
+			};
+			workflowsStore.workflow.pinData = {};
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Since the node is disabled, the credential issue should be excluded
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('excludes issues from sub-nodes when parent node is disabled', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup: AI model sub-node with credential issues
+			const aiModelSubNode = createMockNode({
+				name: 'OpenAI GPT-4.1-mini',
+				type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				issues: {
+					credentials: {
+						openAiApi: ['Credentials not set'],
+					},
+				},
+			});
+
+			// Parent node (AI Agent) that is disabled
+			const parentNode = createMockNode({
+				id: 'parent-1',
+				name: 'AI Agent',
+				type: '@n8n/n8n-nodes-langchain.agent',
+				disabled: true,
+			});
+
+			workflowsStore.workflow.nodes = [aiModelSubNode, parentNode];
+
+			// Sub-node outputs TO the parent node (stored by source node)
+			workflowsStore.workflow.connections = {
+				'OpenAI GPT-4.1-mini': {
+					ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel' as const, index: 0 }]],
+				},
+			};
+			workflowsStore.workflow.pinData = {};
+
+			// Verify validation issue exists for the sub-node
+			const validationIssues = workflowsStore.workflowValidationIssues;
+			expect(validationIssues.some((i) => i.node === 'OpenAI GPT-4.1-mini')).toBe(true);
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Sub-node's credential issue should be excluded because parent is disabled
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('includes issues from enabled nodes', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup an enabled node with placeholder in parameters
+			const enabledNode = createMockNode({
+				name: 'HTTP Request',
+				disabled: false,
+				parameters: {
+					url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+				},
+			});
+
+			workflowsStore.workflow.nodes = [enabledNode];
+			workflowsStore.workflow.pinData = {};
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Since the node is enabled, the placeholder issue should be included
+			expect(workflowTodos.value).toHaveLength(1);
+			expect(workflowTodos.value[0].node).toBe('HTTP Request');
+		});
+
+		it('handles mixed disabled and enabled nodes correctly', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup two nodes: one disabled with issues, one enabled with issues
+			const disabledNode = createMockNode({
+				name: 'Disabled Node',
+				disabled: true,
+				parameters: {
+					url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+				},
+			});
+
+			const enabledNode = createMockNode({
+				name: 'Enabled Node',
+				disabled: false,
+				parameters: {
+					apiKey: '<__PLACEHOLDER_VALUE__Enter API Key__>',
+				},
+			});
+
+			workflowsStore.workflow.nodes = [disabledNode, enabledNode];
+			workflowsStore.workflow.pinData = {};
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Only the enabled node's issue should be included
+			expect(workflowTodos.value).toHaveLength(1);
+			expect(workflowTodos.value[0].node).toBe('Enabled Node');
+		});
 	});
 });
