@@ -19,6 +19,7 @@ import { CredentialsService } from '@/credentials/credentials.service';
 import * as validation from '@/credentials/validation';
 import type { CredentialsHelper } from '@/credentials-helper';
 import type { ExternalHooks } from '@/external-hooks';
+import type { SecretsProviderAccessCheckService } from '@/modules/external-secrets.ee/secret-provider-access-check.service.ee';
 import type { CredentialsTester } from '@/services/credentials-tester.service';
 import type { OwnershipService } from '@/services/ownership.service';
 import type { ProjectService } from '@/services/project.service.ee';
@@ -57,6 +58,7 @@ describe('CredentialsService', () => {
 	const userRepository = mock<UserRepository>();
 	const credentialsFinderService = mock<CredentialsFinderService>();
 	const credentialsHelper = mock<CredentialsHelper>();
+	const externalSecretsProviderAccessCheckService = mock<SecretsProviderAccessCheckService>();
 
 	const service = new CredentialsService(
 		credentialsRepository,
@@ -73,6 +75,7 @@ describe('CredentialsService', () => {
 		userRepository,
 		credentialsFinderService,
 		credentialsHelper,
+		externalSecretsProviderAccessCheckService,
 	);
 
 	beforeEach(() => jest.resetAllMocks());
