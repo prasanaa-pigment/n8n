@@ -291,11 +291,6 @@ function processUpdatesChunk(nodeUpdate: Record<string, unknown>): StreamOutput 
 	// Human-in-the-loop interrupts (questions/plan)
 	const interruptPayload = extractInterruptPayload(nodeUpdate);
 	if (interruptPayload) {
-		console.log('[plan-debug] interrupt_event', {
-			source: 'parent',
-			signature: getInterruptSignature(interruptPayload),
-			keys: Object.keys(nodeUpdate),
-		});
 		return processInterrupt(interruptPayload.value, interruptPayload.id);
 	}
 
@@ -337,19 +332,9 @@ function processSubgraphEvent(event: SubgraphEvent): StreamOutput | null {
 		const interruptPayload = extractInterruptPayload(data);
 		if (interruptPayload) {
 			const shouldEmit = namespace.length > 0;
-			console.log('[plan-debug] interrupt_event', {
-				source: 'subgraph',
-				signature: getInterruptSignature(interruptPayload),
-				namespace,
-				shouldEmit,
-			});
 			if (shouldEmit) {
 				return processInterrupt(interruptPayload.value, interruptPayload.id);
 			}
-			console.log('[plan-debug] interrupt_skipped', {
-				reason: 'shallow_namespace',
-				namespace,
-			});
 			return null;
 		}
 	}
@@ -403,9 +388,6 @@ export async function* createStreamProcessor(
 
 		if (result.interruptId) {
 			if (seenInterruptIds.has(result.interruptId)) {
-				console.log('[plan-debug] interrupt_deduped', {
-					id: result.interruptId,
-				});
 				continue;
 			}
 			seenInterruptIds.add(result.interruptId);

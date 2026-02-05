@@ -344,10 +344,6 @@ export class BuilderSubgraph extends BaseSubgraph<
 
 	transformInput(parentState: typeof ParentGraphState.State) {
 		const userRequest = extractUserRequest(parentState.messages);
-		console.log('[plan-debug] builder_input', {
-			nodesFound: parentState.discoveryContext?.nodesFound?.length ?? 0,
-			hasPlanOutput: Boolean(parentState.planOutput),
-		});
 
 		// Build context parts
 		const contextParts: string[] = [];

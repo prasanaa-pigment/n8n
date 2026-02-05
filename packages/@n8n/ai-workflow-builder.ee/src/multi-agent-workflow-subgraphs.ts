@@ -316,14 +316,6 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 			.addNode('route_next_phase', (state) => {
 				const next = getNextPhaseFromLog(state.coordinationLog);
 				const lastCompleted = getLastCompletedPhase(state.coordinationLog);
-				console.log('[plan-debug] route_next_phase', {
-					next,
-					lastCompleted,
-					mode: state.mode,
-					planDecision: state.planDecision,
-					hasPlanOutput: Boolean(state.planOutput),
-					logSize: state.coordinationLog.length,
-				});
 
 				if (state.planDecision === 'reject') {
 					return {

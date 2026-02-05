@@ -299,13 +299,6 @@ export class DiscoverySubgraph extends BaseSubgraph<
 				bestPractices: state.bestPractices,
 			};
 
-			console.log('[plan-debug] planner.context', {
-				hasDiscoveryContext: discoveryContext.nodesFound.length > 0,
-				discoveredNodes: discoveryContext.nodesFound.length,
-				hasPlanPrevious: Boolean(state.planPrevious),
-				hasPlanFeedback: Boolean(state.planFeedback),
-			});
-
 			const contextParts: string[] = [];
 			contextParts.push('=== USER REQUEST ===');
 			contextParts.push(userRequest);
@@ -342,17 +335,12 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			}
 
 			const plan = parsedPlan.data;
-			console.log('[plan-debug] planner.interrupt', {
-				stepCount: plan.steps.length,
-				summary: plan.summary,
-			});
 			const decisionValue: unknown = interrupt({
 				type: 'plan',
 				plan,
 			});
 
 			const decision = parsePlanDecision(decisionValue);
-			console.log('[plan-debug] planner.decision', decision);
 
 			if (decision.action === 'approve') {
 				return {
@@ -435,13 +423,6 @@ export class DiscoverySubgraph extends BaseSubgraph<
 	 * Context is already in messages from transformInput
 	 */
 	private async callAgent(state: typeof DiscoverySubgraphState.State) {
-		console.log('[plan-debug] discovery_agent', {
-			mode: state.mode,
-			hasPlanOutput: Boolean(state.planOutput),
-			nodeCount: state.workflowJSON.nodes.length,
-			hasPlanFeedback: Boolean(state.planFeedback),
-		});
-
 		// Apply cache markers to accumulated messages (for tool loop iterations)
 		if (state.messages.length > 0) {
 			applySubgraphCacheMarkers(state.messages);
@@ -614,13 +595,6 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			};
 		});
 
-		console.log('[plan-debug] discovery_context', {
-			nodesFound: hydratedNodesFound.length,
-			nodeNames: hydratedNodesFound.map((node) => node.nodeName),
-			hasPlanFeedback: Boolean(state.planFeedback),
-			hasPlanPrevious: Boolean(state.planPrevious),
-		});
-
 		// Add a ToolMessage for the submit_discovery_results call that was routed here
 		// instead of through the tools node. This keeps the message history valid for
 		// the Anthropic API (every tool_use must have a matching tool_result).
@@ -752,13 +726,6 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			nodesFound,
 			bestPractices: subgraphOutput.bestPractices,
 		};
-
-		console.log('[plan-debug] discovery_output', {
-			nodesFound: discoveryContext.nodesFound.length,
-			planDecision: subgraphOutput.planDecision,
-			hasPlanOutput: Boolean(subgraphOutput.planOutput),
-			mode: subgraphOutput.mode,
-		});
 
 		// Create coordination log entry (not a message)
 		const logEntry: CoordinationLogEntry = {
