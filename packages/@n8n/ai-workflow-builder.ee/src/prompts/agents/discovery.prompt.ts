@@ -204,25 +204,39 @@ Chat Trigger: n8n-hosted chat interface for conversational AI.
 Manual Trigger: For testing and one-off runs only (requires user to click "Execute").
   Use when: explicitly testing or debugging workflows`;
 
-const CLARIFYING_QUESTIONS = `Clarifying questions:
+const CLARIFYING_QUESTIONS = `You can ask the user clarifying questions using submit_questions. This pauses the workflow until the user responds, so use it deliberately.
 
-IMPORTANT: Always search for nodes FIRST. Only ask questions AFTER you have seen the search results.
+Always search for nodes FIRST. Searching often resolves ambiguities on its own—if only one weather service node exists, there is nothing to ask about. Your questions should be grounded in what n8n can actually build, based on the nodes you found.
 
-Seeing what nodes are available helps you ask better, more targeted questions and often resolves ambiguities on its own (e.g. if only one weather service node exists, don't ask which weather service to use).
+<when_to_ask>
+Ask when the request is vague enough that it could mean multiple fundamentally different workflows. Evaluate after searching: "Does this request describe ONE clear workflow, or could it reasonably be 3+ completely different automations?"
 
-After searching, ask up to 5 focused questions using submit_questions ONLY when:
-- The search results reveal multiple viable approaches that would lead to fundamentally different workflows
-- A critical piece of information is missing that you cannot reasonably assume (e.g. the user says "send notifications" but doesn't say via what channel, and multiple options exist)
+Examples where questions help:
+- "Do something with my emails" → Could be filtering, forwarding, archiving, summarizing. Ask about the goal.
+- "Set up notifications" → Found Email, Slack, Telegram, SMS nodes. Ask which channel.
+- "Another automation for weather" → No specific action stated. Ask what should happen.
 
-Do NOT ask questions when:
-- You can make a reasonable default choice (e.g. Schedule Trigger for periodic checks)
-- The answer is implied by context (e.g. "monitor my Gmail" implies Gmail Trigger)
-- Only one relevant node exists for the task
-- The question is about implementation details the builder can handle later
+Examples where questions do NOT help:
+- "Send a Slack message when I get a Gmail with an invoice" → One clear workflow. Build it.
+- "Check weather every hour and store it" → Specific enough. Build it.
+- "Monitor my website for downtime" → Reasonable defaults exist. Build it.
+</when_to_ask>
 
-Prefer providing options for single/multi choice questions based on what nodes you actually found.
+<how_to_ask>
+Users are often non-technical and may not know what n8n can do. Frame questions around outcomes and goals, not technical choices. Present options as a menu of things n8n can build for them.
 
-When you call submit_questions, the workflow pauses until the user responds. After they respond, the tool returns a summary of their answers and you should continue node discovery using the clarified requirements.`;
+Good question style (outcome-focused, grounded in search results):
+- "I found weather, notification, and smart home nodes. What should this automation do?" → Options: "Send me alerts when it rains", "Track weather data over time", "Control smart home devices based on weather"
+- "Where should I send the notification?" → Options: "Email", "Slack", "Telegram" (only list channels you found nodes for)
+
+Bad question style (technical, generic, or obvious):
+- "Which trigger type do you want?" → Too technical. Pick the obvious one or describe outcomes.
+- "What format should the data be in?" → Implementation detail the builder handles.
+- "Do you want error handling?" → Not a user-facing decision.
+- "What automation do you want?" → Too open-ended, not grounded in n8n capabilities.
+
+Keep it to 2-3 questions maximum. Each question should meaningfully change which nodes you select.
+</how_to_ask>`;
 
 const AI_TOOL_PATTERNS = `AI Agent tool connection patterns:
 
