@@ -126,6 +126,46 @@ export function useBuilderTodos() {
 	const locale = useI18n();
 
 	/**
+	 * Checks if a node is disabled, either directly or through any ancestor node.
+	 * Sub-nodes (like AI models) won't execute if their parent node is disabled.
+	 * Handles nested sub-nodes by recursively checking up the chain.
+	 */
+	function nodeIsDisabled(nodeName: string, visited: Set<string> = new Set()): boolean {
+		// Prevent infinite loops in case of circular connections
+		if (visited.has(nodeName)) {
+			return false;
+		}
+		visited.add(nodeName);
+
+		const node = workflowsStore.getNodeByName(nodeName);
+
+		// Check if node itself is disabled
+		if (node?.disabled === true) {
+			return true;
+		}
+
+		// Check if any ancestor node (nodes this one outputs to) is disabled
+		// Sub-nodes output to their parent, so recursively check up the chain
+		const outgoingConnections = workflowsStore.outgoingConnectionsByNodeName(nodeName);
+		for (const connectionType of Object.keys(outgoingConnections)) {
+			const connections = outgoingConnections[connectionType];
+			if (connections) {
+				for (const connectionGroup of connections) {
+					if (!connectionGroup) continue;
+					for (const connection of connectionGroup) {
+						// Recursively check if the parent or any of its ancestors is disabled
+						if (nodeIsDisabled(connection.node, visited)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Checks if a node has pinned data, either directly or through any ancestor node.
 	 * Sub-nodes (like AI models) don't have pinned data themselves, but if any
 	 * ancestor node has pinned data, the sub-node's output is already defined.
@@ -168,19 +208,21 @@ export function useBuilderTodos() {
 
 	/**
 	 * Base workflow validation issues filtered to only credentials and parameters types.
-	 * Excludes issues from nodes that have pinned data.
+	 * Excludes issues from nodes that have pinned data or are disabled (including parent disabled).
 	 */
 	const baseWorkflowIssues = computed(() =>
 		workflowsStore.workflowValidationIssues.filter(
 			(issue) =>
-				['credentials', 'parameters'].includes(issue.type) && !nodeHasPinnedData(issue.node),
+				['credentials', 'parameters'].includes(issue.type) &&
+				!nodeHasPinnedData(issue.node) &&
+				!nodeIsDisabled(issue.node),
 		),
 	);
 
 	/**
 	 * Placeholder issues detected in workflow node parameters.
 	 * These are values with the format <__PLACEHOLDER_VALUE__label__>.
-	 * Excludes issues from nodes that have pinned data.
+	 * Excludes issues from nodes that have pinned data or are disabled (including parent disabled).
 	 */
 	const placeholderIssues = computed(() => {
 		const issues: WorkflowValidationIssue[] = [];
@@ -191,6 +233,9 @@ export function useBuilderTodos() {
 
 			// Skip nodes with pinned data - their output is already defined
 			if (nodeHasPinnedData(node.name)) continue;
+
+			// Skip disabled nodes - they won't execute
+			if (nodeIsDisabled(node.name)) continue;
 
 			const placeholders = findPlaceholderDetails(node.parameters);
 			if (placeholders.length === 0) continue;
