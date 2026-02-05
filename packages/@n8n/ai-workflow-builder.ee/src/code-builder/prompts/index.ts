@@ -715,7 +715,7 @@ export function buildCodeBuilderPrompt(
 	const userMessageTemplate = userMessageParts.join('\n');
 
 	return ChatPromptTemplate.fromMessages([
-		['system', systemMessage],
+		['system', [{ type: 'text', text: systemMessage, cache_control: { type: 'ephemeral' } }]],
 		['human', userMessageTemplate],
 	]);
 }
