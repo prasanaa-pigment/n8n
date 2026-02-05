@@ -45,19 +45,16 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	const getNodeCredentialTypes = (node: INodeUi): string[] => {
 		const credentialTypes = new Set<string>();
 
-		// 1. Credentials from node type definition
 		const displayableCredentials = getNodeTypeDisplayableCredentials(nodeTypesStore, node);
 		for (const cred of displayableCredentials) {
 			credentialTypes.add(cred.name);
 		}
 
-		// 2. Credentials from node issues (for dynamic credential selection like HTTP Request)
 		const credentialIssues = node.issues?.credentials ?? {};
 		for (const credType of Object.keys(credentialIssues)) {
 			credentialTypes.add(credType);
 		}
 
-		// 3. Currently assigned credentials
 		if (node.credentials) {
 			for (const credType of Object.keys(node.credentials)) {
 				credentialTypes.add(credType);
@@ -80,6 +77,21 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 			.filter(({ credentialTypes }) => credentialTypes.length > 0);
 
 		return sortBy(nodesWithCredentials, ({ node }) => node.position[0]);
+	});
+
+	/**
+	 * Map of credential type -> node names that require it (for shared credential awareness in UI)
+	 */
+	const credentialTypeToNodeNames = computed(() => {
+		const map = new Map<string, string[]>();
+		for (const { node, credentialTypes } of nodesRequiringCredentials.value) {
+			for (const credType of credentialTypes) {
+				const existing = map.get(credType) ?? [];
+				existing.push(node.name);
+				map.set(credType, existing);
+			}
+		}
+		return map;
 	});
 
 	/**
@@ -106,6 +118,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 						credentialDisplayName: getCredentialDisplayName(credType),
 						selectedCredentialId,
 						issues: issueMessages,
+						nodesWithSameCredential: credentialTypeToNodeNames.value.get(credType) ?? [],
 					};
 				},
 			);

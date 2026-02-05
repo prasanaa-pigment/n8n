@@ -5,6 +5,8 @@ export interface NodeCredentialRequirement {
 	credentialDisplayName: string;
 	selectedCredentialId?: string;
 	issues: string[];
+	/** Names of all nodes in the setup panel that require this credential type */
+	nodesWithSameCredential: string[];
 }
 
 export interface NodeSetupState {

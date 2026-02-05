@@ -4210,6 +4210,7 @@
 	"setupPanel.tabs.focus": "Focus",
 	"setupPanel.test.intro": "Setup panel lives here",
 	"setupPanel.test.description": "Here you can configure everything needed to run the current workflow",
+	"setupPanel.usedInNodes": "Used in {count} nodes",
 	"becomeCreator.text": "Share your workflows with other users, unlock perks, and become a featured template creator!",
 	"becomeCreator.buttonText": "Become a creator",
 	"becomeCreator.closeButtonTitle": "Close",

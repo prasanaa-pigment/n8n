@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useI18n } from '@n8n/i18n';
-import { N8nButton, N8nIcon } from '@n8n/design-system';
+import { N8nButton, N8nIcon, N8nTooltip } from '@n8n/design-system';
 
 import NodeIcon from '@/app/components/NodeIcon.vue';
 import CredentialPicker from '@/features/credentials/components/CredentialPicker/CredentialPicker.vue';
@@ -87,12 +87,28 @@ onMounted(() => {
 					:key="requirement.credentialType"
 					:class="$style['credential-container']"
 				>
-					<label
-						:for="`credential-picker-${state.node.name}-${requirement.credentialType}`"
-						:class="$style['credential-label']"
-					>
-						Credential
-					</label>
+					<div :class="$style['credential-label-row']">
+						<label
+							:for="`credential-picker-${state.node.name}-${requirement.credentialType}`"
+							:class="$style['credential-label']"
+						>
+							Credential
+						</label>
+						<N8nTooltip v-if="requirement.nodesWithSameCredential.length > 1" placement="top">
+							<template #content>
+								{{ requirement.nodesWithSameCredential.join(', ') }}
+							</template>
+							<span :class="$style['shared-nodes-hint']">
+								{{
+									i18n.baseText('setupPanel.usedInNodes', {
+										interpolate: {
+											count: String(requirement.nodesWithSameCredential.length),
+										},
+									})
+								}}
+							</span>
+						</N8nTooltip>
+					</div>
 					<CredentialPicker
 						create-button-type="secondary"
 						:class="$style['credential-picker']"
@@ -168,9 +184,21 @@ onMounted(() => {
 	gap: var(--spacing--3xs);
 }
 
+.credential-label-row {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing--2xs);
+}
+
 .credential-label {
 	font-size: var(--font-size--sm);
-	color: var(--color--text);
+	color: var(--color--text--shade-1);
+}
+
+.shared-nodes-hint {
+	font-size: var(--font-size--sm);
+	color: var(--color--text--tint-1);
+	cursor: default;
 }
 
 .credential-picker {
@@ -182,11 +210,14 @@ onMounted(() => {
 	justify-content: flex-end;
 }
 
+.card.collapsed,
 .card.completed {
-	border-color: var(--color--success);
-
 	.node-name {
 		color: var(--color--text--tint-1);
 	}
+}
+
+.card.completed {
+	border-color: var(--color--success);
 }
 </style>
