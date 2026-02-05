@@ -100,11 +100,10 @@ describe('Expression System', () => {
 			expect(result).toBe('=Hello {{ $json.name }}');
 		});
 
-		it('should always add = prefix even if string starts with =', () => {
-			// This preserves double-equals expressions like =={{ $json.x }}
-			// which occur in some real workflows
+		it('should strip leading = to prevent double-equals', () => {
+			// Strip redundant = from LLM-generated expressions
 			const result = expr('={{ $json.name }}');
-			expect(result).toBe('=={{ $json.name }}');
+			expect(result).toBe('={{ $json.name }}');
 		});
 
 		it('should handle multiline templates', () => {
