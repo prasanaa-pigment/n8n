@@ -13,17 +13,17 @@ import {
 	buildDataTableCreationGuidance,
 } from '@/prompts';
 
-import type { CoordinationLogEntry } from '../types/coordination';
-import type { DiscoveryContext } from '../types/discovery-types';
-import type { SimpleWorkflow } from '../types/workflow';
-import { buildSimplifiedExecutionContext, buildWorkflowOverview } from '../utils/context-builders';
+import type { CoordinationLogEntry } from '@/types/coordination';
+import type { DiscoveryContext } from '@/types/discovery-types';
+import type { SimpleWorkflow } from '@/types/workflow';
+import { buildSimplifiedExecutionContext, buildWorkflowOverview } from '@/utils/context-builders';
 import {
 	getErrorEntry,
 	getBuilderOutput,
 	hasRecursionErrorsCleared,
-} from '../utils/coordination-log';
-import { extractDataTableInfo } from '../utils/data-table-helpers';
-import type { ChatPayload } from '../workflow-builder-agent';
+} from '@/utils/coordination-log';
+import { extractDataTableInfo } from '@/utils/data-table-helpers';
+import type { ChatPayload } from '@/workflow-builder-agent';
 
 /**
  * Context required for the responder to generate a response

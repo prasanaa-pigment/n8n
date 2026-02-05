@@ -18,7 +18,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-	decision: [value: { action: 'approve' }];
+	decision: [value: { action: 'approve' | 'reject' | 'modify'; feedback?: string }];
 }>();
 
 const i18n = useI18n();

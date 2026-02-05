@@ -168,7 +168,14 @@ function goToNext() {
 
 				<!-- Multi choice (checkbox) -->
 				<div v-else-if="currentQuestion.type === 'multi'" :class="$style.options">
-					<label v-for="option in filteredOptions" :key="option" :class="$style.checkboxOption">
+					<label
+						v-for="option in filteredOptions"
+						:key="option"
+						:class="[
+							$style.checkboxOption,
+							{ [$style.selected]: currentAnswer.selectedOptions.includes(option) },
+						]"
+					>
 						<N8nCheckbox
 							:model-value="currentAnswer.selectedOptions.includes(option)"
 							:disabled="disabled"
@@ -353,8 +360,8 @@ function goToNext() {
 }
 
 .progressDot {
-	width: 8px;
-	height: 8px;
+	width: var(--spacing--2xs);
+	height: var(--spacing--2xs);
 	border-radius: 50%;
 	background-color: var(--color--foreground--tint-1);
 	transition: background-color 0.2s ease;
