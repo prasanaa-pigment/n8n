@@ -103,7 +103,7 @@ export class AutoFinalizeHandler {
 			this.debugLog('AUTO_FINALIZE', 'No code exists, prompting to create');
 			messages.push(
 				new HumanMessage({
-					content: 'Please use the text editor tool to create or edit the workflow code.',
+					content: 'Please use the text editor tool to edit the workflow code.',
 					additional_kwargs: { validationMessage: true },
 				}),
 			);
