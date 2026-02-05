@@ -11,6 +11,7 @@ import {
 	ApplicationError,
 	type INodeTypeDescription,
 	type IRunExecutionData,
+	type ITelemetryTrackProperties,
 	type IWorkflowBase,
 	type NodeExecutionSchema,
 } from 'n8n-workflow';
@@ -72,6 +73,8 @@ export interface WorkflowBuilderAgentConfig {
 	 * If not provided, falls back to workflow-sdk static types.
 	 */
 	generatedTypesDir?: string;
+	/** Callback for emitting telemetry events */
+	onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 }
 
 export interface ExpressionValue {
@@ -111,6 +114,7 @@ export class WorkflowBuilderAgent {
 	private onGenerationSuccess?: () => Promise<void>;
 	private resourceLocatorCallback?: ResourceLocatorCallback;
 	private generatedTypesDir?: string;
+	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 
 	constructor(config: WorkflowBuilderAgentConfig) {
 		this.parsedNodeTypes = config.parsedNodeTypes;
@@ -123,6 +127,7 @@ export class WorkflowBuilderAgent {
 		this.onGenerationSuccess = config.onGenerationSuccess;
 		this.resourceLocatorCallback = config.resourceLocatorCallback;
 		this.generatedTypesDir = config.generatedTypesDir;
+		this.onTelemetryEvent = config.onTelemetryEvent;
 	}
 
 	/**
@@ -181,6 +186,12 @@ export class WorkflowBuilderAgent {
 				generatedTypesDir: this.generatedTypesDir,
 				checkpointer: this.checkpointer,
 				onGenerationSuccess: this.onGenerationSuccess,
+				callbacks: this.tracer ? [this.tracer] : undefined,
+				runMetadata: {
+					...this.runMetadata,
+					userMessageId: payload.id,
+				},
+				onTelemetryEvent: this.onTelemetryEvent,
 			});
 
 			yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);

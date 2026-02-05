@@ -5,13 +5,29 @@
  * Extracts the loop body logic for better testability and maintainability.
  */
 
+import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { BaseChatModelCallOptions } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage, AIMessage } from '@langchain/core/messages';
 import type { Runnable } from '@langchain/core/runnables';
 
 import type { StreamOutput, AgentMessageChunk } from '../../types/streaming';
+import type { TokenUsage } from '../types';
 import { applySubgraphCacheMarkers } from '../../utils/cache-control/helpers';
 import { extractTextContent, extractThinkingContent } from '../utils/content-extractors';
+
+/** Type guard for response metadata with usage info */
+interface ResponseMetadataWithUsage {
+	usage: { input_tokens?: number; output_tokens?: number };
+}
+
+function hasUsageMetadata(metadata: unknown): metadata is ResponseMetadataWithUsage {
+	return (
+		typeof metadata === 'object' &&
+		metadata !== null &&
+		'usage' in metadata &&
+		typeof (metadata as ResponseMetadataWithUsage).usage === 'object'
+	);
+}
 
 /**
  * Debug log callback type
@@ -23,6 +39,11 @@ type DebugLogFn = (context: string, message: string, data?: Record<string, unkno
  */
 export interface AgentIterationHandlerConfig {
 	debugLog?: DebugLogFn;
+	onTokenUsage?: (usage: TokenUsage) => void;
+	/** Optional LangChain callbacks (e.g., LangSmith tracer) for LLM invocations */
+	callbacks?: Callbacks;
+	/** Optional metadata to include in LangSmith traces */
+	runMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -74,9 +95,15 @@ export interface LlmInvocationResult {
  */
 export class AgentIterationHandler {
 	private debugLog: DebugLogFn;
+	private onTokenUsage?: (usage: TokenUsage) => void;
+	private callbacks?: Callbacks;
+	private runMetadata?: Record<string, unknown>;
 
 	constructor(config: AgentIterationHandlerConfig = {}) {
 		this.debugLog = config.debugLog ?? (() => {});
+		this.onTokenUsage = config.onTokenUsage;
+		this.callbacks = config.callbacks;
+		this.runMetadata = config.runMetadata;
 	}
 
 	/**
@@ -119,15 +146,26 @@ export class AgentIterationHandler {
 		// Invoke LLM
 		this.debugLog('ITERATION', 'Invoking LLM with message history...');
 		const llmStartTime = Date.now();
-		const response = await llmWithTools.invoke(messages, { signal: abortSignal });
+		const response = await llmWithTools.invoke(messages, {
+			signal: abortSignal,
+			callbacks: this.callbacks,
+			metadata: this.runMetadata,
+		});
 		const llmDurationMs = Date.now() - llmStartTime;
 
-		// Extract token usage from response metadata
-		const responseMetadata = response.response_metadata as
-			| { usage?: { input_tokens?: number; output_tokens?: number } }
-			| undefined;
-		const inputTokens = responseMetadata?.usage?.input_tokens ?? 0;
-		const outputTokens = responseMetadata?.usage?.output_tokens ?? 0;
+		// Extract token usage from response metadata using type guard
+		const responseMetadata = response.response_metadata;
+		const inputTokens = hasUsageMetadata(responseMetadata)
+			? (responseMetadata.usage.input_tokens ?? 0)
+			: 0;
+		const outputTokens = hasUsageMetadata(responseMetadata)
+			? (responseMetadata.usage.output_tokens ?? 0)
+			: 0;
+
+		// Report token usage via callback (fire and forget)
+		if (this.onTokenUsage && (inputTokens > 0 || outputTokens > 0)) {
+			this.onTokenUsage({ inputTokens, outputTokens });
+		}
 
 		this.debugLog('ITERATION', 'LLM response received', {
 			llmDurationMs,
@@ -160,14 +198,13 @@ export class AgentIterationHandler {
 				textContentLength: textContent.length,
 				textContent,
 			});
+			const messageChunk: AgentMessageChunk = {
+				role: 'assistant',
+				type: 'message',
+				text: textContent,
+			};
 			yield {
-				messages: [
-					{
-						role: 'assistant',
-						type: 'message',
-						text: textContent,
-					} as AgentMessageChunk,
-				],
+				messages: [messageChunk],
 			};
 		}
 

@@ -207,6 +207,7 @@ export class AiWorkflowBuilderService {
 			onGenerationSuccess: async () => await this.onGenerationSuccess(user, authHeaders),
 			resourceLocatorCallback,
 			generatedTypesDir: this.generatedTypesDir,
+			onTelemetryEvent: this.onTelemetryEvent,
 		});
 
 		return { agent };
@@ -239,13 +240,15 @@ export class AiWorkflowBuilderService {
 		const { agent } = await this.getAgent(user, payload.id, payload.featureFlags);
 		const userId = user?.id?.toString();
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
+		const isCodeBuilder = payload.featureFlags?.codeBuilder ?? false;
 
 		for await (const output of agent.chat(payload, userId, abortSignal)) {
 			yield output;
 		}
 
 		// Track telemetry after stream completes (onGenerationSuccess is called by the agent)
-		if (this.onTelemetryEvent && userId) {
+		// Skip for code builder - it emits its own "Code builder agent ran" event
+		if (this.onTelemetryEvent && userId && !isCodeBuilder) {
 			try {
 				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id);
 			} catch (error) {

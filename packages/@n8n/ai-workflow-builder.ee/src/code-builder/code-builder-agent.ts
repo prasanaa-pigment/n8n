@@ -39,10 +39,12 @@ import { WarningTracker } from './state/warning-tracker';
 import { createCodeBuilderGetTool } from './tools/code-builder-get.tool';
 import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
 import { createGetSuggestedNodesTool } from './tools/get-suggested-nodes.tool';
-import type { CodeBuilderAgentConfig } from './types';
+import type { CodeBuilderAgentConfig, TokenUsage } from './types';
 export type { CodeBuilderAgentConfig } from './types';
 import type { EvaluationLogger } from './utils/evaluation-logger';
+import { calculateNodeChanges } from './utils/node-diff';
 import { NodeTypeParser } from './utils/node-type-parser';
+import type { ITelemetryTrackProperties } from 'n8n-workflow';
 
 /**
  * Code Builder Agent
@@ -68,6 +70,15 @@ export class CodeBuilderAgent {
 	private toolDispatchHandler: ToolDispatchHandler;
 	/** @TODO Current session log file path (for temporary file-based logging) */
 	private currentLogFile: string | null = null;
+	/** Optional callback for emitting telemetry events */
+	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
+	/** Token usage accumulator - tracks original callback and accumulated totals */
+	private originalOnTokenUsage?: (usage: TokenUsage) => void;
+	/** Accumulated token usage for the current chat session */
+	private accumulatedTokens: { inputTokens: number; outputTokens: number } = {
+		inputTokens: 0,
+		outputTokens: 0,
+	};
 
 	constructor(config: CodeBuilderAgentConfig) {
 		/** @TODO Lots of temporary logging to be cleaned up */
@@ -78,6 +89,8 @@ export class CodeBuilderAgent {
 		this.nodeTypeParser = new NodeTypeParser(config.nodeTypes);
 		this.logger = config.logger;
 		this.evalLogger = config.evalLogger;
+		this.onTelemetryEvent = config.onTelemetryEvent;
+		this.originalOnTokenUsage = config.onTokenUsage;
 
 		// Initialize parse/validate handler with debug logging
 		this.parseValidateHandler = new ParseValidateHandler({
@@ -103,10 +116,18 @@ export class CodeBuilderAgent {
 			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 		});
 
-		// Initialize iteration handler
+		// Initialize iteration handler with wrapped token callback that accumulates totals
 		this.iterationHandler = new AgentIterationHandler({
 			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
-			onTokenUsage: config.onTokenUsage,
+			onTokenUsage: (usage) => {
+				// Accumulate tokens for telemetry
+				this.accumulatedTokens.inputTokens += usage.inputTokens;
+				this.accumulatedTokens.outputTokens += usage.outputTokens;
+				// Call original callback if provided
+				this.originalOnTokenUsage?.(usage);
+			},
+			callbacks: config.callbacks,
+			runMetadata: config.runMetadata,
 		});
 
 		// Initialize final response handler
@@ -241,6 +262,75 @@ ${'='.repeat(50)}
 	}
 
 	/**
+	 * Reset accumulated token counters for a new chat session
+	 */
+	private resetAccumulatedTokens(): void {
+		this.accumulatedTokens = { inputTokens: 0, outputTokens: 0 };
+	}
+
+	/**
+	 * Emit "Code builder agent ran" telemetry event
+	 */
+	private emitTelemetryEvent(params: {
+		userId: string;
+		workflowId?: string;
+		userMessageId: string;
+		sessionId?: string;
+		status: 'success' | 'error' | 'aborted';
+		errorMessage?: string;
+		iterationCount: number;
+		durationMs: number;
+		beforeWorkflow?: WorkflowJSON;
+		afterWorkflow?: WorkflowJSON | null;
+		warningTracker?: WarningTracker;
+	}): void {
+		if (!this.onTelemetryEvent) {
+			return;
+		}
+
+		const {
+			userId,
+			workflowId,
+			userMessageId,
+			sessionId,
+			status,
+			errorMessage,
+			iterationCount,
+			durationMs,
+			beforeWorkflow,
+			afterWorkflow,
+			warningTracker,
+		} = params;
+
+		const nodeChanges = calculateNodeChanges(beforeWorkflow, afterWorkflow);
+
+		const properties: ITelemetryTrackProperties = {
+			user_id: userId,
+			workflow_id: workflowId,
+			user_message_id: userMessageId,
+			session_id: sessionId,
+			status,
+			duration_ms: durationMs,
+			iteration_count: iterationCount,
+			input_tokens: this.accumulatedTokens.inputTokens,
+			output_tokens: this.accumulatedTokens.outputTokens,
+			nodes_added: nodeChanges.nodes_added,
+			nodes_removed: nodeChanges.nodes_removed,
+			nodes_modified: nodeChanges.nodes_modified,
+		};
+
+		if (errorMessage) {
+			properties.error_message = errorMessage;
+		}
+
+		if (warningTracker?.hasTrackedWarnings()) {
+			properties.validation_issues = warningTracker.getIssuesWithResolutionStatus();
+		}
+
+		this.onTelemetryEvent('Code builder agent ran', properties);
+	}
+
+	/**
 	 * Main chat method - generates workflow and streams output
 	 * Implements an agentic loop that handles tool calls for node discovery
 	 *
@@ -257,8 +347,14 @@ ${'='.repeat(50)}
 	): AsyncGenerator<StreamOutput, void, unknown> {
 		const startTime = Date.now();
 
+		// Reset accumulated tokens for this chat session
+		this.resetAccumulatedTokens();
+
+		// Capture before workflow for node diff calculation
+		const beforeWorkflow = payload.workflowContext?.currentWorkflow as WorkflowJSON | undefined;
+
 		// Initialize log file for this session
-		const workflowId = (payload.workflowContext?.currentWorkflow as WorkflowJSON | undefined)?.id;
+		const workflowId = beforeWorkflow?.id;
 		this.initLogFile(workflowId, payload.message);
 
 		this.debugLog('CHAT', '========== STARTING CHAT ==========');
@@ -269,6 +365,10 @@ ${'='.repeat(50)}
 			hasWorkflowContext: !!payload.workflowContext,
 			hasCurrentWorkflow: !!payload.workflowContext?.currentWorkflow,
 		});
+
+		// Track state for telemetry in catch block
+		let iteration = 0;
+		let warningTracker: WarningTracker | undefined;
 
 		try {
 			this.logger?.debug('Code builder agent starting', {
@@ -303,7 +403,9 @@ ${'='.repeat(50)}
 				abortSignal,
 			});
 
-			const { workflow, parseDuration, sourceCode, iteration } = loopResult;
+			const { workflow, parseDuration, sourceCode } = loopResult;
+			iteration = loopResult.iteration;
+			warningTracker = loopResult.warningTracker;
 
 			if (!workflow) {
 				throw new Error(
@@ -356,6 +458,19 @@ ${'='.repeat(50)}
 				nodeCount: workflow.nodes.length,
 				iterations: iteration,
 			});
+
+			// Emit success telemetry
+			this.emitTelemetryEvent({
+				userId,
+				workflowId,
+				userMessageId: payload.id,
+				status: 'success',
+				iterationCount: iteration,
+				durationMs: totalDuration,
+				beforeWorkflow,
+				afterWorkflow: workflow,
+				warningTracker,
+			});
 		} catch (error) {
 			const totalDuration = Date.now() - startTime;
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -385,6 +500,25 @@ ${'='.repeat(50)}
 					} as AgentMessageChunk,
 				],
 			};
+
+			// Determine if this was an abort or a regular error
+			const isAborted =
+				error instanceof Error && (error.name === 'AbortError' || error.message === 'Aborted');
+			const status = isAborted ? 'aborted' : 'error';
+
+			// Emit error/abort telemetry
+			this.emitTelemetryEvent({
+				userId,
+				workflowId,
+				userMessageId: payload.id,
+				status,
+				errorMessage: isAborted ? undefined : errorMessage,
+				iterationCount: iteration,
+				durationMs: totalDuration,
+				beforeWorkflow,
+				afterWorkflow: null,
+				warningTracker,
+			});
 		}
 	}
 
@@ -447,6 +581,7 @@ ${'='.repeat(50)}
 			parseDuration: state.parseDuration,
 			sourceCode: state.sourceCode,
 			iteration: state.iteration,
+			warningTracker: state.warningTracker,
 		};
 	}
 
@@ -680,6 +815,7 @@ interface AgenticLoopResult {
 	parseDuration: number;
 	sourceCode: string | null;
 	iteration: number;
+	warningTracker: WarningTracker;
 }
 
 /**

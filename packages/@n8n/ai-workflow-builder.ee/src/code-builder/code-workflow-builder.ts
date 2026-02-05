@@ -13,10 +13,11 @@
  * to make incremental refinement requests without re-explaining the whole workflow.
  */
 
+import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { MemorySaver } from '@langchain/langgraph';
 import type { Logger } from '@n8n/backend-common';
-import type { INodeTypeDescription } from 'n8n-workflow';
+import type { INodeTypeDescription, ITelemetryTrackProperties } from 'n8n-workflow';
 
 import type { StreamOutput } from '../types/streaming';
 import type { ChatPayload } from '../workflow-builder-agent';
@@ -59,6 +60,18 @@ export interface CodeWorkflowBuilderConfig {
 	 * Called after each LLM call completes. Callers can accumulate for totals.
 	 */
 	onTokenUsage?: (usage: TokenUsage) => void;
+	/**
+	 * Optional LangChain callbacks (e.g., LangSmith tracer) for LLM invocations.
+	 */
+	callbacks?: Callbacks;
+	/**
+	 * Optional metadata to include in LangSmith traces.
+	 */
+	runMetadata?: Record<string, unknown>;
+	/**
+	 * Optional callback for emitting telemetry events.
+	 */
+	onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 }
 
 /**
@@ -85,6 +98,9 @@ export class CodeWorkflowBuilder {
 			evalLogger: config.evalLogger,
 			enableTextEditor: true,
 			onTokenUsage: config.onTokenUsage,
+			callbacks: config.callbacks,
+			runMetadata: config.runMetadata,
+			onTelemetryEvent: config.onTelemetryEvent,
 		});
 
 		this.logger = config.logger;

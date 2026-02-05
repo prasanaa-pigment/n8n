@@ -98,6 +98,7 @@ interface UserSubmittedBuilderMessageTrackingPayload
 	execution_status?: string;
 	error_message?: string;
 	error_node_type?: string;
+	code_builder?: boolean;
 }
 
 export const useBuilderStore = defineStore(STORES.BUILDER, () => {
@@ -274,6 +275,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			workflow_id: workflowsStore.workflowId,
 			session_id: trackingSessionId.value,
 			tab_visible: document.visibilityState === 'visible',
+			code_builder: isCodeBuilder.value,
 			...getWorkflowModifications(currentStreamingMessage.value),
 			...payload,
 			...getTodosToTrack(),
@@ -480,6 +482,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			manual_exec_success_count_since_prev_msg: manualExecStatsInBetweenMessages.value.success,
 			manual_exec_error_count_since_prev_msg: manualExecStatsInBetweenMessages.value.error,
 			user_message_id: userMessageId,
+			code_builder: isCodeBuilder.value,
 			...getTodosToTrack(),
 		};
 
