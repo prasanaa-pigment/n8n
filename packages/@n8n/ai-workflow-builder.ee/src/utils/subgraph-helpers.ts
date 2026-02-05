@@ -185,8 +185,12 @@ export async function executeSubgraphTools(
  */
 export function extractUserRequest(messages: BaseMessage[], defaultValue = ''): string {
 	// Get the LAST HumanMessage (most recent user request for iteration support)
+	// Skip resume messages to avoid treating plan decisions/answers as new requests.
 	const humanMessages = messages.filter((m) => m instanceof HumanMessage);
-	const lastUserMessage = humanMessages[humanMessages.length - 1];
+	const lastNonResumeMessage = [...humanMessages]
+		.reverse()
+		.find((msg) => msg.additional_kwargs?.resumeData === undefined);
+	const lastUserMessage = lastNonResumeMessage ?? humanMessages[humanMessages.length - 1];
 	return typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : defaultValue;
 }
 
