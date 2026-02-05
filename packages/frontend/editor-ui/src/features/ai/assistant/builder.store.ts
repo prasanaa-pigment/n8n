@@ -155,6 +155,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	const {
 		processAssistantMessages,
 		createUserMessage,
+		createUserAnswersMessage,
 		createAssistantMessage,
 		createErrorMessage,
 		clearMessages,
@@ -224,6 +225,25 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	});
 
 	const isInterrupted = computed(() => pendingInterruptMessage.value !== null);
+
+	/**
+	 * True when there's a pending plan awaiting user decision.
+	 * Unlike questions, users can still type in chat when a plan is pending.
+	 */
+	const hasPendingPlan = computed(() => {
+		const lastMessage = chatMessages.value[chatMessages.value.length - 1];
+		return lastMessage ? isPlanModePlanMessage(lastMessage) : false;
+	});
+
+	/**
+	 * True when chat input should be disabled.
+	 * Only questions require disabling input (user must answer via UI).
+	 * Plans allow chat input (typing a message means modifying the plan).
+	 */
+	const shouldDisableChatInput = computed(() => {
+		const lastMessage = chatMessages.value[chatMessages.value.length - 1];
+		return lastMessage ? isPlanModeQuestionsMessage(lastMessage) : false;
+	});
 
 	// Chat management functions
 	/**
@@ -442,8 +462,12 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		userMessage: string,
 		messageId: string,
 		revertVersion?: { id: string; createdAt: string },
+		planAnswers?: PlanMode.QuestionResponse[],
 	) {
-		const userMsg = createUserMessage(userMessage, messageId, revertVersion);
+		// If we have plan answers, create a custom user answers message instead of text
+		const userMsg = planAnswers
+			? createUserAnswersMessage(planAnswers, messageId)
+			: createUserMessage(userMessage, messageId, revertVersion);
 		chatMessages.value = clearRatingLogic([...chatMessages.value, userMsg]);
 		addLoadingAssistantMessage(locale.baseText('aiAssistant.thinkingSteps.thinking'));
 		streaming.value = true;
@@ -578,9 +602,17 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		executionStatus?: string;
 		resumeData?: unknown;
 		mode?: 'build' | 'plan';
+		/** Plan mode answers for custom message display */
+		planAnswers?: PlanMode.QuestionResponse[];
 	}) {
 		if (streaming.value) {
 			return;
+		}
+
+		// If there's a pending plan and user is sending a chat message (not a resumeData action),
+		// automatically treat it as a plan modification request
+		if (hasPendingPlan.value && options.resumeData === undefined) {
+			options.resumeData = { action: 'modify', feedback: options.text };
 		}
 
 		let revertVersion;
@@ -631,7 +663,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 
 		resetManualExecutionStats();
 
-		prepareForStreaming(text, userMessageId, revertVersion);
+		prepareForStreaming(text, userMessageId, revertVersion, options.planAnswers);
 
 		const executionResult = workflowsStore.workflowExecutionData?.data?.resultData;
 		const modeForPayload =
@@ -710,6 +742,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		await sendChatMessage({
 			text,
 			resumeData: answers,
+			planAnswers: answers,
 		});
 	}
 
@@ -1019,6 +1052,8 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		builderMode,
 		isPlanModeAvailable,
 		isInterrupted,
+		hasPendingPlan,
+		shouldDisableChatInput,
 		workflowPrompt,
 		toolMessages,
 		workflowMessages,
