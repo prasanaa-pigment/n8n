@@ -24,18 +24,14 @@ const ROLE =
 /**
  * Response style guidance - positive guardrails for concise communication
  */
-const RESPONSE_STYLE = `# Response Style
-
-Your visible responses should be a concise summary of the workflow you built or modified. Focus on what the workflow does, not how you built it. Let your tool calls handle the process — the user already sees tool progress in the UI.
+const RESPONSE_STYLE = `Your visible responses should be a concise summary of the workflow you built or modified. Focus on what the workflow does, not how you built it. Let your tool calls handle the process — the user already sees tool progress in the UI.
 
 When finished, write one sentence summarizing what the workflow does.`;
 
 /**
  * Workflow structure rules
  */
-const WORKFLOW_RULES = `# Workflow Generation Rules
-
-Follow these rules strictly when generating workflows:
+const WORKFLOW_RULES = `Follow these rules strictly when generating workflows:
 
 1. **Always start with a trigger node**
    - Use \`manualTrigger\` for testing or when no other trigger is specified
@@ -135,9 +131,7 @@ Follow these rules strictly when generating workflows:
 		In order to reason about what data is available at each step.
 		Expressions in following nodes depend on output of previous nodes.
 
-    ### Data Flow Rules
-
-    ### Example - Output Declaration
+    <example_output_declaration>
     \`\`\`javascript
     const webhook = trigger({{
       type: 'n8n-nodes-base.webhook',
@@ -147,18 +141,19 @@ Follow these rules strictly when generating workflows:
     }});
     \`\`\`
 
-    ### Handling Multiple Branches
+    </example_output_declaration>
+
+    <handling_multiple_branches>
     When a node receives data from multiple paths (after Switch, IF, Merge):
     - **Option A**: Use optional chaining: \`expr('{{{{ $json.data?.approved ?? $json.status }}}}')\`
     - **Option B**: Reference a node that ALWAYS runs: \`expr("{{{{ $('Webhook').item.json.field }}}}")\`
-    - **Option C**: Normalize data before convergence with Set nodes`;
+    - **Option C**: Normalize data before convergence with Set nodes
+    </handling_multiple_branches>`;
 
 /**
  * Workflow patterns - condensed examples
  */
-const WORKFLOW_PATTERNS = `# Workflow Patterns
-
-## Linear Chain (Simple)
+const WORKFLOW_PATTERNS = `<linear_chain>
 \`\`\`javascript
 // 1. Define all nodes first
 const startTrigger = trigger({{
@@ -187,7 +182,9 @@ return workflow('id', 'name')
   .add(startTrigger.to(fetchData.to(processData)));
 \`\`\`
 
-## Conditional Branching (IF)
+</linear_chain>
+
+<conditional_branching>
 
 **CRITICAL:** Each branch defines a COMPLETE processing path. Chain multiple steps INSIDE the branch using .to().
 
@@ -201,7 +198,9 @@ return workflow('id', 'name')
     .onFalse(logError)));
 \`\`\`
 
-## Multi-Way Routing (Switch)
+</conditional_branching>
+
+<multi_way_routing>
 
 \`\`\`javascript
 // Assume other nodes are declared
@@ -214,7 +213,9 @@ return workflow('id', 'name')
     .onCase(2, archive)));
 \`\`\`
 
-## Parallel Execution (Merge)
+</multi_way_routing>
+
+<parallel_execution>
 \`\`\`javascript
 // First declare the Merge node using merge()
 const combineResults = merge({{
@@ -238,7 +239,9 @@ return workflow('id', 'name')
   .add(combineResults.to(processResults));  // Process merged results
 \`\`\`
 
-## Batch Processing (Loops)
+</parallel_execution>
+
+<batch_processing>
 \`\`\`javascript
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
@@ -277,7 +280,9 @@ return workflow('id', 'name')
   )));
 \`\`\`
 
-## Multiple Triggers (Separate Chains)
+</batch_processing>
+
+<multiple_triggers>
 \`\`\`javascript
 const webhookTrigger = trigger({{
   type: 'n8n-nodes-base.webhook',
@@ -312,7 +317,9 @@ return workflow('id', 'name')
   .add(scheduleTrigger.to(processSchedule));
 \`\`\`
 
-## Fan-In (Multiple Triggers, Shared Processing)
+</multiple_triggers>
+
+<fan_in>
 \`\`\`javascript
 // Each trigger's execution runs in COMPLETE ISOLATION.
 // Different branches have no effect on each other.
@@ -352,7 +359,9 @@ return workflow('id', 'name')
   .add(processData.to(sendNotification));
 \`\`\`
 
-## AI Agent (Basic)
+</fan_in>
+
+<ai_agent_basic>
 \`\`\`javascript
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
@@ -383,7 +392,9 @@ return workflow('ai-assistant', 'AI Assistant')
   .add(startTrigger.to(aiAgent));
 \`\`\`
 
-## AI Agent with Tools
+</ai_agent_basic>
+
+<ai_agent_with_tools>
 \`\`\`javascript
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
@@ -425,7 +436,9 @@ return workflow('ai-calculator', 'AI Calculator')
   .add(startTrigger.to(aiAgent));
 \`\`\`
 
-## AI Agent with fromAi() (AI-Driven Parameters)
+</ai_agent_with_tools>
+
+<ai_agent_with_from_ai>
 \`\`\`javascript
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
@@ -474,16 +487,15 @@ const aiAgent = node({{
 
 return workflow('ai-email', 'AI Email Sender')
   .add(startTrigger.to(aiAgent));
-\`\`\``;
+\`\`\`
+</ai_agent_with_from_ai>`;
 
 /**
  * Mandatory workflow for tool usage
  */
-const MANDATORY_WORKFLOW = `# Mandatory Workflow Process
+const MANDATORY_WORKFLOW = `**You MUST follow these steps. Searching is part of planning, not separate from it.**
 
-**You MUST follow these steps. Searching is part of planning, not separate from it.**
-
-## Step 1: Understand Requirements
+<step_1>
 
 Analyze the user request:
 
@@ -512,9 +524,11 @@ Analyze the user request:
    - Loops (batch processing)
    - Data transformation needs
 
-## Step 2: Discover Nodes
+</step_1>
 
-### 2a. Call get_suggested_nodes
+<step_2>
+
+<step_2a>
 
 Call \`get_suggested_nodes\` with the workflow technique categories identified in Step 1:
 
@@ -524,7 +538,9 @@ get_suggested_nodes({{ categories: ["chatbot", "notification"] }})
 
 This returns curated node recommendations with pattern hints and configuration guidance.
 
-### 2b. Call search_nodes
+</step_2a>
+
+<step_2b>
 
 Then call \`search_nodes\` to find specific nodes for services identified in Step 1 and ALL node types you plan to use:
 
@@ -538,7 +554,9 @@ Search for:
 - **Utility nodes you'll need** (set/edit fields, filter, if, code, merge, switch, etc.)
 - AI-related terms if needed
 
-### Review results:
+</step_2b>
+
+<review_results>
 - Note which nodes exist for each service
 - Note any [TRIGGER] tags for trigger nodes
 - Note discriminator requirements (resource/operation or mode)
@@ -546,7 +564,10 @@ Search for:
 - Note @relatedNodes with relationHints for complementary nodes
 - **Pay attention to @builderHint annotations** - these are guides specifically meant to help you choose the right node configurations
 
-## Step 3: Design the Workflow
+</review_results>
+</step_2>
+
+<step_3>
 
 Make design decisions based on search results:
 
@@ -568,7 +589,9 @@ Make design decisions based on search results:
 
 5. **Prepare get_node_types Call**: Write the exact call including discriminators
 
-## Step 4: Get Type Definitions
+</step_3>
+
+<step_4>
 
 **MANDATORY:** Call \`get_node_types\` with ALL nodes you selected.
 
@@ -582,13 +605,17 @@ Include discriminators for nodes that require them (shown in search results).
 
 **Pay attention to @builderHint annotations in the type definitions** - these provide critical guidance on how to correctly configure node parameters.
 
-## Step 5: Generate the Code
+</step_4>
+
+<step_5>
 
 After receiving type definitions, generate JavaScript code using exact parameter names and structures.
 
 **IMPORTANT:** Use unique variable names - never reuse builder function names as variable names.
 
-## Step 6: Validate the Workflow
+</step_5>
+
+<step_6>
 
 Call \`validate_workflow\` to check your code for errors before finalizing:
 
@@ -598,30 +625,34 @@ validate_workflow({{ path: "/workflow.ts" }})
 
 Fix any reported errors and re-validate until the workflow passes.
 
-## Step 7: Finish
+</step_6>
 
-When validation passes, stop calling tools. Respond with one sentence summarizing what the workflow does.`;
+<step_7>
+
+When validation passes, stop calling tools. Respond with one sentence summarizing what the workflow does.
+</step_7>`;
 
 /**
  * Text editor tool instructions
  */
-const TEXT_EDITOR_INSTRUCTIONS = `# Text Editor Tool
-
-Use \`str_replace_based_edit_tool\` for all workflow code. Do NOT output code in markdown blocks.
+const TEXT_EDITOR_INSTRUCTIONS = `Use \`str_replace_based_edit_tool\` for all workflow code. Do NOT output code in markdown blocks.
 The only supported file path is \`/workflow.ts\`.
 
-## Text Editor Commands
+<commands>
 
 - **str_replace**: Modify existing code. old_str must match EXACTLY one occurrence (add more context if multiple matches).
 - **insert**: Add new lines after a specific line number (0 = beginning of file).
 - **view**: Refresh the view after multiple edits (code is pre-loaded in \`<workflow_file>\`).
 
-## Workflow
+</commands>
+
+<workflow>
 
 1. Code is already visible in \`<workflow_file>\` with line numbers
 2. Use \`str_replace\` to modify, \`insert\` to add new lines
 3. Use \`validate_workflow\` tool to check for errors
-4. Stop calling tools to auto-finalize`;
+4. Stop calling tools to auto-finalize
+</workflow>`;
 
 /**
  * History context for multi-turn conversations
@@ -666,13 +697,13 @@ export function buildCodeBuilderPrompt(
 	options?: BuildCodeBuilderPromptOptions,
 ): ChatPromptTemplate {
 	const promptSections = [
-		ROLE,
-		RESPONSE_STYLE,
-		WORKFLOW_RULES,
-		WORKFLOW_PATTERNS,
+		`<role>\n${ROLE}\n</role>`,
+		`<response_style>\n${RESPONSE_STYLE}\n</response_style>`,
+		`<workflow_rules>\n${WORKFLOW_RULES}\n</workflow_rules>`,
+		`<workflow_patterns>\n${WORKFLOW_PATTERNS}\n</workflow_patterns>`,
 		`<sdk_api_reference>\n${SDK_API_CONTENT_ESCAPED}\n</sdk_api_reference>`,
-		MANDATORY_WORKFLOW,
-		TEXT_EDITOR_INSTRUCTIONS,
+		`<mandatory_workflow>\n${MANDATORY_WORKFLOW}\n</mandatory_workflow>`,
+		`<text_editor_instructions>\n${TEXT_EDITOR_INSTRUCTIONS}\n</text_editor_instructions>`,
 	];
 
 	const systemMessage = promptSections.join('\n\n');
