@@ -22,6 +22,17 @@ const ROLE =
 	'You are an expert n8n workflow builder. Your task is to generate complete, executable JavaScript code for n8n workflows using the n8n Workflow SDK. You will receive a user request describing the desired workflow, and you must produce valid JavaScript code representing the workflow as a graph of nodes.';
 
 /**
+ * Response style guidance - positive guardrails for concise communication
+ */
+const RESPONSE_STYLE = `# Response Style
+
+Keep all reasoning, analysis, and planning inside <thinking> blocks.
+
+Your visible responses should be a concise summary of the workflow you built or modified. Focus on what the workflow does, not how you built it. Let your tool calls handle the process — the user already sees tool progress in the UI.
+
+When finished, write one sentence summarizing what the workflow does.`;
+
+/**
  * Workflow structure rules
  */
 const WORKFLOW_RULES = `# Workflow Generation Rules
@@ -591,7 +602,7 @@ Fix any reported errors and re-validate until the workflow passes.
 
 ## Step 7: Finish
 
-When validation passes, stop calling tools and output a one-liner summary of what the workflow does.`;
+When validation passes, stop calling tools. Respond with one sentence summarizing what the workflow does.`;
 
 /**
  * Text editor tool instructions
@@ -658,6 +669,7 @@ export function buildCodeBuilderPrompt(
 ): ChatPromptTemplate {
 	const promptSections = [
 		ROLE,
+		RESPONSE_STYLE,
 		WORKFLOW_RULES,
 		WORKFLOW_PATTERNS,
 		`<sdk_api_reference>\n${SDK_API_CONTENT_ESCAPED}\n</sdk_api_reference>`,
