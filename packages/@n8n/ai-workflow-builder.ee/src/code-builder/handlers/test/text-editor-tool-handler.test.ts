@@ -6,6 +6,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage, HumanMessage } from '@langchain/core/messages';
 
 import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
+import { WarningTracker } from '../../state/warning-tracker';
 import { TextEditorToolHandler } from '../text-editor-tool-handler';
 
 /** Type guard for ToolProgressChunk */
@@ -277,6 +278,97 @@ describe('TextEditorToolHandler', () => {
 
 			expect(runningChunk).toBeDefined();
 			expect(completedChunk).toBeDefined();
+		});
+
+		it('should send only new warnings after create when warningTracker is provided', async () => {
+			const warningTracker = new WarningTracker();
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test',
+				nodes: [],
+				connections: {},
+			};
+
+			const seenWarning = { code: 'WARN001', message: 'Already seen' };
+			const newWarning = { code: 'WARN002', message: 'New warning' };
+
+			warningTracker.markAsSeen([seenWarning]);
+
+			mockTextEditorExecute.mockReturnValue('File created.');
+			mockTextEditorGetCode.mockReturnValue('const workflow = {};');
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [seenWarning, newWarning],
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				messages,
+				warningTracker,
+			});
+
+			const chunks: unknown[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			// Should have tool result + human message with only new warning
+			const humanMessages = messages.filter((m) => m instanceof HumanMessage);
+			expect(humanMessages).toHaveLength(1);
+			expect((humanMessages[0] as HumanMessage).content).toContain('WARN002');
+			expect((humanMessages[0] as HumanMessage).content).not.toContain('WARN001');
+			// New warning should now be marked as seen
+			expect(warningTracker.allSeen([newWarning])).toBe(true);
+		});
+
+		it('should treat all-repeated warnings as workflowReady after create', async () => {
+			const warningTracker = new WarningTracker();
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test',
+				nodes: [{ id: 'n1', name: 'Node 1', type: 'test' }],
+				connections: {},
+			};
+
+			const warning = {
+				code: 'AGENT_NO_SYSTEM_MESSAGE',
+				message: 'No system message',
+				nodeName: 'Agent',
+			};
+
+			warningTracker.markAsSeen([warning]);
+
+			mockTextEditorExecute.mockReturnValue('File created.');
+			mockTextEditorGetCode.mockReturnValue('const workflow = {};');
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [warning],
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				messages,
+				warningTracker,
+			});
+
+			const chunks: unknown[] = [];
+			let result: unknown;
+			let iterResult = await generator.next();
+			while (!iterResult.done) {
+				chunks.push(iterResult.value);
+				iterResult = await generator.next();
+			}
+			result = iterResult.value;
+
+			// All warnings repeated → treat as workflowReady
+			expect(result).toEqual(
+				expect.objectContaining({ workflowReady: true, workflow: mockWorkflow }),
+			);
+			// Should NOT add any warning feedback message
+			const humanMessages = messages.filter((m) => m instanceof HumanMessage);
+			expect(humanMessages).toHaveLength(0);
 		});
 	});
 });

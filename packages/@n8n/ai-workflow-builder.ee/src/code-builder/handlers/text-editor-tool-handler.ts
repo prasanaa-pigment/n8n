@@ -11,6 +11,7 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { StreamOutput, ToolProgressChunk } from '../../types/streaming';
 import { FIX_VALIDATION_ERRORS_INSTRUCTION } from '../constants';
+import type { WarningTracker } from '../state/warning-tracker';
 import type { ParseAndValidateResult } from '../types';
 
 /**
@@ -61,6 +62,8 @@ export interface TextEditorToolParams {
 	currentWorkflow: WorkflowJSON | undefined;
 	iteration: number;
 	messages: BaseMessage[];
+	/** Optional warning tracker for deduplicating repeated warnings */
+	warningTracker?: WarningTracker;
 }
 
 /**
@@ -105,7 +108,7 @@ export class TextEditorToolHandler {
 	async *execute(
 		params: TextEditorToolParams,
 	): AsyncGenerator<StreamOutput, TextEditorToolResult | undefined, unknown> {
-		const { toolCallId, args, currentWorkflow, iteration, messages } = params;
+		const { toolCallId, args, currentWorkflow, iteration, messages, warningTracker } = params;
 
 		const command = args.command as string;
 		this.debugLog('TEXT_EDITOR_TOOL', `Executing command: ${command}`, {
@@ -139,6 +142,7 @@ export class TextEditorToolHandler {
 					currentWorkflow,
 					iteration,
 					messages,
+					warningTracker,
 				);
 
 				yield this.createToolProgressChunk('completed', command, toolCallId);
@@ -176,6 +180,7 @@ export class TextEditorToolHandler {
 		currentWorkflow: WorkflowJSON | undefined,
 		_iteration: number,
 		messages: BaseMessage[],
+		warningTracker?: WarningTracker,
 	): Promise<TextEditorToolResult> {
 		const code = this.textEditorGetCode();
 
@@ -198,21 +203,34 @@ export class TextEditorToolHandler {
 
 			// Handle warnings
 			if (result.warnings.length > 0) {
-				const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
-				const errorContext = this.getErrorContext(code, result.warnings[0].message);
+				const newWarnings = warningTracker
+					? warningTracker.filterNewWarnings(result.warnings)
+					: result.warnings;
 
-				// Add human message with warning feedback (marked as validation message for filtering)
-				messages.push(
-					new HumanMessage({
-						content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
-						additional_kwargs: { validationMessage: true },
-					}),
-				);
+				if (newWarnings.length > 0) {
+					if (warningTracker) {
+						warningTracker.markAsSeen(newWarnings);
+					}
 
-				return {
-					workflowReady: false,
-					workflow: result.workflow,
-				};
+					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
+					const errorContext = this.getErrorContext(code, newWarnings[0].message);
+
+					// Add human message with only new warning feedback
+					messages.push(
+						new HumanMessage({
+							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
+							additional_kwargs: { validationMessage: true },
+						}),
+					);
+
+					return {
+						workflowReady: false,
+						workflow: result.workflow,
+					};
+				}
+
+				// All warnings are repeated - treat as valid
+				this.debugLog('TEXT_EDITOR_TOOL', 'All warnings are repeated, treating as valid');
 			}
 
 			// Validation passed

@@ -11,6 +11,7 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { StreamOutput } from '../../types/streaming';
 import { FIX_VALIDATION_ERRORS_INSTRUCTION } from '../constants';
+import type { WarningTracker } from '../state/warning-tracker';
 import type { ParseAndValidateResult } from '../types';
 
 /**
@@ -50,6 +51,8 @@ export interface AutoFinalizeParams {
 	currentWorkflow: WorkflowJSON | undefined;
 	/** Message history to append feedback to */
 	messages: BaseMessage[];
+	/** Optional warning tracker for deduplicating repeated warnings */
+	warningTracker?: WarningTracker;
 }
 
 /**
@@ -96,7 +99,7 @@ export class AutoFinalizeHandler {
 	async *execute(
 		params: AutoFinalizeParams,
 	): AsyncGenerator<StreamOutput, AutoFinalizeResult, unknown> {
-		const { code, currentWorkflow, messages } = params;
+		const { code, currentWorkflow, messages, warningTracker } = params;
 
 		// No code yet - prompt to create
 		if (!code) {
@@ -128,22 +131,37 @@ export class AutoFinalizeHandler {
 
 			// Handle warnings
 			if (result.warnings.length > 0) {
-				const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
-				const errorContext = this.getErrorContext(code, result.warnings[0].message);
+				const newWarnings = warningTracker
+					? warningTracker.filterNewWarnings(result.warnings)
+					: result.warnings;
 
 				this.debugLog('AUTO_FINALIZE', 'Validation warnings', {
 					warnings: result.warnings,
+					totalWarnings: result.warnings.length,
+					newWarnings: newWarnings.length,
 				});
 
-				// Send warnings back to agent for correction (marked as validation message for filtering)
-				messages.push(
-					new HumanMessage({
-						content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
-						additional_kwargs: { validationMessage: true },
-					}),
-				);
+				if (newWarnings.length > 0) {
+					if (warningTracker) {
+						warningTracker.markAsSeen(newWarnings);
+					}
 
-				return { success: false, parseDuration };
+					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
+					const errorContext = this.getErrorContext(code, newWarnings[0].message);
+
+					// Send only new warnings back to agent for correction
+					messages.push(
+						new HumanMessage({
+							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
+							additional_kwargs: { validationMessage: true },
+						}),
+					);
+
+					return { success: false, parseDuration };
+				}
+
+				// All warnings are repeated - treat as success
+				this.debugLog('AUTO_FINALIZE', 'All warnings are repeated, treating as success');
 			}
 
 			// Success - workflow validated

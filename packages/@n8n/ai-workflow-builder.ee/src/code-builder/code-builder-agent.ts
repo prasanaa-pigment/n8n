@@ -789,6 +789,7 @@ ${'='.repeat(50)}
 			code: textEditorHandler.getWorkflowCode(),
 			currentWorkflow,
 			messages,
+			warningTracker: state.warningTracker,
 		});
 
 		if (autoFinalizeResult.success && autoFinalizeResult.workflow) {

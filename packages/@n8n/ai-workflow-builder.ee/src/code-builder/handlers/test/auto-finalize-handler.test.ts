@@ -5,6 +5,7 @@
 import type { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import type { WorkflowJSON, NodeJSON } from '@n8n/workflow-sdk';
 
+import { WarningTracker } from '../../state/warning-tracker';
 import type { ParseAndValidateResult } from '../../types';
 import { AutoFinalizeHandler } from '../auto-finalize-handler';
 
@@ -148,6 +149,91 @@ describe('AutoFinalizeHandler', () => {
 			const result = await consumeGenerator(gen);
 
 			expect(result.parseDuration).toBeGreaterThanOrEqual(10);
+		});
+
+		it('should send only new warnings and mark them as seen via warningTracker', async () => {
+			const handler = createHandler();
+			const messages: BaseMessage[] = [];
+			const warningTracker = new WarningTracker();
+
+			const mockWorkflow: WorkflowJSON = {
+				id: 'test',
+				name: 'Test',
+				nodes: [],
+				connections: {},
+			};
+
+			const seenWarning = { code: 'W001', message: 'Already seen', nodeName: 'Node1' };
+			const newWarning = { code: 'W002', message: 'New warning', nodeName: 'Node2' };
+
+			// Mark one warning as already seen
+			warningTracker.markAsSeen([seenWarning]);
+
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [seenWarning, newWarning],
+			});
+
+			const gen = handler.execute({
+				code: 'const workflow = { ... }',
+				currentWorkflow: undefined,
+				messages,
+				warningTracker,
+			});
+
+			const result = await consumeGenerator(gen);
+
+			expect(result.success).toBe(false);
+			expect(messages).toHaveLength(1);
+			// Should only contain the new warning, not the seen one
+			expect((messages[0] as HumanMessage).content).toContain('W002');
+			expect((messages[0] as HumanMessage).content).not.toContain('W001');
+			// New warning should now be marked as seen
+			expect(warningTracker.allSeen([newWarning])).toBe(true);
+		});
+
+		it('should treat all-repeated warnings as success', async () => {
+			const handler = createHandler();
+			const messages: BaseMessage[] = [];
+			const warningTracker = new WarningTracker();
+
+			const mockWorkflow: WorkflowJSON = {
+				id: 'test',
+				name: 'Test',
+				nodes: [
+					{ id: '1', name: 'Node', type: 'n8n-nodes-base.set', position: [0, 0], typeVersion: 1 },
+				],
+				connections: {},
+			};
+
+			const warning = {
+				code: 'AGENT_NO_SYSTEM_MESSAGE',
+				message: 'No system message',
+				nodeName: 'Agent',
+			};
+
+			// Mark warning as already seen
+			warningTracker.markAsSeen([warning]);
+
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [warning],
+			});
+
+			const gen = handler.execute({
+				code: 'const workflow = { ... }',
+				currentWorkflow: undefined,
+				messages,
+				warningTracker,
+			});
+
+			const result = await consumeGenerator(gen);
+
+			// All warnings repeated → treat as success
+			expect(result.success).toBe(true);
+			expect(result.workflow).toEqual(mockWorkflow);
+			// Should NOT add any feedback message
+			expect(messages).toHaveLength(0);
 		});
 	});
 });

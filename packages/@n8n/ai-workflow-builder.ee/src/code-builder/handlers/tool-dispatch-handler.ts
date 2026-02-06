@@ -205,6 +205,7 @@ export class ToolDispatchHandler {
 				currentWorkflow,
 				iteration,
 				messages,
+				warningTracker,
 			});
 
 			if (result) {
