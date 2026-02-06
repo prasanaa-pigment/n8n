@@ -6,7 +6,6 @@ import type { BaseFilters, Resource } from '@/Interface';
 import type { ICredentialTypeMap } from '../credentials.types';
 import ProjectHeader from '@/features/collaboration/projects/components/ProjectHeader.vue';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
-import { useLatestFetch } from '@/app/composables/useLatestFetch';
 import { useProjectPages } from '@/features/collaboration/projects/composables/useProjectPages';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { CREDENTIAL_EDIT_MODAL_KEY, CREDENTIAL_SELECT_MODAL_KEY } from '../credentials.constants';
@@ -52,7 +51,6 @@ const router = useRouter();
 const telemetry = useTelemetry();
 const i18n = useI18n();
 const overview = useProjectPages();
-const { next: nextFetch } = useLatestFetch();
 
 type Filters = BaseFilters & { type?: string[]; setupNeeded?: boolean };
 const updateFilter = (state: Filters) => {
@@ -192,7 +190,6 @@ const maybeEditCredential = async () => {
 };
 
 const initialize = async () => {
-	const isCurrent = nextFetch();
 	loading.value = true;
 	const isVarsEnabled =
 		useSettingsStore().isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Variables];
@@ -223,7 +220,6 @@ const initialize = async () => {
 	];
 
 	await Promise.all(loadPromises);
-	if (!isCurrent()) return;
 	maybeCreateCredential();
 	await maybeEditCredential();
 	loading.value = false;
