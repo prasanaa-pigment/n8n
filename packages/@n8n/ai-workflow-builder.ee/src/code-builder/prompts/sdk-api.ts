@@ -183,8 +183,9 @@ export interface StickyNoteConfig {
  * Use for multi-input nodes like Merge.
  *
  * @example
- * nodeA.to(mergeNode.input(0))  // Connect nodeA to merge input 0
- * nodeB.to(mergeNode.input(1))  // Connect nodeB to merge input 1
+ * const mergeNode = merge({ version: 3.2, config: { ... } });
+ * nodeA.to(mergeNode.input(0))  // Connect nodeA to input 0
+ * nodeB.to(mergeNode.input(1))  // Connect nodeB to input 1
  */
 export interface InputTarget {
 	readonly node: NodeInstance;
@@ -259,6 +260,7 @@ export interface NodeInstance<
 	 * Use for multi-input nodes like Merge.
 	 *
 	 * @example
+	 * const mergeNode = merge({ version: 3.2, config: { ... } });
 	 * nodeA.to(mergeNode.input(0))
 	 * nodeB.to(mergeNode.input(1))
 	 */
@@ -338,19 +340,6 @@ export interface SwitchNodeInstance extends NodeInstance<'n8n-nodes-base.switch'
 }
 
 /**
- * Merge node instance with input targeting. Created by merge() factory.
- *
- * @example
- * const mergeNode = merge({ version: 3.2, config: { name: 'Combine' } });
- * branch1.to(mergeNode.input(0));  // Connect branch1 to input 0
- * branch2.to(mergeNode.input(1));  // Connect branch2 to input 1
- */
-export interface MergeNodeInstance extends NodeInstance<'n8n-nodes-base.merge', string, unknown> {
-	/** Connect to a specific merge input: branch.to(mergeNode.input(0)) */
-	input(index: number): InputTarget;
-}
-
-/**
  * A chain of connected nodes.
  * Created when you call .to() on a node.
  * Can be added to a workflow with .add().
@@ -380,17 +369,6 @@ export interface NodeChain<
 	then<T extends NodeInstance<string, string, unknown>>(
 		target: T | InputTarget,
 	): NodeChain<THead, T>;
-}
-
-/**
- * Configuration for splitInBatches() factory function.
- * Uses { version, config } pattern matching merge/ifElse/switchCase.
- */
-export interface SplitInBatchesConfig {
-	/** Node version (e.g., 3) */
-	version: number | string;
-	/** Node configuration (name, parameters, position, etc.) */
-	config?: NodeConfig;
 }
 
 /**
@@ -594,8 +572,7 @@ export type NewCredentialFn = (name: string) => CredentialReference;
 export type ExprFn<T> = (template: string) => Expression<T>;
 
 /**
- * merge({ version, config? }) - Creates a merge node for combining multiple branches
- *
+ * merge(input) - Creates a Merge node for combining data from multiple branches.
  * Use .input(n) to connect sources to specific input indices.
  *
  * @example
@@ -607,7 +584,7 @@ export type ExprFn<T> = (template: string) => Expression<T>;
  * branch2.to(mergeNode.input(1));  // Connect to input 1
  * mergeNode.to(downstream);        // Connect merge output to downstream
  */
-export type MergeFn = (input: { version: number; config?: NodeConfig }) => MergeNodeInstance;
+export type MergeFn = (input: { version: number; config?: NodeConfig }) => NodeInstance<'n8n-nodes-base.merge', string, unknown>;
 
 /**
  * splitInBatches(input) - Creates batch processing with loop
@@ -629,7 +606,8 @@ export type MergeFn = (input: { version: number; config?: NodeConfig }) => Merge
  *       .onEachBatch(processNode.to(nextBatch(sibNode))) // Loop back with nextBatch()
  *   ));
  */
-export type SplitInBatchesFn = (input: SplitInBatchesConfig) => SplitInBatchesBuilder;
+
+export type SplitInBatchesFn = (input: { version: number | string; config?: NodeConfig }) => SplitInBatchesBuilder;
 
 /**
  * nextBatch(sibNode) - Semantic helper for loop-back connections

@@ -218,7 +218,7 @@ return workflow('id', 'name')
 
 ## Parallel Execution (Merge)
 \`\`\`javascript
-// First declare the Merge node using merge() factory
+// First declare the Merge node using merge()
 const combineResults = merge({{
   version: 3.2,
   config: {{
