@@ -101,7 +101,7 @@ export class ValidateToolHandler {
 		});
 
 		// Stream tool progress - running
-		yield this.createToolProgressChunk('running');
+		yield this.createToolProgressChunk('running', toolCallId);
 
 		// Check if code exists
 		if (!code) {
@@ -113,7 +113,7 @@ export class ValidateToolHandler {
 						'Error: No workflow code to validate. Use str_replace_based_edit_tool to add code first.',
 				}),
 			);
-			yield this.createToolProgressChunk('completed');
+			yield this.createToolProgressChunk('completed', toolCallId);
 			return { workflowReady: false };
 		}
 
@@ -159,7 +159,7 @@ export class ValidateToolHandler {
 
 					// Stream partial workflow for progressive rendering
 					yield this.createWorkflowUpdateChunk(result.workflow);
-					yield this.createToolProgressChunk('completed');
+					yield this.createToolProgressChunk('completed', toolCallId);
 
 					return {
 						workflowReady: false,
@@ -188,7 +188,7 @@ export class ValidateToolHandler {
 
 			// Stream workflow update
 			yield this.createWorkflowUpdateChunk(result.workflow);
-			yield this.createToolProgressChunk('completed');
+			yield this.createToolProgressChunk('completed', toolCallId);
 
 			return {
 				workflowReady: true,
@@ -212,7 +212,7 @@ export class ValidateToolHandler {
 				}),
 			);
 
-			yield this.createToolProgressChunk('completed');
+			yield this.createToolProgressChunk('completed', toolCallId);
 
 			return {
 				workflowReady: false,
@@ -224,12 +224,16 @@ export class ValidateToolHandler {
 	/**
 	 * Create a tool progress chunk
 	 */
-	private createToolProgressChunk(status: 'running' | 'completed'): StreamOutput {
+	private createToolProgressChunk(
+		status: 'running' | 'completed',
+		toolCallId: string,
+	): StreamOutput {
 		return {
 			messages: [
 				{
 					type: 'tool',
 					toolName: 'validate_workflow',
+					toolCallId,
 					displayTitle: 'Validating workflow',
 					status,
 				} as ToolProgressChunk,

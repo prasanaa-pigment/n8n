@@ -258,6 +258,7 @@ export class ToolDispatchHandler {
 				{
 					type: 'tool',
 					toolName: toolCall.name,
+					toolCallId: toolCall.id,
 					status: 'running',
 					args: toolCall.args,
 				} as ToolProgressChunk,
@@ -281,6 +282,7 @@ export class ToolDispatchHandler {
 					{
 						type: 'tool',
 						toolName: toolCall.name,
+						toolCallId: toolCall.id,
 						status: 'error',
 						error: errorMessage,
 					} as ToolProgressChunk,
@@ -320,6 +322,7 @@ export class ToolDispatchHandler {
 					{
 						type: 'tool',
 						toolName: toolCall.name,
+						toolCallId: toolCall.id,
 						status: 'completed',
 					} as ToolProgressChunk,
 				],
@@ -344,6 +347,7 @@ export class ToolDispatchHandler {
 					{
 						type: 'tool',
 						toolName: toolCall.name,
+						toolCallId: toolCall.id,
 						status: 'error',
 						error: errorMessage,
 					} as ToolProgressChunk,

@@ -5,7 +5,18 @@
 import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage, HumanMessage } from '@langchain/core/messages';
 
+import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
 import { TextEditorToolHandler } from '../text-editor-tool-handler';
+
+/** Type guard for ToolProgressChunk */
+function isToolProgressChunk(chunk: unknown): chunk is ToolProgressChunk {
+	return (
+		typeof chunk === 'object' &&
+		chunk !== null &&
+		'type' in chunk &&
+		(chunk as ToolProgressChunk).type === 'tool'
+	);
+}
 
 describe('TextEditorToolHandler', () => {
 	let handler: TextEditorToolHandler;
@@ -190,6 +201,53 @@ describe('TextEditorToolHandler', () => {
 			expect(messages.length).toBe(1);
 			const toolMessage = messages[0] as ToolMessage;
 			expect(toolMessage.content).toContain('Error: No match found');
+		});
+
+		it('should include toolCallId in all tool progress chunks', async () => {
+			mockTextEditorExecute.mockReturnValue('Done');
+
+			const generator = handler.execute({
+				...baseParams,
+				toolCallId: 'call-abc',
+				messages,
+			});
+
+			const chunks: StreamOutput[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+
+			expect(toolChunks.length).toBeGreaterThanOrEqual(2);
+			for (const chunk of toolChunks) {
+				expect(chunk.toolCallId).toBe('call-abc');
+			}
+		});
+
+		it('should include toolCallId in progress chunks on error', async () => {
+			mockTextEditorExecute.mockImplementation(() => {
+				throw new Error('No match found');
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				toolCallId: 'call-def',
+				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
+				messages,
+			});
+
+			const chunks: StreamOutput[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+
+			expect(toolChunks.length).toBeGreaterThanOrEqual(2);
+			for (const chunk of toolChunks) {
+				expect(chunk.toolCallId).toBe('call-def');
+			}
 		});
 
 		it('should yield tool progress chunks', async () => {

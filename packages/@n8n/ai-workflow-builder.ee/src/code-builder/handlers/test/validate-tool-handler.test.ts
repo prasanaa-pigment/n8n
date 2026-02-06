@@ -5,8 +5,19 @@
 import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage } from '@langchain/core/messages';
 
+import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
 import { WarningTracker } from '../../state/warning-tracker';
 import { ValidateToolHandler } from '../validate-tool-handler';
+
+/** Type guard for ToolProgressChunk */
+function isToolProgressChunk(chunk: unknown): chunk is ToolProgressChunk {
+	return (
+		typeof chunk === 'object' &&
+		chunk !== null &&
+		'type' in chunk &&
+		(chunk as ToolProgressChunk).type === 'tool'
+	);
+}
 
 describe('ValidateToolHandler', () => {
 	let handler: ValidateToolHandler;
@@ -37,6 +48,84 @@ describe('ValidateToolHandler', () => {
 			currentWorkflow: undefined,
 			iteration: 1,
 		};
+
+		it('should include toolCallId in all tool progress chunks on success', async () => {
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test',
+				nodes: [{ id: 'n1', name: 'Node 1', type: 'test' }],
+				connections: {},
+			};
+
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [],
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				toolCallId: 'call-val-1',
+				messages,
+				warningTracker,
+			});
+
+			const chunks: StreamOutput[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+
+			expect(toolChunks.length).toBeGreaterThanOrEqual(2);
+			for (const chunk of toolChunks) {
+				expect(chunk.toolCallId).toBe('call-val-1');
+			}
+		});
+
+		it('should include toolCallId in tool progress chunks on parse error', async () => {
+			mockParseAndValidate.mockRejectedValue(new Error('Syntax error'));
+
+			const generator = handler.execute({
+				...baseParams,
+				toolCallId: 'call-val-2',
+				messages,
+				warningTracker,
+			});
+
+			const chunks: StreamOutput[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+
+			expect(toolChunks.length).toBeGreaterThanOrEqual(2);
+			for (const chunk of toolChunks) {
+				expect(chunk.toolCallId).toBe('call-val-2');
+			}
+		});
+
+		it('should include toolCallId in tool progress chunks when no code', async () => {
+			const generator = handler.execute({
+				...baseParams,
+				toolCallId: 'call-val-3',
+				code: null,
+				messages,
+				warningTracker,
+			});
+
+			const chunks: StreamOutput[] = [];
+			for await (const chunk of generator) {
+				chunks.push(chunk);
+			}
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+
+			expect(toolChunks.length).toBeGreaterThanOrEqual(2);
+			for (const chunk of toolChunks) {
+				expect(chunk.toolCallId).toBe('call-val-3');
+			}
+		});
 
 		it('should return workflowReady false when no code provided', async () => {
 			const generator = handler.execute({

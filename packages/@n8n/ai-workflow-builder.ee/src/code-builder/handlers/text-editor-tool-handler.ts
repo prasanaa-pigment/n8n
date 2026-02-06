@@ -115,7 +115,7 @@ export class TextEditorToolHandler {
 		});
 
 		// Stream tool progress - running
-		yield this.createToolProgressChunk('running', command);
+		yield this.createToolProgressChunk('running', command, toolCallId);
 
 		try {
 			// Execute the text editor command
@@ -141,11 +141,11 @@ export class TextEditorToolHandler {
 					messages,
 				);
 
-				yield this.createToolProgressChunk('completed', command);
+				yield this.createToolProgressChunk('completed', command, toolCallId);
 				return autoValidateResult;
 			}
 
-			yield this.createToolProgressChunk('completed', command);
+			yield this.createToolProgressChunk('completed', command, toolCallId);
 			return undefined;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -164,7 +164,7 @@ export class TextEditorToolHandler {
 				}),
 			);
 
-			yield this.createToolProgressChunk('completed', command);
+			yield this.createToolProgressChunk('completed', command, toolCallId);
 			return undefined;
 		}
 	}
@@ -245,13 +245,18 @@ export class TextEditorToolHandler {
 	/**
 	 * Create a tool progress chunk
 	 */
-	private createToolProgressChunk(status: 'running' | 'completed', command: string): StreamOutput {
+	private createToolProgressChunk(
+		status: 'running' | 'completed',
+		command: string,
+		toolCallId: string,
+	): StreamOutput {
 		const displayTitle = command === 'view' ? 'Viewing Workflow' : 'Editing Workflow';
 		return {
 			messages: [
 				{
 					type: 'tool',
 					toolName: 'str_replace_based_edit_tool',
+					toolCallId,
 					displayTitle,
 					status,
 				} as ToolProgressChunk,
