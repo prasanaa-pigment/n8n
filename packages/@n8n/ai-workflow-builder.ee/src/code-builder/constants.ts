@@ -15,7 +15,7 @@ export const MAX_VALIDATE_ATTEMPTS = 10;
 /** Instruction appended to validation/parse error messages with steps to fix */
 export const FIX_VALIDATION_ERRORS_INSTRUCTION = `
 To fix:
-1. Is the validation error relevant to the user request and your changes? If not, stop and ignore the validations.
+1. **FIRST**: Is the validation error relevant to the last user request and your changes? If NOT, stop immediately and ignore the validations. Do NOT proceed to the next steps.
 2. Use search_nodes to search for relevant nodes, their versions and discriminators
 3. Use get_node_types to fetch the correct node schema (if not already fetched)
 4. Use str_replace or insert to fix the code
