@@ -14,13 +14,12 @@ export const MAX_VALIDATE_ATTEMPTS = 10;
 
 /** Instruction appended to validation/parse error messages with steps to fix */
 export const FIX_VALIDATION_ERRORS_INSTRUCTION = `
-To fix:
-1. **FIRST**: Is the validation error relevant to the last user request and your changes? If NOT, stop immediately and ignore the validations. Do NOT proceed to the next steps.
-2. Use search_nodes to search for relevant nodes, their versions and discriminators
-3. Use get_node_types to fetch the correct node schema (if not already fetched)
-4. Use str_replace or insert to fix the code
-5. Call validate_workflow to verify your fixes
-6. Once valid, write a one-line summary of what you did. Stop calling tools.`;
+Use <thinking> to analyze the error, then act:
+1. Is this error relevant to the last user request? If NOT, stop — do not fix unrelated warnings.
+2. Use search_nodes and get_node_types to look up the correct node schema (if not already fetched)
+3. Use str_replace or insert to fix the code
+4. Call validate_workflow to verify
+Do NOT output explanations — just fix the code. When done, write one sentence summarizing the fix.`;
 
 /** Native Anthropic text editor tool configuration */
 export const TEXT_EDITOR_TOOL = {
