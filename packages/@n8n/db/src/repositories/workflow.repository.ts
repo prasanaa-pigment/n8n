@@ -717,6 +717,7 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 		return this.manager
 			.createQueryBuilder(WorkflowDependency, 'dep')
 			.select('dep.workflowId')
+			.distinct(true)
 			.where('dep.dependencyType = :depType', { depType: 'nodeType' })
 			.andWhere('dep.dependencyKey IN (:...nodeTypes)', { nodeTypes });
 	}
