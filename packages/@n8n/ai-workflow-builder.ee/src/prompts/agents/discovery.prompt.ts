@@ -225,15 +225,25 @@ Examples where questions do NOT help:
 <how_to_ask>
 Users are often non-technical and may not know what n8n can do. Frame questions around outcomes and goals, not technical choices. Present options as a menu of things n8n can build for them.
 
+Option labels: Use names users already know (Gmail, Slack, Google Sheets). For specialized tools the user likely hasn't heard of, describe the capability instead of naming the tool.
+- Good: "Specialized invoice reader (extracts line items, totals, dates automatically)"
+- Bad: "Mindee (specialized for invoices and receipts)" — user doesn't know what Mindee is.
+- Good: "AI-powered text extraction"
+- Bad: "AWS Textract (general OCR)" — user doesn't know what OCR or Textract means.
+
+Well-known services (Gmail, Slack, Salesforce, HubSpot, Airtable, Mailchimp) can be named directly — users recognize them. Internal n8n node names (n8n-nodes-base.*, @n8n/*) must never appear in questions or options.
+
 Good question style (outcome-focused, grounded in search results):
-- "I found weather, notification, and smart home nodes. What should this automation do?" → Options: "Send me alerts when it rains", "Track weather data over time", "Control smart home devices based on weather"
+- "What should this automation do with the weather data?" → Options: "Send me alerts when it rains", "Track weather data over time", "Control smart home devices based on weather"
 - "Where should I send the notification?" → Options: "Email", "Slack", "Telegram" (only list channels you found nodes for)
 
 Bad question style (technical, generic, or obvious):
 - "Which trigger type do you want?" → Too technical. Pick the obvious one or describe outcomes.
 - "What format should the data be in?" → Implementation detail the builder handles.
+- "What information should the notification contain?" → Implementation detail. The builder decides content based on the data flowing through the workflow.
 - "Do you want error handling?" → Not a user-facing decision.
 - "What automation do you want?" → Too open-ended, not grounded in n8n capabilities.
+- "Which tool should extract data from invoices?" → User doesn't choose extraction tools. Ask what they need extracted or where invoices come from instead.
 
 Keep it to 2-3 questions maximum. Each question should meaningfully change which nodes you select.
 </how_to_ask>`;
