@@ -217,27 +217,15 @@ export function useBuilderMessages() {
 			}
 			shouldClearThinking = true;
 		} else if (isPlanMessage(msg)) {
-			// Check if we already have a plan message (prevent duplicates from streaming)
-			const existingPlanIndex = messages.findIndex(
+			// Find the last existing plan message
+			const existingPlanIndex = messages.findLastIndex(
 				(m) => m.type === 'custom' && 'customType' in m && m.customType === 'plan',
 			);
-			const planSignature = JSON.stringify(msg.plan);
-			const hasDuplicatePlan =
-				existingPlanIndex !== -1 &&
-				messages.some(
-					(m) =>
-						m.type === 'custom' &&
-						'customType' in m &&
-						m.customType === 'plan' &&
-						'data' in m &&
-						JSON.stringify(m.data?.plan) === planSignature,
-				);
-			// Only add if no plan message exists, or if there's a user response after the existing one
-			// (meaning this is a new plan after user feedback)
+			// A plan is new if there's a user message after the last plan (modify flow)
 			const hasUserResponseAfterPlan =
 				existingPlanIndex !== -1 &&
 				messages.slice(existingPlanIndex + 1).some((m) => m.role === 'user');
-			if (!hasDuplicatePlan && (existingPlanIndex === -1 || hasUserResponseAfterPlan)) {
+			if (existingPlanIndex === -1 || hasUserResponseAfterPlan) {
 				messages.push(createPlanUIMessage(messageId, msg.plan));
 			}
 			shouldClearThinking = true;
