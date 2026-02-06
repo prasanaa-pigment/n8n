@@ -538,6 +538,37 @@ function parseFilters(args: {
 	return hasAny ? filters : undefined;
 }
 
+function validateSubgraphArgs(parsed: {
+	subgraph?: string;
+	datasetName?: string;
+	datasetFile?: string;
+	prompt?: string;
+	promptsCsv?: string;
+	testCase?: string;
+	writeBack: boolean;
+	regenerate: boolean;
+}): void {
+	if (parsed.subgraph && !parsed.datasetName && !parsed.datasetFile) {
+		throw new Error(
+			'`--subgraph` requires `--dataset` or `--dataset-file`. Subgraph evaluation needs pre-computed state from a dataset.',
+		);
+	}
+
+	if (parsed.subgraph && (parsed.prompt || parsed.promptsCsv || parsed.testCase)) {
+		throw new Error(
+			'`--subgraph` cannot be combined with `--prompt`, `--prompts-csv`, or `--test-case`. Use `--dataset` instead.',
+		);
+	}
+
+	if (parsed.writeBack && !parsed.regenerate) {
+		throw new Error('`--write-back` requires `--regenerate`');
+	}
+
+	if (parsed.regenerate && !parsed.subgraph) {
+		throw new Error('`--regenerate` requires `--subgraph`');
+	}
+}
+
 export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): EvaluationArgs {
 	// Check for help flag before parsing
 	if (argv.includes('--help') || argv.includes('-h')) {
@@ -567,25 +598,7 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		technique: parsed.technique,
 	});
 
-	if (parsed.subgraph && !parsed.datasetName && !parsed.datasetFile) {
-		throw new Error(
-			'`--subgraph` requires `--dataset` or `--dataset-file`. Subgraph evaluation needs pre-computed state from a dataset.',
-		);
-	}
-
-	if (parsed.subgraph && (parsed.prompt || parsed.promptsCsv || parsed.testCase)) {
-		throw new Error(
-			'`--subgraph` cannot be combined with `--prompt`, `--prompts-csv`, or `--test-case`. Use `--dataset` instead.',
-		);
-	}
-
-	if (parsed.writeBack && !parsed.regenerate) {
-		throw new Error('`--write-back` requires `--regenerate`');
-	}
-
-	if (parsed.regenerate && !parsed.subgraph) {
-		throw new Error('`--regenerate` requires `--subgraph`');
-	}
+	validateSubgraphArgs(parsed);
 
 	if (parsed.suite !== 'pairwise' && (filters?.doSearch || filters?.dontSearch)) {
 		throw new Error(

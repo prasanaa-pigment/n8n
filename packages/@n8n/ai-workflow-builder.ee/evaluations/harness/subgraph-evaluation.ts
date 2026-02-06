@@ -12,7 +12,7 @@ import { traceable } from 'langsmith/traceable';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
-import { runWithOptionalLimiter, withTimeout } from './evaluation-helpers';
+import { runWithOptionalLimiter, withTimeout, runEvaluatorsOnExample } from './evaluation-helpers';
 import { toLangsmithEvaluationResult } from './feedback';
 import type {
 	Evaluator,
@@ -29,11 +29,7 @@ import {
 } from './langsmith-dataset-writer';
 import type { EvalLogger } from './logger';
 import { createArtifactSaver } from './output';
-import {
-	calculateWeightedScore,
-	selectScoringItems,
-	calculateFiniteAverage,
-} from './score-calculator';
+import { calculateWeightedScore, computeEvaluatorAverages } from './score-calculator';
 import {
 	extractPreComputedState,
 	deserializeMessages,
@@ -130,6 +126,105 @@ interface SubgraphTargetOutput {
 	exampleId?: string;
 }
 
+interface ResolveStateResult {
+	state: PreComputedState;
+	writeBackEntry?: LangSmithWriteBackEntry;
+}
+
+/**
+ * Resolve the pre-computed state for a subgraph evaluation example.
+ * Either regenerates from prompt or uses the pre-computed state from the dataset.
+ */
+async function resolveState(args: {
+	inputs: Record<string, unknown>;
+	regenerate?: boolean;
+	llms?: ResolvedStageLLMs;
+	parsedNodeTypes?: INodeTypeDescription[];
+	timeoutMs?: number;
+	logger: EvalLogger;
+	index: number;
+	prompt: string;
+	exampleId?: string;
+	writeBack?: boolean;
+}): Promise<ResolveStateResult> {
+	if (args.regenerate && args.llms && args.parsedNodeTypes) {
+		args.logger.verbose(`[${args.index}] Regenerating workflow state from prompt...`);
+		const regenStart = Date.now();
+		const regenerated = await regenerateWorkflowState({
+			prompt: args.prompt,
+			llms: args.llms,
+			parsedNodeTypes: args.parsedNodeTypes,
+			timeoutMs: args.timeoutMs,
+			logger: args.logger,
+		});
+		args.logger.verbose(`[${args.index}] Regeneration completed in ${Date.now() - regenStart}ms`);
+
+		const state: PreComputedState = {
+			messages: deserializeMessages(regenerated.messages),
+			coordinationLog: regenerated.coordinationLog,
+			workflowJSON: regenerated.workflowJSON,
+			discoveryContext: regenerated.discoveryContext,
+			previousSummary: regenerated.previousSummary,
+		};
+
+		const writeBackEntry =
+			args.writeBack && args.exampleId
+				? {
+						exampleId: args.exampleId,
+						messages: regenerated.messages,
+						coordinationLog: regenerated.coordinationLog,
+						workflowJSON: regenerated.workflowJSON,
+					}
+				: undefined;
+
+		return { state, writeBackEntry };
+	}
+
+	return { state: extractPreComputedState(args.inputs) };
+}
+
+/**
+ * Pre-load example IDs from a LangSmith dataset for write-back tracking.
+ */
+async function preloadExampleIds(
+	lsClient: LangsmithClient,
+	datasetName: string,
+	logger: EvalLogger,
+): Promise<string[]> {
+	logger.verbose('Pre-loading example IDs for write-back tracking...');
+	const dataset = await lsClient.readDataset({ datasetName });
+	const examples = lsClient.listExamples({ datasetId: dataset.id });
+	const ids: string[] = [];
+	for await (const example of examples) {
+		ids.push(example.id);
+	}
+	logger.verbose(`Loaded ${ids.length} example IDs for write-back`);
+	return ids;
+}
+
+/**
+ * Extract experiment and dataset IDs from LangSmith evaluate() results.
+ */
+async function extractExperimentIds(
+	experimentResults: Awaited<ReturnType<typeof evaluate>>,
+	logger: EvalLogger,
+): Promise<{ experimentId?: string; datasetId?: string }> {
+	try {
+		const manager = (
+			experimentResults as unknown as {
+				manager?: { _getExperiment?: () => { id: string }; datasetId?: Promise<string> };
+			}
+		).manager;
+		return {
+			experimentId: manager?._getExperiment?.()?.id,
+			datasetId: manager?.datasetId ? await manager.datasetId : undefined,
+		};
+	} catch {
+		logger.verbose('Could not extract LangSmith IDs from experiment results');
+		return {};
+	}
+}
+
 /**
  * Run a subgraph evaluation against a LangSmith dataset.
  */
@@ -205,18 +300,7 @@ export async function runSubgraphEvaluation(config: SubgraphEvaluationConfig): P
 	);
 
 	// Pre-load example IDs if write-back is needed
-	// Store as array to match by index position (avoids prompt collision issues)
-	const exampleIds: string[] = [];
-
-	if (writeBack) {
-		logger.verbose('Pre-loading example IDs for write-back tracking...');
-		const dataset = await lsClient.readDataset({ datasetName });
-		const examples = lsClient.listExamples({ datasetId: dataset.id });
-		for await (const example of examples) {
-			exampleIds.push(example.id);
-		}
-		logger.verbose(`Loaded ${exampleIds.length} example IDs for write-back`);
-	}
+	const exampleIds = writeBack ? await preloadExampleIds(lsClient, datasetName, logger) : [];
 
 	const target = async (inputs: Record<string, unknown>): Promise<SubgraphTargetOutput> => {
 		targetCallCount++;
@@ -227,42 +311,19 @@ export async function runSubgraphEvaluation(config: SubgraphEvaluationConfig): P
 		const startTime = Date.now();
 
 		try {
-			let state: PreComputedState;
-
-			if (regenerate && llms && parsedNodeTypes) {
-				// Regenerate state from prompt
-				logger.verbose(`[${index}] Regenerating workflow state from prompt...`);
-				const regenStart = Date.now();
-				const regenerated = await regenerateWorkflowState({
-					prompt,
-					llms,
-					parsedNodeTypes,
-					timeoutMs,
-					logger,
-				});
-				const regenDurationMs = Date.now() - regenStart;
-				logger.verbose(`[${index}] Regeneration completed in ${regenDurationMs}ms`);
-
-				state = {
-					messages: deserializeMessages(regenerated.messages),
-					coordinationLog: regenerated.coordinationLog,
-					workflowJSON: regenerated.workflowJSON,
-					discoveryContext: regenerated.discoveryContext,
-					previousSummary: regenerated.previousSummary,
-				};
-
-				if (writeBack && exampleId) {
-					writeBackEntries.push({
-						exampleId,
-						messages: regenerated.messages,
-						coordinationLog: regenerated.coordinationLog,
-						workflowJSON: regenerated.workflowJSON,
-					});
-				}
-			} else {
-				// Use pre-computed state from dataset
-				state = extractPreComputedState(inputs);
-			}
+			const { state, writeBackEntry } = await resolveState({
+				inputs,
+				regenerate,
+				llms,
+				parsedNodeTypes,
+				timeoutMs,
+				logger,
+				index,
+				prompt,
+				exampleId,
+				writeBack,
+			});
+			if (writeBackEntry) writeBackEntries.push(writeBackEntry);
 
 			const genStart = Date.now();
 			const subgraphResult = await traceableSubgraphRun({
@@ -293,30 +354,7 @@ export async function runSubgraphEvaluation(config: SubgraphEvaluationConfig): P
 
 			// Run evaluators
 			const evalStart = Date.now();
-			const feedback = (
-				await Promise.all(
-					evaluators.map(async (evaluator): Promise<Feedback[]> => {
-						try {
-							return await withTimeout({
-								promise: evaluator.evaluate(emptyWorkflow, context),
-								timeoutMs,
-								label: `evaluator:${evaluator.name}`,
-							});
-						} catch (error) {
-							const msg = error instanceof Error ? error.message : String(error);
-							return [
-								{
-									evaluator: evaluator.name,
-									metric: 'error',
-									score: 0,
-									kind: 'score' as const,
-									comment: msg,
-								},
-							];
-						}
-					}),
-				)
-			).flat();
+			const feedback = await runEvaluatorsOnExample(evaluators, emptyWorkflow, context, timeoutMs);
 			const evalDurationMs = Date.now() - evalStart;
 			const totalDurationMs = Date.now() - startTime;
 
@@ -429,39 +467,9 @@ export async function runSubgraphEvaluation(config: SubgraphEvaluationConfig): P
 	const experimentName = experimentResults.experimentName;
 	logger.info(`Experiment completed: ${experimentName}`);
 
-	// Extract experiment IDs
-	let experimentId: string | undefined;
-	let datasetId: string | undefined;
-	try {
-		const manager = (
-			experimentResults as unknown as {
-				manager?: { _getExperiment?: () => { id: string }; datasetId?: Promise<string> };
-			}
-		).manager;
-		if (manager?._getExperiment) experimentId = manager._getExperiment().id;
-		if (manager?.datasetId) datasetId = await manager.datasetId;
-	} catch {
-		logger.verbose('Could not extract LangSmith IDs from experiment results');
-	}
+	const { experimentId, datasetId } = await extractExperimentIds(experimentResults, logger);
 
-	// Compute evaluator averages
-	const evaluatorStats: Record<string, { scores: number[] }> = {};
-	for (const result of capturedResults) {
-		const byEvaluator: Record<string, Feedback[]> = {};
-		for (const fb of result.feedback) {
-			if (!byEvaluator[fb.evaluator]) byEvaluator[fb.evaluator] = [];
-			byEvaluator[fb.evaluator].push(fb);
-		}
-		for (const [evaluator, items] of Object.entries(byEvaluator)) {
-			if (!evaluatorStats[evaluator]) evaluatorStats[evaluator] = { scores: [] };
-			const scoringItems = selectScoringItems(items);
-			evaluatorStats[evaluator].scores.push(calculateFiniteAverage(scoringItems));
-		}
-	}
-	const evaluatorAverages: Record<string, number> = {};
-	for (const [name, s] of Object.entries(evaluatorStats)) {
-		evaluatorAverages[name] = s.scores.reduce((a, b) => a + b, 0) / s.scores.length;
-	}
+	const evaluatorAverages = computeEvaluatorAverages(capturedResults);
 
 	const summary: RunSummary = {
 		totalExamples: stats.total,

@@ -8,7 +8,7 @@
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
-import { runWithOptionalLimiter, withTimeout } from './evaluation-helpers';
+import { runWithOptionalLimiter, withTimeout, runEvaluatorsOnExample } from './evaluation-helpers';
 import type {
 	Evaluator,
 	EvaluationContext,
@@ -19,11 +19,7 @@ import type {
 } from './harness-types';
 import type { EvalLogger } from './logger';
 import { createArtifactSaver } from './output';
-import {
-	calculateWeightedScore,
-	selectScoringItems,
-	calculateFiniteAverage,
-} from './score-calculator';
+import { calculateWeightedScore, computeEvaluatorAverages } from './score-calculator';
 import {
 	extractPreComputedState,
 	deserializeMessages,
@@ -224,30 +220,12 @@ export async function runLocalSubgraphEvaluation(
 						const emptyWorkflow: SimpleWorkflow = { name: '', nodes: [], connections: {} };
 
 						const evalStart = Date.now();
-						const feedback = (
-							await Promise.all(
-								evaluators.map(async (evaluator): Promise<Feedback[]> => {
-									try {
-										return await withTimeout({
-											promise: evaluator.evaluate(emptyWorkflow, context),
-											timeoutMs,
-											label: `evaluator:${evaluator.name}`,
-										});
-									} catch (error) {
-										const msg = error instanceof Error ? error.message : String(error);
-										return [
-											{
-												evaluator: evaluator.name,
-												metric: 'error',
-												score: 0,
-												kind: 'score' as const,
-												comment: msg,
-											},
-										];
-									}
-								}),
-							)
-						).flat();
+						const feedback = await runEvaluatorsOnExample(
+							evaluators,
+							emptyWorkflow,
+							context,
+							timeoutMs,
+						);
 						const evalDurationMs = Date.now() - evalStart;
 						const totalDurationMs = Date.now() - startTime;
 
@@ -319,24 +297,7 @@ export async function runLocalSubgraphEvaluation(
 		`Local subgraph evaluation completed in ${((Date.now() - evalStartTime) / 1000).toFixed(1)}s`,
 	);
 
-	// Compute evaluator averages
-	const evaluatorStats: Record<string, { scores: number[] }> = {};
-	for (const result of capturedResults) {
-		const byEvaluator: Record<string, Feedback[]> = {};
-		for (const fb of result.feedback) {
-			if (!byEvaluator[fb.evaluator]) byEvaluator[fb.evaluator] = [];
-			byEvaluator[fb.evaluator].push(fb);
-		}
-		for (const [evaluator, items] of Object.entries(byEvaluator)) {
-			if (!evaluatorStats[evaluator]) evaluatorStats[evaluator] = { scores: [] };
-			const scoringItems = selectScoringItems(items);
-			evaluatorStats[evaluator].scores.push(calculateFiniteAverage(scoringItems));
-		}
-	}
-	const evaluatorAverages: Record<string, number> = {};
-	for (const [name, s] of Object.entries(evaluatorStats)) {
-		evaluatorAverages[name] = s.scores.reduce((a, b) => a + b, 0) / s.scores.length;
-	}
+	const evaluatorAverages = computeEvaluatorAverages(capturedResults);
 
 	const summary: RunSummary = {
 		totalExamples: stats.total,
