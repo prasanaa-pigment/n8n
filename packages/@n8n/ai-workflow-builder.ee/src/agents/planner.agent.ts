@@ -103,7 +103,7 @@ export interface PlannerNodeResult {
 	messages?: BaseMessage[];
 }
 
-function parsePlanDecision(value: unknown): { action: PlanDecision; feedback?: string } {
+export function parsePlanDecision(value: unknown): { action: PlanDecision; feedback?: string } {
 	if (typeof value !== 'object' || value === null) {
 		return { action: 'reject', feedback: 'Invalid response: expected an object.' };
 	}

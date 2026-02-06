@@ -29,7 +29,7 @@ const answersRecordSchema = z.record(z.union([z.string(), z.array(z.string())]))
 type PlannerQuestionInput = z.infer<typeof plannerQuestionSchema>;
 type SubmitQuestionsInput = z.infer<typeof submitQuestionsInputSchema>;
 
-function formatAnswersForDiscovery(
+export function formatAnswersForDiscovery(
 	questions: PlannerQuestionInput[],
 	resumeValue: unknown,
 ): string {
