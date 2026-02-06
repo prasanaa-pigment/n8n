@@ -536,7 +536,7 @@ function showStandardEmptyState(type: INodeCredentialDescription): boolean {
 
 async function onQuickConnectSignIn(credentialTypeName: string) {
 	if (!isOAuthCredentialType(credentialTypeName)) {
-		// TODO: Implement quick connect flow for non-OAuth credentials when backend is ready
+		// Non-OAuth: fall back to opening the credential modal for manual setup
 		createNewCredential(credentialTypeName, true, false);
 		return;
 	}
@@ -823,6 +823,20 @@ async function onQuickConnectSignIn(credentialTypeName: string) {
 	font-size: var(--font-size--sm);
 }
 
+.edit {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	color: var(--color--text);
+	margin-left: var(--spacing--3xs);
+	font-size: var(--font-size--sm);
+
+	&:hover,
+	&:focus {
+		color: var(--color--primary);
+	}
+}
+
 .input {
 	display: flex;
 	align-items: center;
@@ -950,19 +964,5 @@ async function onQuickConnectSignIn(credentialTypeName: string) {
 
 .emptySelect {
 	flex: 1;
-}
-
-.edit {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	color: var(--color--text);
-	margin-left: var(--spacing--3xs);
-	font-size: var(--font-size--sm);
-
-	&:hover,
-	&:focus {
-		color: var(--color--primary);
-	}
 }
 </style>

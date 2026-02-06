@@ -1,4 +1,3 @@
-import type { QuickConnectOption } from '@n8n/api-types';
 import { Config, Env } from '@n8n/config';
 import { z } from 'zod';
 
@@ -22,9 +21,11 @@ const quickConnectOptionsSchema = z.string().pipe(
 	),
 );
 
+type QuickConnectOptions = z.infer<typeof quickConnectOptionsSchema>;
+
 @Config
 export class QuickConnectConfig {
 	/** Promoted quick connect options */
 	@Env('N8N_QUICK_CONNECT_OPTIONS', quickConnectOptionsSchema)
-	options: QuickConnectOption[] = [];
+	options: QuickConnectOptions = [];
 }

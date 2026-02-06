@@ -5,7 +5,7 @@ import type { ICredentialsResponse } from '../credentials.types';
 
 /**
  * Composable for OAuth credential type detection and authorization.
- * Shared between CredentialEdit and NodeCredentials.
+ * Used by NodeCredentials for the quick connect OAuth flow.
  */
 export function useCredentialOAuth() {
 	const credentialsStore = useCredentialsStore();
@@ -69,6 +69,7 @@ export function useCredentialOAuth() {
 			return false;
 		}
 
+		// __overwrittenProperties is set by the credentials-overwrites system (CredentialsOverwrites.applyOverwrite)
 		const overwrittenProperties = credentialType.__overwrittenProperties ?? [];
 		if (overwrittenProperties.length === 0) {
 			return false;
@@ -131,6 +132,14 @@ export function useCredentialOAuth() {
 			'scrollbars=no,resizable=yes,status=no,titlebar=no,location=no,toolbar=no,menubar=no,width=500,height=700';
 		const oauthPopup = window.open(url, 'OAuth Authorization', params);
 
+		if (!oauthPopup) {
+			toast.showError(
+				new Error(i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.message')),
+				i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.title'),
+			);
+			return false;
+		}
+
 		return await new Promise((resolve) => {
 			const oauthChannel = new BroadcastChannel('oauth-callback');
 			let settled = false;
@@ -153,24 +162,24 @@ export function useCredentialOAuth() {
 
 			// Poll for popup being closed without completing OAuth (user clicked X)
 			pollTimer = setInterval(() => {
-				if (oauthPopup?.closed) {
+				if (oauthPopup.closed) {
 					settle(false);
 				}
 			}, 500);
 
 			oauthChannel.addEventListener('message', (event: MessageEvent) => {
-				oauthPopup?.close();
+				oauthPopup.close();
 
 				if (event.data === 'success') {
 					toast.showMessage({
-						title: i18n.baseText('credentialEdit.credentialEdit.showMessage.accountConnected'),
+						title: i18n.baseText('nodeCredentials.oauth.accountConnected'),
 						type: 'success',
 					});
 					settle(true);
 				} else {
 					toast.showMessage({
 						title: i18n.baseText(
-							'credentialEdit.credentialEdit.showMessage.accountConnectionFailed',
+							'nodeCredentials.oauth.accountConnectionFailed',
 						),
 						type: 'error',
 					});
