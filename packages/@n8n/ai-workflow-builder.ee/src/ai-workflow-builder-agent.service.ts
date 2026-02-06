@@ -197,7 +197,12 @@ export class AiWorkflowBuilderService {
 			logger: this.logger,
 			checkpointer: this.sessionManager.getCheckpointer(),
 			tracer: tracingClient
-				? new LangChainTracer({ client: tracingClient, projectName: 'n8n-workflow-builder' })
+				? new LangChainTracer({
+						client: tracingClient,
+						projectName: featureFlags?.codeBuilder
+							? 'code-workflow-builder'
+							: 'n8n-workflow-builder',
+					})
 				: undefined,
 			instanceUrl: this.instanceUrl,
 			runMetadata: {
