@@ -561,9 +561,15 @@ ${'='.repeat(50)}
 		);
 		let parentRunManager: CallbackManagerForChainRun | undefined;
 		if (callbackManager) {
+			const lastUserMessage = [...messages].reverse().find((m) => m._getType() === 'human');
+			const rawContent =
+				typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : '';
+			const tagMatch = rawContent.match(/<user_request>([\s\S]*?)<\/user_request>/);
+			const inputPreview = (tagMatch?.[1]?.trim() ?? rawContent).slice(0, 200);
+
 			parentRunManager = await callbackManager.handleChainStart(
 				{ lc: 1, type: 'not_implemented' as const, id: ['CodeBuilderAgent'] },
-				{ messageCount: messages.length },
+				{ input: inputPreview ?? '', messageCount: messages.length },
 				undefined,
 				undefined,
 				undefined,
