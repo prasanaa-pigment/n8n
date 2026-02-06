@@ -70,7 +70,7 @@ function onSelect(value: BuilderMode) {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--4xs);
-	padding: var(--spacing--2xs) var(--spacing--xs);
+	padding: var(--spacing--3xs) var(--spacing--2xs);
 }
 .label {
 	font-size: var(--font-size--2xs);

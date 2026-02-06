@@ -150,7 +150,7 @@ function goToNext() {
 <template>
 	<div :class="$style.wrapper" data-test-id="plan-mode-questions-message">
 		<!-- Intro message (outside the card) -->
-		<N8nText v-if="introMessage && currentIndex === 0" :class="$style.intro">
+		<N8nText v-if="introMessage" :class="$style.intro">
 			{{ introMessage }}
 		</N8nText>
 
@@ -264,7 +264,7 @@ function goToNext() {
 					<div v-else />
 
 					<N8nButton
-						type="primary"
+						type="secondary"
 						size="small"
 						:disabled="disabled || !hasValidAnswer || isSubmitted"
 						data-test-id="plan-mode-questions-next"
@@ -296,12 +296,11 @@ function goToNext() {
 
 .container {
 	border: var(--border);
-	border-radius: var(--radius--lg);
-	padding: var(--spacing--sm);
+	border-radius: var(--radius--s);
 }
 
 .question {
-	margin-bottom: var(--spacing--sm);
+	padding: var(--spacing--sm) var(--spacing--xs);
 }
 
 .questionText {
@@ -311,7 +310,6 @@ function goToNext() {
 .options {
 	display: flex;
 	flex-direction: column;
-	gap: var(--spacing--3xs);
 }
 
 .radioOption,
@@ -320,7 +318,7 @@ function goToNext() {
 	align-items: center;
 	gap: var(--spacing--2xs);
 	cursor: pointer;
-	padding: var(--spacing--3xs) var(--spacing--2xs);
+	padding: var(--spacing--3xs) 0;
 	border-radius: var(--radius);
 	transition: background-color 0.15s ease;
 
@@ -355,7 +353,7 @@ function goToNext() {
 	align-items: center;
 	gap: var(--spacing--2xs);
 	margin-top: var(--spacing--3xs);
-	padding: var(--spacing--3xs) var(--spacing--2xs);
+	padding: var(--spacing--3xs) 0;
 }
 
 .otherInput {
@@ -368,7 +366,7 @@ function goToNext() {
 	align-items: center;
 	padding-top: var(--spacing--xs);
 	border-top: var(--border);
-	margin-top: var(--spacing--xs);
+	padding: var(--spacing--xs) var(--spacing--xs);
 }
 
 .progress {

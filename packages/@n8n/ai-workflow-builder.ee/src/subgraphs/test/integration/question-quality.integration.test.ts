@@ -1,3 +1,4 @@
+/* eslint-disable complexity */
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { MemorySaver } from '@langchain/langgraph';
 import type { INodeTypeDescription } from 'n8n-workflow';

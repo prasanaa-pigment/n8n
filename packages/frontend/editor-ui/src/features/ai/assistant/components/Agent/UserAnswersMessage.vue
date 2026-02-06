@@ -45,10 +45,10 @@ function formatAnswer(answer: PlanMode.QuestionResponse): string {
 		data-test-id="plan-mode-user-answers"
 	>
 		<div v-for="answer in displayedAnswers" :key="answer.questionId" :class="$style.answerItem">
-			<N8nText :bold="true" size="small" :class="$style.question">
+			<N8nText :bold="true" :class="$style.question">
 				{{ answer.question }}
 			</N8nText>
-			<N8nText size="small" color="text-light">{{ formatAnswer(answer) }}</N8nText>
+			<N8nText color="text-light">{{ formatAnswer(answer) }}</N8nText>
 		</div>
 	</div>
 </template>
