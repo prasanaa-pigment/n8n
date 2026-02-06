@@ -383,11 +383,14 @@ export interface NodeChain<
 }
 
 /**
- * Configuration for splitInBatches()
+ * Configuration for splitInBatches() factory function.
+ * Uses { version, config } pattern matching merge/ifElse/switchCase.
  */
-export interface SplitInBatchesConfig extends NodeConfig {
-	/** Node version (defaults to 3) */
-	version?: number | string;
+export interface SplitInBatchesConfig {
+	/** Node version (e.g., 3) */
+	version: number | string;
+	/** Node configuration (name, parameters, position, etc.) */
+	config?: NodeConfig;
 }
 
 /**
@@ -607,16 +610,15 @@ export type ExprFn<T> = (template: string) => Expression<T>;
 export type MergeFn = (input: { version: number; config?: NodeConfig }) => MergeNodeInstance;
 
 /**
- * splitInBatches(config?) - Creates batch processing with loop
+ * splitInBatches(input) - Creates batch processing with loop
  *
  * Returns a SplitInBatchesBuilder with .onDone()/.onEachBatch() fluent methods.
  * Use nextBatch() to make loop-back connections explicit.
  *
  * @example
  * const sibNode = splitInBatches({
- *   name: 'Loop',
- *   parameters: { batchSize: 10 },
- *   position: [840, 300]
+ *   version: 3,
+ *   config: { name: 'Loop', parameters: { batchSize: 10 }, position: [840, 300] }
  * });
  *
  * // Fluent API with nextBatch() for explicit loop-back
@@ -627,7 +629,7 @@ export type MergeFn = (input: { version: number; config?: NodeConfig }) => Merge
  *       .onEachBatch(processNode.to(nextBatch(sibNode))) // Loop back with nextBatch()
  *   ));
  */
-export type SplitInBatchesFn = (config?: SplitInBatchesConfig) => SplitInBatchesBuilder;
+export type SplitInBatchesFn = (input: SplitInBatchesConfig) => SplitInBatchesBuilder;
 
 /**
  * nextBatch(sibNode) - Semantic helper for loop-back connections
@@ -640,7 +642,7 @@ export type SplitInBatchesFn = (config?: SplitInBatchesConfig) => SplitInBatches
  * @returns The SIB node instance for use with .to()
  *
  * @example
- * const sibNode = splitInBatches({ name: 'Loop', parameters: { batchSize: 10 } });
+ * const sibNode = splitInBatches({ version: 3, config: { name: 'Loop', parameters: { batchSize: 10 } } });
  *
  * // Using nextBatch() for explicit loop-back (recommended)
  * sibNode

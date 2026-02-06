@@ -270,7 +270,7 @@ const processRecord = node({{
   output: [{{ id: 1, status: 'processed' }}]
 }});
 
-const sibNode = splitInBatches({{ name: 'Batch Process', parameters: {{ batchSize: 10 }}, position: [840, 300] }});
+const sibNode = splitInBatches({{ version: 3, config: {{ name: 'Batch Process', parameters: {{ batchSize: 10 }}, position: [840, 300] }} }});
 
 return workflow('id', 'name')
   .add(startTrigger.to(fetchRecords.to(sibNode
