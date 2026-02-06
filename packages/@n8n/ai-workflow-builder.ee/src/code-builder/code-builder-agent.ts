@@ -44,6 +44,7 @@ import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
 import { createGetSuggestedNodesTool } from './tools/get-suggested-nodes.tool';
 import type { CodeBuilderAgentConfig, TokenUsage } from './types';
 export type { CodeBuilderAgentConfig } from './types';
+import { sanitizeLlmErrorMessage } from '../utils/error-sanitizer';
 import type { EvaluationLogger } from './utils/evaluation-logger';
 import { calculateNodeChanges } from './utils/node-diff';
 import { NodeTypeParser } from './utils/node-type-parser';
@@ -481,30 +482,31 @@ ${'='.repeat(50)}
 			});
 		} catch (error) {
 			const totalDuration = Date.now() - startTime;
-			const errorMessage = error instanceof Error ? error.message : String(error);
+			const rawErrorMessage = error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
+			const userFacingMessage = sanitizeLlmErrorMessage(error);
 
 			this.debugLog('CHAT', '========== CHAT FAILED ==========', {
 				totalDurationMs: totalDuration,
-				errorMessage,
+				errorMessage: rawErrorMessage,
 			});
 
-			// Log error with console.error for visibility
-			this.evalLogger?.logError('CODE-BUILDER:FATAL', errorMessage, undefined, errorStack);
+			// Log raw error for internal visibility
+			this.evalLogger?.logError('CODE-BUILDER:FATAL', rawErrorMessage, undefined, errorStack);
 
 			this.logger?.error('Code builder agent failed', {
 				userId,
-				error: errorMessage,
+				error: rawErrorMessage,
 				stack: errorStack,
 			});
 
-			// Stream error message
+			// Stream sanitized error message to user
 			yield {
 				messages: [
 					{
 						role: 'assistant',
 						type: 'message',
-						text: `I encountered an error while generating the workflow: ${errorMessage}. Please try rephrasing your request.`,
+						text: `I encountered an error while generating the workflow. ${userFacingMessage}`,
 					} as AgentMessageChunk,
 				],
 			};
@@ -520,7 +522,7 @@ ${'='.repeat(50)}
 				workflowId,
 				userMessageId: payload.id,
 				status,
-				errorMessage: isAborted ? undefined : errorMessage,
+				errorMessage: isAborted ? undefined : rawErrorMessage,
 				iterationCount: iteration,
 				durationMs: totalDuration,
 				beforeWorkflow,
