@@ -16,12 +16,14 @@ import { PROJECT_OWNER_ROLE_SLUG } from '@n8n/permissions';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
 import { In } from '@n8n/typeorm';
 import { Credentials, InstanceSettings } from 'n8n-core';
-import { UnexpectedError } from 'n8n-workflow';
+import { ICredentialDataDecryptedObject, UnexpectedError } from 'n8n-workflow';
 import { rm as fsRm, writeFile as fsWriteFile } from 'node:fs/promises';
 import path from 'path';
 
 import { formatWorkflow } from '@/workflows/workflow.formatter';
 
+import chunk from 'lodash/chunk';
+import { VariablesService } from '../../environments.ee/variables/variables.service.ee';
 import {
 	SOURCE_CONTROL_CREDENTIAL_EXPORT_FOLDER,
 	SOURCE_CONTROL_DATATABLES_EXPORT_FOLDER,
@@ -44,16 +46,14 @@ import {
 	sourceControlFoldersExistCheck,
 } from './source-control-helper.ee';
 import { SourceControlScopedService } from './source-control-scoped.service';
-import { VariablesService } from '../../environments.ee/variables/variables.service.ee';
 import type { ExportResult } from './types/export-result';
 import type { ExportableCredential } from './types/exportable-credential';
 import type { DataTableResourceOwner, ExportableDataTable } from './types/exportable-data-table';
 import { ExportableProject } from './types/exportable-project';
+import { ExportableVariable } from './types/exportable-variable';
 import type { ExportableWorkflow } from './types/exportable-workflow';
 import type { RemoteResourceOwner } from './types/resource-owner';
 import type { SourceControlContext } from './types/source-control-context';
-import { ExportableVariable } from './types/exportable-variable';
-import chunk from 'lodash/chunk';
 
 @Service()
 export class SourceControlExportService {
@@ -562,12 +562,20 @@ export class SourceControlExportService {
 					 */
 					const credentialData = credentials.getData();
 					const { oauthTokenData, ...rest } = credentialData;
+					let sanitizedData: ICredentialDataDecryptedObject | undefined;
+
+					try {
+						sanitizedData = sanitizeCredentialData(rest);
+					} catch (error) {
+						this.logger.error(`Failed to sanitize credential data: ${(error as Error).message}`);
+						throw error;
+					}
 
 					const stub: ExportableCredential = {
 						id,
 						name,
 						type,
-						data: sanitizeCredentialData(rest),
+						data: sanitizedData,
 						ownedBy: owner,
 						isGlobal,
 					};
