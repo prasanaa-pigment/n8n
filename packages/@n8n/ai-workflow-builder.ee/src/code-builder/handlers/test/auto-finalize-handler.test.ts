@@ -2,7 +2,8 @@
  * Tests for Auto-Finalize Handler
  */
 
-import type { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { WorkflowJSON, NodeJSON } from '@n8n/workflow-sdk';
 
 import { WarningTracker } from '../../state/warning-tracker';
@@ -41,8 +42,13 @@ describe('AutoFinalizeHandler', () => {
 
 			expect(result.success).toBe(false);
 			expect(result.promptedForCode).toBe(true);
-			expect(messages).toHaveLength(1);
-			expect((messages[0] as HumanMessage).content).toContain('text editor tool');
+			// Should inject synthetic AIMessage with validate_workflow tool call + ToolMessage
+			expect(messages).toHaveLength(2);
+			expect(messages[0]).toBeInstanceOf(AIMessage);
+			expect((messages[0] as AIMessage).tool_calls).toHaveLength(1);
+			expect((messages[0] as AIMessage).tool_calls![0].name).toBe('validate_workflow');
+			expect(messages[1]).toBeInstanceOf(ToolMessage);
+			expect((messages[1] as ToolMessage).content).toContain('text editor tool');
 		});
 
 		it('should return success with workflow when validation passes', async () => {
@@ -107,8 +113,11 @@ describe('AutoFinalizeHandler', () => {
 
 			expect(result.success).toBe(false);
 			expect(result.workflow).toBeUndefined();
-			expect(messages).toHaveLength(1);
-			expect((messages[0] as HumanMessage).content).toContain('Validation warnings');
+			// Should inject synthetic AIMessage + ToolMessage pair
+			expect(messages).toHaveLength(2);
+			expect(messages[0]).toBeInstanceOf(AIMessage);
+			expect(messages[1]).toBeInstanceOf(ToolMessage);
+			expect((messages[1] as ToolMessage).content).toContain('Validation warnings');
 		});
 
 		it('should return failure with feedback when parsing fails', async () => {
@@ -127,8 +136,11 @@ describe('AutoFinalizeHandler', () => {
 
 			expect(result.success).toBe(false);
 			expect(result.workflow).toBeUndefined();
-			expect(messages).toHaveLength(1);
-			expect((messages[0] as HumanMessage).content).toContain('Parse error');
+			// Should inject synthetic AIMessage + ToolMessage pair
+			expect(messages).toHaveLength(2);
+			expect(messages[0]).toBeInstanceOf(AIMessage);
+			expect(messages[1]).toBeInstanceOf(ToolMessage);
+			expect((messages[1] as ToolMessage).content).toContain('Parse error');
 		});
 
 		it('should track parse duration on failure', async () => {
@@ -184,10 +196,12 @@ describe('AutoFinalizeHandler', () => {
 			const result = await consumeGenerator(gen);
 
 			expect(result.success).toBe(false);
-			expect(messages).toHaveLength(1);
-			// Should only contain the new warning, not the seen one
-			expect((messages[0] as HumanMessage).content).toContain('W002');
-			expect((messages[0] as HumanMessage).content).not.toContain('W001');
+			// Should inject synthetic AIMessage + ToolMessage with only new warning
+			expect(messages).toHaveLength(2);
+			expect(messages[0]).toBeInstanceOf(AIMessage);
+			expect(messages[1]).toBeInstanceOf(ToolMessage);
+			expect((messages[1] as ToolMessage).content).toContain('W002');
+			expect((messages[1] as ToolMessage).content).not.toContain('W001');
 			// New warning should now be marked as seen
 			expect(warningTracker.allSeen([newWarning])).toBe(true);
 		});

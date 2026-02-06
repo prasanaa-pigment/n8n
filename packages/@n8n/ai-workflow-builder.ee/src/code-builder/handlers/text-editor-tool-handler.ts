@@ -6,7 +6,7 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
-import { ToolMessage, HumanMessage } from '@langchain/core/messages';
+import { ToolMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { StreamOutput, ToolProgressChunk } from '../../types/streaming';
@@ -128,17 +128,11 @@ export class TextEditorToolHandler {
 				resultLength: result.length,
 			});
 
-			// Add tool result to messages
-			messages.push(
-				new ToolMessage({
-					tool_call_id: toolCallId,
-					content: result,
-				}),
-			);
-
-			// Auto-validate after create command
+			// Auto-validate after create command — combines create result + validation into single ToolMessage
 			if (command === 'create') {
 				const autoValidateResult = await this.autoValidateAfterCreate(
+					toolCallId,
+					result,
 					currentWorkflow,
 					iteration,
 					messages,
@@ -148,6 +142,14 @@ export class TextEditorToolHandler {
 				yield this.createToolProgressChunk('completed', command, toolCallId);
 				return autoValidateResult;
 			}
+
+			// Add tool result to messages (non-create commands)
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCallId,
+					content: result,
+				}),
+			);
 
 			yield this.createToolProgressChunk('completed', command, toolCallId);
 			return undefined;
@@ -177,6 +179,8 @@ export class TextEditorToolHandler {
 	 * Auto-validate after create command
 	 */
 	private async autoValidateAfterCreate(
+		toolCallId: string,
+		createResult: string,
 		currentWorkflow: WorkflowJSON | undefined,
 		_iteration: number,
 		messages: BaseMessage[],
@@ -186,6 +190,7 @@ export class TextEditorToolHandler {
 
 		if (!code) {
 			this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validate: no code to validate');
+			messages.push(new ToolMessage({ tool_call_id: toolCallId, content: createResult }));
 			return { workflowReady: false };
 		}
 
@@ -215,11 +220,11 @@ export class TextEditorToolHandler {
 					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
 					const errorContext = this.getErrorContext(code, newWarnings[0].message);
 
-					// Add human message with only new warning feedback
+					// Combine create result + validation warnings into single ToolMessage
 					messages.push(
-						new HumanMessage({
-							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
-							additional_kwargs: { validationMessage: true },
+						new ToolMessage({
+							tool_call_id: toolCallId,
+							content: `${createResult}\n\nValidation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
 						}),
 					);
 
@@ -233,7 +238,9 @@ export class TextEditorToolHandler {
 				this.debugLog('TEXT_EDITOR_TOOL', 'All warnings are repeated, treating as valid');
 			}
 
-			// Validation passed
+			// Validation passed — push create result as ToolMessage
+			messages.push(new ToolMessage({ tool_call_id: toolCallId, content: createResult }));
+
 			return {
 				workflowReady: true,
 				workflow: result.workflow,
@@ -248,10 +255,11 @@ export class TextEditorToolHandler {
 				stack: errorStack,
 			});
 
-			// Add human message with error feedback (marked as validation message for filtering)
+			// Combine create result + parse error into single ToolMessage
 			messages.push(
-				new HumanMessage({
-					content: `Parse error: ${errorMessage}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
+				new ToolMessage({
+					tool_call_id: toolCallId,
+					content: `${createResult}\n\nParse error: ${errorMessage}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
 					additional_kwargs: { validationMessage: true },
 				}),
 			);

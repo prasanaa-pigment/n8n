@@ -458,11 +458,7 @@ export function formatMessages(
 
 	for (const msg of messages) {
 		if (msg instanceof HumanMessage) {
-			// Filter out internal validation feedback messages
-			// These are marked with validationMessage: true in additional_kwargs
-			if (msg.additional_kwargs?.validationMessage !== true) {
-				formattedMessages.push(formatHumanMessage(msg));
-			}
+			formattedMessages.push(formatHumanMessage(msg));
 		} else if (msg instanceof AIMessage) {
 			// Add AI message content
 			formattedMessages.push(...processAIMessageContent(msg));

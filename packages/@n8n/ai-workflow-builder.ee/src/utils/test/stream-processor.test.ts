@@ -1191,57 +1191,6 @@ describe('stream-processor', () => {
 				data: { success: true, connectionId: 'conn-1' },
 			});
 		});
-
-		describe('internal feedback message filtering', () => {
-			it('should filter out HumanMessage with validationMessage flag', () => {
-				const userMessage = new HumanMessage({ content: 'User request' });
-				userMessage.additional_kwargs = { messageId: 'msg-123' };
-
-				const internalFeedback = new HumanMessage({
-					content: 'Validation warnings:\n- [INVALID_EXPRESSION_PATH] Some error',
-				});
-				internalFeedback.additional_kwargs = { validationMessage: true };
-
-				const messages = [userMessage, internalFeedback];
-				const result = formatMessages(messages);
-
-				expect(result).toHaveLength(1);
-				expect(result[0].text).toBe('User request');
-				expect(result[0].id).toBe('msg-123');
-			});
-
-			it('should include HumanMessage without validationMessage flag even if no messageId', () => {
-				// This tests that normal HumanMessages (e.g., from code-builder where
-				// messageId might be on a different message) are still included
-				const userMessage = new HumanMessage({ content: 'User request' });
-				// No messageId, but also no validationMessage flag
-
-				const result = formatMessages([userMessage]);
-
-				expect(result).toHaveLength(1);
-				expect(result[0].text).toBe('User request');
-			});
-
-			it('should format mixed conversation excluding validation feedback', () => {
-				const userMsg = new HumanMessage({ content: 'Build workflow' });
-				userMsg.additional_kwargs = { messageId: 'msg-1' };
-
-				const aiMsg = new AIMessage({ content: 'I will help you' });
-
-				const feedback = new HumanMessage({ content: 'Validation warnings...' });
-				feedback.additional_kwargs = { validationMessage: true };
-
-				const aiResponse = new AIMessage({ content: 'Fixed the issues' });
-
-				const messages = [userMsg, aiMsg, feedback, aiResponse];
-				const result = formatMessages(messages);
-
-				expect(result).toHaveLength(3); // userMsg + 2 AI messages
-				expect(result[0].role).toBe('user');
-				expect(result[1].role).toBe('assistant');
-				expect(result[2].role).toBe('assistant');
-			});
-		});
 	});
 
 	describe('createStreamProcessor with subgraph events', () => {

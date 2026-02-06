@@ -6,7 +6,7 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
-import { HumanMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { StreamOutput } from '../../types/streaming';
@@ -104,11 +104,9 @@ export class AutoFinalizeHandler {
 		// No code yet - prompt to create
 		if (!code) {
 			this.debugLog('AUTO_FINALIZE', 'No code exists, prompting to create');
-			messages.push(
-				new HumanMessage({
-					content: 'Please use the text editor tool to edit the workflow code.',
-					additional_kwargs: { validationMessage: true },
-				}),
+			this.pushValidationFeedback(
+				messages,
+				'Please use the text editor tool to edit the workflow code.',
 			);
 			return { success: false, promptedForCode: true };
 		}
@@ -150,11 +148,9 @@ export class AutoFinalizeHandler {
 					const errorContext = this.getErrorContext(code, newWarnings[0].message);
 
 					// Send only new warnings back to agent for correction
-					messages.push(
-						new HumanMessage({
-							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
-							additional_kwargs: { validationMessage: true },
-						}),
+					this.pushValidationFeedback(
+						messages,
+						`Validation warnings:\n${warningText}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
 					);
 
 					return { success: false, parseDuration };
@@ -185,15 +181,34 @@ export class AutoFinalizeHandler {
 				errorMessage,
 			});
 
-			// Send error back to agent for correction (marked as validation message for filtering)
-			messages.push(
-				new HumanMessage({
-					content: `Parse error: ${errorMessage}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
-					additional_kwargs: { validationMessage: true },
-				}),
+			// Send error back to agent for correction
+			this.pushValidationFeedback(
+				messages,
+				`Parse error: ${errorMessage}\n\n${errorContext}\n\n${FIX_VALIDATION_ERRORS_INSTRUCTION}`,
 			);
 
 			return { success: false, parseDuration };
 		}
+	}
+
+	/**
+	 * Push validation feedback as a synthetic tool call result.
+	 * Injects an AIMessage with a validate_workflow tool call followed by a ToolMessage
+	 * with the result, so the LLM sees automated feedback rather than a user message.
+	 */
+	private pushValidationFeedback(messages: BaseMessage[], content: string): void {
+		const toolCallId = `auto-validate-${Date.now()}`;
+		messages.push(
+			new AIMessage({
+				content: '',
+				tool_calls: [{ id: toolCallId, name: 'validate_workflow', args: {} }],
+			}),
+		);
+		messages.push(
+			new ToolMessage({
+				tool_call_id: toolCallId,
+				content,
+			}),
+		);
 	}
 }

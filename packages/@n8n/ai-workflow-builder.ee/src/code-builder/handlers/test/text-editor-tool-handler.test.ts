@@ -3,7 +3,7 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
-import { ToolMessage, HumanMessage } from '@langchain/core/messages';
+import { ToolMessage } from '@langchain/core/messages';
 
 import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
 import { WarningTracker } from '../../state/warning-tracker';
@@ -152,11 +152,12 @@ describe('TextEditorToolHandler', () => {
 				chunks.push(chunk);
 			}
 
-			// Should have create result AND human message with warning
-			expect(messages.length).toBe(2);
+			// Should have single ToolMessage combining create result + validation warning
+			expect(messages.length).toBe(1);
 			expect(messages[0]).toBeInstanceOf(ToolMessage);
-			expect(messages[1]).toBeInstanceOf(HumanMessage);
-			expect((messages[1] as HumanMessage).content).toContain('WARN001');
+			const content = (messages[0] as ToolMessage).content as string;
+			expect(content).toContain('File created.');
+			expect(content).toContain('WARN001');
 		});
 
 		it('should auto-validate after create and return workflowReady false on parse error', async () => {
@@ -175,11 +176,12 @@ describe('TextEditorToolHandler', () => {
 				chunks.push(chunk);
 			}
 
-			// Should have create result AND human message with error
-			expect(messages.length).toBe(2);
+			// Should have single ToolMessage combining create result + parse error
+			expect(messages.length).toBe(1);
 			expect(messages[0]).toBeInstanceOf(ToolMessage);
-			expect(messages[1]).toBeInstanceOf(HumanMessage);
-			expect((messages[1] as HumanMessage).content).toContain('Parse error');
+			const content = (messages[0] as ToolMessage).content as string;
+			expect(content).toContain('File created.');
+			expect(content).toContain('Parse error');
 		});
 
 		it('should handle text editor execution error', async () => {
@@ -313,11 +315,12 @@ describe('TextEditorToolHandler', () => {
 				chunks.push(chunk);
 			}
 
-			// Should have tool result + human message with only new warning
-			const humanMessages = messages.filter((m) => m instanceof HumanMessage);
-			expect(humanMessages).toHaveLength(1);
-			expect((humanMessages[0] as HumanMessage).content).toContain('WARN002');
-			expect((humanMessages[0] as HumanMessage).content).not.toContain('WARN001');
+			// Should have single ToolMessage combining create result + only new warning
+			expect(messages).toHaveLength(1);
+			expect(messages[0]).toBeInstanceOf(ToolMessage);
+			const content = (messages[0] as ToolMessage).content as string;
+			expect(content).toContain('WARN002');
+			expect(content).not.toContain('WARN001');
 			// New warning should now be marked as seen
 			expect(warningTracker.allSeen([newWarning])).toBe(true);
 		});
@@ -366,9 +369,9 @@ describe('TextEditorToolHandler', () => {
 			expect(result).toEqual(
 				expect.objectContaining({ workflowReady: true, workflow: mockWorkflow }),
 			);
-			// Should NOT add any warning feedback message
-			const humanMessages = messages.filter((m) => m instanceof HumanMessage);
-			expect(humanMessages).toHaveLength(0);
+			// Should have single ToolMessage with create result, no validation warnings
+			expect(messages).toHaveLength(1);
+			expect(messages[0]).toBeInstanceOf(ToolMessage);
 		});
 	});
 });

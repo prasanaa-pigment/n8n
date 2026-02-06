@@ -5,8 +5,8 @@
  * Extracts workflow code from the response and validates it, providing feedback for corrections.
  */
 
-import type { BaseMessage, AIMessage } from '@langchain/core/messages';
-import { HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { WarningTracker } from '../state/warning-tracker';
@@ -115,12 +115,10 @@ export class FinalResponseHandler {
 				error: parseResult.error,
 			});
 
-			// Add follow-up message with error (marked as validation message for filtering)
-			messages.push(
-				new HumanMessage({
-					content: `Could not parse your response: ${parseResult.error}\n\nPlease provide your workflow code in a \`\`\`typescript code block.`,
-					additional_kwargs: { validationMessage: true },
-				}),
+			// Add follow-up message with error
+			FinalResponseHandler.pushValidationFeedback(
+				messages,
+				`Could not parse your response: ${parseResult.error}\n\nPlease provide your workflow code in a \`\`\`typescript code block.`,
 			);
 
 			return {
@@ -169,12 +167,10 @@ export class FinalResponseHandler {
 				// Log warnings
 				this.evalLogger?.logWarnings('CODE-BUILDER:VALIDATION', newWarnings);
 
-				// Send feedback to agent (marked as validation message for filtering)
-				messages.push(
-					new HumanMessage({
-						content: `The workflow code has validation warnings that should be addressed:\n\n${warningMessages}\n\nPlease fix these issues and provide the corrected version in a \`\`\`typescript code block.`,
-						additional_kwargs: { validationMessage: true },
-					}),
+				// Send feedback to agent
+				FinalResponseHandler.pushValidationFeedback(
+					messages,
+					`The workflow code has validation warnings that should be addressed:\n\n${warningMessages}\n\nPlease fix these issues and provide the corrected version in a \`\`\`typescript code block.`,
 				);
 
 				return {
@@ -208,12 +204,10 @@ export class FinalResponseHandler {
 			// Log error
 			this.evalLogger?.logError('CODE-BUILDER:PARSE', errorMessage, undefined, errorStack);
 
-			// Send feedback to agent (marked as validation message for filtering)
-			messages.push(
-				new HumanMessage({
-					content: `The workflow code you generated has a parsing error:\n\n${errorMessage}\n\nPlease fix the code and provide the corrected version in a \`\`\`typescript code block.`,
-					additional_kwargs: { validationMessage: true },
-				}),
+			// Send feedback to agent
+			FinalResponseHandler.pushValidationFeedback(
+				messages,
+				`The workflow code you generated has a parsing error:\n\n${errorMessage}\n\nPlease fix the code and provide the corrected version in a \`\`\`typescript code block.`,
 			);
 
 			return {
@@ -261,5 +255,26 @@ export class FinalResponseHandler {
 		});
 
 		return { result: { workflowCode }, error: null };
+	}
+
+	/**
+	 * Push validation feedback as a synthetic tool call result.
+	 * Injects an AIMessage with a validate_workflow tool call followed by a ToolMessage
+	 * with the result, so the LLM sees automated feedback rather than a user message.
+	 */
+	private static pushValidationFeedback(messages: BaseMessage[], content: string): void {
+		const toolCallId = `auto-validate-${Date.now()}`;
+		messages.push(
+			new AIMessage({
+				content: '',
+				tool_calls: [{ id: toolCallId, name: 'validate_workflow', args: {} }],
+			}),
+		);
+		messages.push(
+			new ToolMessage({
+				tool_call_id: toolCallId,
+				content,
+			}),
+		);
 	}
 }
