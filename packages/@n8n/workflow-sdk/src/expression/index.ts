@@ -195,7 +195,7 @@ export function expr(expression: string): string {
  * @param key - The original key string
  * @returns Sanitized key that meets $fromAI requirements
  */
-export function sanitizeFromAIKey(key: string): string {
+function sanitizeFromAIKey(key: string): string {
 	// Replace non-alphanumeric (except underscore/hyphen) with underscores
 	let sanitized = key.replace(/[^a-zA-Z0-9_-]/g, '_');
 	// Collapse consecutive underscores

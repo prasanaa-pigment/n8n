@@ -1,10 +1,4 @@
-import {
-	serializeExpression,
-	parseExpression,
-	expr,
-	sanitizeFromAIKey,
-	createFromAIExpression,
-} from './expression';
+import { serializeExpression, parseExpression, expr, createFromAIExpression } from './expression';
 
 describe('Expression System', () => {
 	describe('serializeExpression()', () => {
@@ -116,43 +110,6 @@ describe('Expression System', () => {
 		it('should add = prefix to node reference expression', () => {
 			const result = expr("{{ $('Config').item.json.apiUrl }}");
 			expect(result).toBe("={{ $('Config').item.json.apiUrl }}");
-		});
-	});
-
-	describe('sanitizeFromAIKey()', () => {
-		it('should replace spaces with underscores', () => {
-			expect(sanitizeFromAIKey('user email')).toBe('user_email');
-		});
-
-		it('should replace special characters with underscores', () => {
-			expect(sanitizeFromAIKey('foo@bar#baz')).toBe('foo_bar_baz');
-		});
-
-		it('should truncate to 64 characters', () => {
-			const longKey = 'a'.repeat(100);
-			const result = sanitizeFromAIKey(longKey);
-			expect(result).toHaveLength(64);
-			expect(result).toBe('a'.repeat(64));
-		});
-
-		it('should fall back to param for empty result', () => {
-			expect(sanitizeFromAIKey('!!!')).toBe('param');
-		});
-
-		it('should leave valid keys unchanged', () => {
-			expect(sanitizeFromAIKey('valid_key-123')).toBe('valid_key-123');
-		});
-
-		it('should collapse consecutive underscores', () => {
-			expect(sanitizeFromAIKey('foo__bar___baz')).toBe('foo_bar_baz');
-		});
-
-		it('should trim leading and trailing underscores', () => {
-			expect(sanitizeFromAIKey('__key__')).toBe('key');
-		});
-
-		it('should handle mixed invalid characters', () => {
-			expect(sanitizeFromAIKey('user@email.com')).toBe('user_email_com');
 		});
 	});
 

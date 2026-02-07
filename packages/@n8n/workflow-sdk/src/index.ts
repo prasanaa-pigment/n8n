@@ -134,11 +134,7 @@ export { splitInBatches } from './workflow-builder/control-flow-builders/split-i
 // Note: fanIn() removed - use multiple .to(node.input(n)) calls instead
 
 // Loop-back helper for split in batches
-export {
-	nextBatch,
-	isNextBatch,
-	type NextBatchMarker,
-} from './workflow-builder/control-flow-builders/next-batch';
+export { nextBatch } from './workflow-builder/control-flow-builders/next-batch';
 
 // Expression utilities
 export {

@@ -1,15 +1,6 @@
 import type { NodeInstance, SplitInBatchesBuilder } from '../../types/base';
 
 /**
- * Marker interface for loop-back to split in batches node.
- * Extends NodeInstance so it can be used directly with .to()
- */
-export interface NextBatchMarker
-	extends NodeInstance<'n8n-nodes-base.splitInBatches', string, unknown> {
-	readonly _isNextBatch: true;
-}
-
-/**
  * Create a loop-back connection to a split in batches node.
  *
  * This is a semantic helper that makes the intent explicit in generated code.
@@ -53,18 +44,4 @@ export function nextBatch(
 	// Extract the node instance from the builder if needed
 	// This allows passing either the builder or the node directly
 	return 'sibNode' in sib ? sib.sibNode : sib;
-}
-
-/**
- * Type guard to check if a value is a NextBatchMarker
- * Note: Since nextBatch() returns the actual node, this is mainly for
- * documentation purposes and code generation.
- */
-export function isNextBatch(value: unknown): value is NextBatchMarker {
-	return (
-		value !== null &&
-		typeof value === 'object' &&
-		'_isNextBatch' in value &&
-		(value as NextBatchMarker)._isNextBatch
-	);
 }
