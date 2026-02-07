@@ -127,9 +127,11 @@ export async function truncateBuilderMessages(
 	ctx: IRestApiContext,
 	workflowId: string,
 	messageId: string,
+	codeBuilder?: boolean,
 ): Promise<{ success: boolean }> {
 	return await makeRestApiRequest(ctx, 'POST', '/ai/build/truncate-messages', {
 		workflowId,
 		messageId,
+		codeBuilder,
 	});
 }

@@ -4,6 +4,7 @@ import { Logger } from '@n8n/backend-common';
 import { Service } from '@n8n/di';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
+import { generateCodeBuilderThreadId } from '@/code-builder';
 import { getBuilderToolsForDisplay } from '@/tools/builder-tools';
 import { isLangchainMessagesArray, LangchainMessage, Session } from '@/types/sessions';
 import { formatMessages } from '@/utils/stream-processor';
@@ -125,8 +126,9 @@ export class SessionManagerService {
 		workflowId: string,
 		userId: string | undefined,
 		messageId: string,
+		agentType?: 'code-builder',
 	): Promise<boolean> {
-		const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+		const threadId = SessionManagerService.generateThreadId(workflowId, userId, agentType);
 		const threadConfig: RunnableConfig = {
 			configurable: {
 				thread_id: threadId,
@@ -185,10 +187,70 @@ export class SessionManagerService {
 				newCount: truncatedMessages.length,
 			});
 
+			// Reset the code-builder agent context session when truncating code-builder messages
+			if (agentType === 'code-builder' && userId) {
+				await this.resetCodeBuilderSession(workflowId, userId);
+			}
+
 			return true;
 		} catch (error) {
 			this.logger?.error('Failed to truncate messages', { threadId, messageId, error });
 			return false;
 		}
+	}
+
+	/**
+	 * Reset the code-builder agent context session.
+	 * Called during restore to clear stale agent context (userMessages + summary).
+	 */
+	private async resetCodeBuilderSession(workflowId: string, userId: string): Promise<void> {
+		const sessionThreadId = generateCodeBuilderThreadId(workflowId, userId);
+		const sessionConfig: RunnableConfig = {
+			configurable: {
+				thread_id: sessionThreadId,
+			},
+		};
+
+		const existingTuple = await this.checkpointer.getTuple(sessionConfig).catch(() => undefined);
+		const existingCheckpoint = existingTuple?.checkpoint;
+
+		const checkpoint: Checkpoint = existingCheckpoint
+			? {
+					...existingCheckpoint,
+					ts: new Date().toISOString(),
+					channel_values: {
+						...existingCheckpoint.channel_values,
+						codeBuilderSession: {
+							userMessages: [],
+							previousSummary: undefined,
+						},
+					},
+				}
+			: {
+					v: 1,
+					id: crypto.randomUUID(),
+					ts: new Date().toISOString(),
+					channel_values: {
+						codeBuilderSession: {
+							userMessages: [],
+							previousSummary: undefined,
+						},
+					},
+					channel_versions: {},
+					versions_seen: {},
+				};
+
+		const sessionMetadata = existingTuple?.metadata ?? {
+			source: 'update' as const,
+			step: -1,
+			parents: {},
+		};
+
+		await this.checkpointer.put(sessionConfig, checkpoint, sessionMetadata);
+
+		this.logger?.debug('Code-builder session reset after truncation', {
+			sessionThreadId,
+			workflowId,
+		});
 	}
 }

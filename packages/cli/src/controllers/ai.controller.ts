@@ -264,6 +264,7 @@ export class AiController {
 				payload.workflowId,
 				req.user,
 				payload.messageId,
+				payload.codeBuilder,
 			);
 			return { success };
 		} catch (e) {

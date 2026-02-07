@@ -383,7 +383,14 @@ export class AiWorkflowBuilderService {
 		workflowId: string,
 		user: IUser,
 		messageId: string,
+		codeBuilder?: boolean,
 	): Promise<boolean> {
-		return await this.sessionManager.truncateMessagesAfter(workflowId, user.id, messageId);
+		const agentType = codeBuilder ? 'code-builder' : undefined;
+		return await this.sessionManager.truncateMessagesAfter(
+			workflowId,
+			user.id,
+			messageId,
+			agentType,
+		);
 	}
 }

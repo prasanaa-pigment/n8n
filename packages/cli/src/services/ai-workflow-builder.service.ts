@@ -181,8 +181,9 @@ export class WorkflowBuilderService {
 		workflowId: string,
 		user: IUser,
 		messageId: string,
+		codeBuilder?: boolean,
 	): Promise<boolean> {
 		const service = await this.getService();
-		return await service.truncateMessagesAfter(workflowId, user, messageId);
+		return await service.truncateMessagesAfter(workflowId, user, messageId, codeBuilder);
 	}
 }

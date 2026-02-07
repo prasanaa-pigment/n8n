@@ -902,7 +902,12 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		workflowState.setWorkflowProperty('updatedAt', updatedWorkflow.updatedAt);
 
 		// 2. Truncate messages in backend session (removes message with messageId and all after)
-		await truncateBuilderMessages(rootStore.restApiContext, workflowId, messageId);
+		await truncateBuilderMessages(
+			rootStore.restApiContext,
+			workflowId,
+			messageId,
+			isCodeBuilder.value || undefined,
+		);
 
 		// 3. Truncate local chat messages - find user message with matching messageId
 		// and remove it along with all messages after it

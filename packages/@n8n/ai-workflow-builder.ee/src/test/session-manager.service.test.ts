@@ -749,5 +749,177 @@ describe('SessionManagerService', () => {
 				}),
 			);
 		});
+
+		it('should use code-builder thread ID when agentType is code-builder', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const messageId = 'msg-2';
+
+			const msg1 = new HumanMessage({ content: 'Hello' });
+			msg1.additional_kwargs = { messageId: 'msg-1' };
+
+			const msg2 = new AIMessage({ content: 'Hi there' });
+			msg2.additional_kwargs = { messageId: 'msg-2' };
+
+			const mockCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [msg1, msg2],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(mockCheckpoint);
+			(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+			const result = await service.truncateMessagesAfter(
+				workflowId,
+				userId,
+				messageId,
+				'code-builder',
+			);
+
+			expect(result).toBe(true);
+			expect(mockMemorySaver.getTuple).toHaveBeenCalledWith({
+				configurable: {
+					thread_id: 'workflow-test-workflow-user-test-user-code',
+				},
+			});
+		});
+
+		it('should not use code-builder thread ID when agentType is undefined', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const messageId = 'msg-1';
+
+			const msg1 = new HumanMessage({ content: 'Hello' });
+			msg1.additional_kwargs = { messageId: 'msg-1' };
+
+			const mockCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [msg1],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(mockCheckpoint);
+			(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+			const result = await service.truncateMessagesAfter(workflowId, userId, messageId);
+
+			expect(result).toBe(true);
+			expect(mockMemorySaver.getTuple).toHaveBeenCalledWith({
+				configurable: {
+					thread_id: 'workflow-test-workflow-user-test-user',
+				},
+			});
+		});
+
+		it('should reset codeBuilderSession when agentType is code-builder', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const messageId = 'msg-2';
+
+			const msg1 = new HumanMessage({ content: 'Hello' });
+			msg1.additional_kwargs = { messageId: 'msg-1' };
+
+			const msg2 = new AIMessage({ content: 'Hi there' });
+			msg2.additional_kwargs = { messageId: 'msg-2' };
+
+			// Mock for the messages thread (first getTuple call)
+			const messagesCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [msg1, msg2],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			// Mock for the code-builder session thread (second getTuple call)
+			const sessionCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						codeBuilderSession: {
+							userMessages: ['old message'],
+							previousSummary: 'old summary',
+						},
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+				metadata: {
+					source: 'update' as const,
+					step: -1,
+					parents: {},
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock)
+				.mockResolvedValueOnce(messagesCheckpoint)
+				.mockResolvedValueOnce(sessionCheckpoint);
+			(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+			const result = await service.truncateMessagesAfter(
+				workflowId,
+				userId,
+				messageId,
+				'code-builder',
+			);
+
+			expect(result).toBe(true);
+			// First put: truncated messages
+			// Second put: reset codeBuilderSession
+			expect(mockMemorySaver.put).toHaveBeenCalledTimes(2);
+			expect(mockMemorySaver.put).toHaveBeenNthCalledWith(
+				2,
+				{
+					configurable: {
+						thread_id: 'code-builder-test-workflow-test-user',
+					},
+				},
+				expect.objectContaining({
+					channel_values: expect.objectContaining({
+						codeBuilderSession: {
+							userMessages: [],
+							previousSummary: undefined,
+						},
+					}),
+				}),
+				sessionCheckpoint.metadata,
+			);
+		});
+
+		it('should not reset codeBuilderSession when agentType is undefined', async () => {
+			const workflowId = 'test-workflow';
+			const userId = 'test-user';
+			const messageId = 'msg-2';
+
+			const msg1 = new HumanMessage({ content: 'Hello' });
+			msg1.additional_kwargs = { messageId: 'msg-1' };
+
+			const msg2 = new AIMessage({ content: 'Hi there' });
+			msg2.additional_kwargs = { messageId: 'msg-2' };
+
+			const mockCheckpoint = {
+				checkpoint: {
+					channel_values: {
+						messages: [msg1, msg2],
+					},
+					ts: '2023-12-01T12:00:00Z',
+				},
+			};
+
+			(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(mockCheckpoint);
+			(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+			const result = await service.truncateMessagesAfter(workflowId, userId, messageId);
+
+			expect(result).toBe(true);
+			// Only one put call for the messages truncation
+			expect(mockMemorySaver.put).toHaveBeenCalledTimes(1);
+		});
 	});
 });
