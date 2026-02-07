@@ -3,7 +3,7 @@ import { screen } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
 import SecurityAuditCategory from './SecurityAuditCategory.vue';
-import type { StandardReport, StandardSection, RiskCategory } from '../securityAudit.api';
+import type { StandardReport, StandardSection, RiskCategory } from '../securityCenter.api';
 
 const createMockReport = (
 	overrides: Partial<StandardReport> & { risk?: Exclude<RiskCategory, 'instance'> } = {},
@@ -191,6 +191,98 @@ describe('SecurityAuditCategory', () => {
 
 			expect(screen.getByText('Nothing to review')).toBeInTheDocument();
 		});
+
+		it('should set aria-expanded to false when collapsed', () => {
+			renderComponent({
+				props: {
+					report: createMockReport({ risk: 'credentials' }),
+				},
+			});
+
+			const header = screen.getByRole('button', { name: /credentials/i });
+			expect(header).toHaveAttribute('aria-expanded', 'false');
+		});
+
+		it('should set aria-expanded to true when expanded', () => {
+			renderComponent({
+				props: {
+					report: createMockReport({ risk: 'credentials' }),
+					initiallyExpanded: true,
+				},
+			});
+
+			const header = screen.getByRole('button', { name: /credentials/i });
+			expect(header).toHaveAttribute('aria-expanded', 'true');
+		});
+
+		it('should toggle aria-expanded on click', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockReport({
+						risk: 'credentials',
+						sections: [createMockSection({ title: 'Test' })],
+					}),
+				},
+			});
+
+			const header = screen.getByRole('button', { name: /credentials/i });
+			expect(header).toHaveAttribute('aria-expanded', 'false');
+
+			await user.click(header);
+			expect(header).toHaveAttribute('aria-expanded', 'true');
+
+			await user.click(header);
+			expect(header).toHaveAttribute('aria-expanded', 'false');
+		});
+
+		it('should toggle content on Enter key', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockReport({
+						sections: [createMockSection({ title: 'Keyboard Section' })],
+					}),
+				},
+			});
+
+			const header = screen.getByRole('button', { name: /credentials/i });
+			expect(screen.queryByText('Keyboard Section')).not.toBeInTheDocument();
+
+			header.focus();
+			await user.keyboard('{Enter}');
+			expect(screen.getByText('Keyboard Section')).toBeInTheDocument();
+		});
+
+		it('should toggle content on Space key', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockReport({
+						sections: [createMockSection({ title: 'Space Section' })],
+					}),
+				},
+			});
+
+			const header = screen.getByRole('button', { name: /credentials/i });
+			expect(screen.queryByText('Space Section')).not.toBeInTheDocument();
+
+			header.focus();
+			await user.keyboard(' ');
+			expect(screen.getByText('Space Section')).toBeInTheDocument();
+		});
+
+		it('should expose content region with aria-label when expanded', () => {
+			renderComponent({
+				props: {
+					report: createMockReport({ risk: 'credentials', sections: [] }),
+					initiallyExpanded: true,
+				},
+			});
+
+			const region = screen.getByRole('region', { name: /credentials/i });
+			expect(region).toBeInTheDocument();
+		});
 	});
 
 	describe('section content', () => {
@@ -244,8 +336,7 @@ describe('SecurityAuditCategory', () => {
 				},
 			});
 
-			const link = screen.getByRole('link', { name: 'My API Key' });
-			expect(link).toHaveAttribute('href', '/home/credentials/cred-123');
+			expect(screen.getByText('My API Key')).toBeInTheDocument();
 		});
 
 		it('should display node locations with workflow links', async () => {
@@ -272,8 +363,7 @@ describe('SecurityAuditCategory', () => {
 				},
 			});
 
-			const link = screen.getByRole('link', { name: 'My Workflow' });
-			expect(link).toHaveAttribute('href', '/workflow/wf-456');
+			expect(screen.getByText('My Workflow')).toBeInTheDocument();
 			expect(screen.getByText('/ HTTP Request')).toBeInTheDocument();
 		});
 

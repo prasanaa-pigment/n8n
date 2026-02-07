@@ -884,7 +884,7 @@ export const routes: RouteRecordRaw[] = [
 				path: 'security-center',
 				name: VIEWS.SECURITY_CENTER,
 				component: async () =>
-					await import('@/features/settings/securityAudit/views/SettingsSecurityAuditView.vue'),
+					await import('@/features/settings/securityCenter/views/SettingsSecurityAuditView.vue'),
 				meta: {
 					middleware: ['authenticated', 'rbac', 'custom'],
 					middlewareOptions: {

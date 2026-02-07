@@ -13,7 +13,7 @@ import type {
 	CredentialLocation,
 	CommunityNodeDetails,
 	CustomNodeDetails,
-} from '../securityAudit.api';
+} from '../securityCenter.api';
 
 const MAX_VISIBLE_ITEMS = 50;
 
@@ -233,6 +233,13 @@ const historicalAdvisoryCount = computed(() => {
 		return count;
 	}, 0);
 });
+
+const getSettingsEntries = (value: unknown): [string, unknown][] => {
+	if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+		return Object.entries(value);
+	}
+	return [];
+};
 </script>
 
 <template>
@@ -240,7 +247,17 @@ const historicalAdvisoryCount = computed(() => {
 		:class="[$style.category, { [$style.expanded]: expanded }]"
 		:data-test-id="`security-center-category-${report.risk}`"
 	>
-		<div :class="$style.header" @click="toggle" data-test-id="security-center-category-header">
+		<div
+			:class="$style.header"
+			role="button"
+			tabindex="0"
+			:aria-expanded="expanded"
+			:aria-controls="`category-content-${report.risk}`"
+			data-test-id="security-center-category-header"
+			@click="toggle"
+			@keydown.enter="toggle"
+			@keydown.space.prevent="toggle"
+		>
 			<div :class="$style.headerLeft">
 				<N8nIcon :icon="categoryIcon" :class="$style.categoryIcon" size="medium" />
 				<N8nText :class="$style.categoryTitle" bold size="medium">{{ categoryLabel }}</N8nText>
@@ -258,7 +275,13 @@ const historicalAdvisoryCount = computed(() => {
 			</div>
 		</div>
 
-		<div v-if="expanded" :class="$style.content">
+		<div
+			v-if="expanded"
+			:id="`category-content-${report.risk}`"
+			:class="$style.content"
+			role="region"
+			:aria-label="categoryLabel"
+		>
 			<div v-if="totalSectionCount === 0" :class="$style.noIssues">
 				<N8nText color="text-light">{{
 					i18n.baseText('settings.securityCenter.noIssuesInCategory')
@@ -298,11 +321,7 @@ const historicalAdvisoryCount = computed(() => {
 						>
 							<template v-if="isNodeLocation(location)">
 								<N8nIcon icon="waypoints" size="small" :class="$style.locationIcon" />
-								<N8nLink
-									:href="getWorkflowUrl(location.workflowId)"
-									target="_blank"
-									:class="$style.locationLink"
-								>
+								<N8nLink :to="getWorkflowUrl(location.workflowId)" :class="$style.locationLink">
 									{{ location.workflowName }}
 								</N8nLink>
 								<N8nText color="text-light" size="small"> / {{ location.nodeName }}</N8nText>
@@ -310,18 +329,19 @@ const historicalAdvisoryCount = computed(() => {
 
 							<template v-else-if="isCredentialLocation(location)">
 								<N8nIcon icon="key-round" size="small" :class="$style.locationIcon" />
-								<N8nLink
-									:href="getCredentialUrl(location.id)"
-									target="_blank"
-									:class="$style.locationLink"
-								>
+								<N8nLink :to="getCredentialUrl(location.id)" :class="$style.locationLink">
 									{{ location.name }}
 								</N8nLink>
 							</template>
 
 							<template v-else-if="isCommunityNodeDetails(location)">
 								<N8nIcon icon="box" size="small" :class="$style.locationIcon" />
-								<N8nLink :href="location.packageUrl" target="_blank" :class="$style.locationLink">
+								<N8nLink
+									:to="location.packageUrl"
+									:new-window="true"
+									rel="noopener noreferrer"
+									:class="$style.locationLink"
+								>
 									{{ location.nodeType }}
 								</N8nLink>
 							</template>
@@ -380,7 +400,12 @@ const historicalAdvisoryCount = computed(() => {
 										)
 									}}
 								</N8nBadge>
-								<N8nLink :href="advisory.htmlUrl" target="_blank" :class="$style.advisoryId">
+								<N8nLink
+									:to="advisory.htmlUrl"
+									:new-window="true"
+									rel="noopener noreferrer"
+									:class="$style.advisoryId"
+								>
 									{{ advisory.ghsaId }}
 								</N8nLink>
 								<N8nText v-if="advisory.cveId" color="text-light" size="small">
@@ -426,7 +451,7 @@ const historicalAdvisoryCount = computed(() => {
 							}}</N8nText>
 							<div :class="$style.settingsList">
 								<div
-									v-for="(value, key) in categorySettings as Record<string, unknown>"
+									v-for="[key, value] in getSettingsEntries(categorySettings)"
 									:key="key"
 									:class="$style.settingItem"
 								>
@@ -483,7 +508,12 @@ const historicalAdvisoryCount = computed(() => {
 										)
 									}}
 								</N8nBadge>
-								<N8nLink :href="advisory.htmlUrl" target="_blank" :class="$style.advisoryId">
+								<N8nLink
+									:to="advisory.htmlUrl"
+									:new-window="true"
+									rel="noopener noreferrer"
+									:class="$style.advisoryId"
+								>
 									{{ advisory.ghsaId }}
 								</N8nLink>
 								<N8nText v-if="advisory.cveId" color="text-light" size="small">
@@ -528,8 +558,14 @@ const historicalAdvisoryCount = computed(() => {
 				<div v-if="historicalSections.length > 0" :class="$style.historicalContainer">
 					<div
 						:class="$style.historicalHeader"
+						role="button"
+						tabindex="0"
+						:aria-expanded="historicalAdvisoriesExpanded"
+						aria-controls="historical-advisories-content"
 						data-test-id="historical-advisories-header"
 						@click="toggleHistoricalAdvisories"
+						@keydown.enter="toggleHistoricalAdvisories"
+						@keydown.space.prevent="toggleHistoricalAdvisories"
 					>
 						<div :class="$style.historicalHeaderLeft">
 							<N8nIcon icon="history" size="small" :class="$style.historicalIcon" />
@@ -547,7 +583,13 @@ const historicalAdvisoryCount = computed(() => {
 						/>
 					</div>
 
-					<div v-if="historicalAdvisoriesExpanded" :class="$style.historicalContent">
+					<div
+						v-if="historicalAdvisoriesExpanded"
+						id="historical-advisories-content"
+						:class="$style.historicalContent"
+						role="region"
+						:aria-label="i18n.baseText('settings.securityCenter.advisories.historicalTitle')"
+					>
 						<div
 							v-for="(section, sectionIndex) in historicalSections"
 							:key="`historical-${sectionIndex}`"
@@ -582,7 +624,12 @@ const historicalAdvisoryCount = computed(() => {
 												)
 											}}
 										</N8nBadge>
-										<N8nLink :href="advisory.htmlUrl" target="_blank" :class="$style.advisoryId">
+										<N8nLink
+											:to="advisory.htmlUrl"
+											:new-window="true"
+											rel="noopener noreferrer"
+											:class="$style.advisoryId"
+										>
 											{{ advisory.ghsaId }}
 										</N8nLink>
 										<N8nText v-if="advisory.cveId" color="text-light" size="small">
@@ -649,6 +696,11 @@ const historicalAdvisoryCount = computed(() => {
 
 	&:hover {
 		background-color: var(--color--background--shade-1);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--color--primary);
+		outline-offset: -2px;
 	}
 }
 
@@ -905,6 +957,11 @@ const historicalAdvisoryCount = computed(() => {
 
 	&:hover {
 		background-color: var(--color--background--light-3);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--color--primary);
+		outline-offset: -2px;
 	}
 }
 

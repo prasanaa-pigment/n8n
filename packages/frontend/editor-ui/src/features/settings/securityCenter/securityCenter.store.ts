@@ -6,8 +6,8 @@ import type {
 	AuditReport,
 	RiskCategory,
 	RunAuditOptions,
-} from './securityAudit.api';
-import { runSecurityAudit } from './securityAudit.api';
+} from './securityCenter.api';
+import { runSecurityAudit } from './securityCenter.api';
 
 export const useSecurityAuditStore = defineStore('securityAudit', () => {
 	const rootStore = useRootStore();
@@ -49,7 +49,7 @@ export const useSecurityAuditStore = defineStore('securityAudit', () => {
 			auditResult.value = await runSecurityAudit(rootStore.restApiContext, options);
 			lastRunAt.value = new Date();
 		} catch (e) {
-			error.value = e instanceof Error ? e : new Error(String(e));
+			error.value = e instanceof Error ? e : new Error('Failed to run security audit');
 			throw e;
 		} finally {
 			isLoading.value = false;

@@ -1,12 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { useSecurityAuditStore } from './securityAudit.store';
-import type { SecurityAuditResponse } from './securityAudit.api';
+import { useSecurityAuditStore } from './securityCenter.store';
+import type { SecurityAuditResponse } from './securityCenter.api';
 
 const { runSecurityAudit } = vi.hoisted(() => ({
 	runSecurityAudit: vi.fn(),
 }));
 
-vi.mock('./securityAudit.api', () => ({
+vi.mock('./securityCenter.api', () => ({
 	runSecurityAudit,
 }));
 
@@ -140,7 +140,7 @@ describe('securityAudit.store', () => {
 			await expect(store.runAudit()).rejects.toThrow();
 
 			expect(store.error).toBeInstanceOf(Error);
-			expect(store.error?.message).toBe('String error');
+			expect(store.error?.message).toBe('Failed to run security audit');
 		});
 
 		it('should pass options to API', async () => {

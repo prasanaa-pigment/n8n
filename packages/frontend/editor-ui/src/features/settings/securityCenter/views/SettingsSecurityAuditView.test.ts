@@ -3,8 +3,8 @@ import { screen } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
 import SettingsSecurityAuditView from './SettingsSecurityAuditView.vue';
-import { useSecurityAuditStore } from '../securityAudit.store';
-import type { SecurityAuditResponse } from '../securityAudit.api';
+import { useSecurityAuditStore } from '../securityCenter.store';
+import type { SecurityAuditResponse } from '../securityCenter.api';
 
 vi.mock('@/app/composables/useDocumentTitle', () => ({
 	useDocumentTitle: vi.fn(() => ({

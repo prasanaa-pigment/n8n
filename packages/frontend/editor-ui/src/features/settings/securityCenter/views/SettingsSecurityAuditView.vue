@@ -15,7 +15,7 @@ import { useToast } from '@/app/composables/useToast';
 import { usePostHog } from '@/app/stores/posthog.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { SECURITY_ADVISORIES_EXPERIMENT } from '@/app/constants/experiments';
-import { useSecurityAuditStore } from '../securityAudit.store';
+import { useSecurityAuditStore } from '../securityCenter.store';
 import SecurityAuditCategory from '../components/SecurityAuditCategory.vue';
 
 const i18n = useI18n();
