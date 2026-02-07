@@ -126,6 +126,7 @@ const WORKFLOW_RULES = `Follow these rules strictly when generating workflows:
     Every node MUST include an \`output\` property showing sample output data
 		In order to reason about what data is available at each step.
 		Expressions in following nodes depend on output of previous nodes.
+		Use types for node output data, if available.
 
 		Example:
     \`\`\`javascript
