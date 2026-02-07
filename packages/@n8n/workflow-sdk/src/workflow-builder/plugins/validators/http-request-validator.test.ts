@@ -65,6 +65,7 @@ describe('httpRequestValidator', () => {
 					severity: 'warning',
 				}),
 			);
+			expect(issues[0].message).toContain('httpHeaderAuth');
 		});
 
 		it('returns no warning for Authorization header with expression', () => {
@@ -132,6 +133,7 @@ describe('httpRequestValidator', () => {
 					severity: 'warning',
 				}),
 			);
+			expect(issues[0].message).toContain('httpQueryAuth');
 		});
 
 		it('returns no warning for api_key with expression', () => {

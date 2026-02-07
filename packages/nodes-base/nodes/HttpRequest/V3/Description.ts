@@ -187,6 +187,10 @@ export const mainProperties: INodeProperties[] = [
 				specifyQuery: ['keypair'],
 			},
 		},
+		builderHint: {
+			message:
+				'Set Auth query parameters by setting genericAuthType to httpQueryAuth, creating a new credential',
+		},
 		typeOptions: {
 			multipleValues: true,
 			fixedCollection: {

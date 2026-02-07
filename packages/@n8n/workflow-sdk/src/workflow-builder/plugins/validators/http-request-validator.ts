@@ -54,7 +54,7 @@ export const httpRequestValidator: ValidatorPlugin = {
 				) {
 					issues.push({
 						code: 'HARDCODED_CREDENTIALS',
-						message: `'${node.name}' has a hardcoded value for sensitive header "${header.name}". Use n8n credentials instead.`,
+						message: `'${node.name}' has a hardcoded value for sensitive header "${header.name}". Use n8n credentials instead (set genericAuthType to httpHeaderAuth or httpBearerAuth).`,
 						severity: 'warning',
 						nodeName: node.name,
 						parameterPath: `headerParameters.parameters[${header.name}]`,
@@ -80,7 +80,7 @@ export const httpRequestValidator: ValidatorPlugin = {
 				) {
 					issues.push({
 						code: 'HARDCODED_CREDENTIALS',
-						message: `'${node.name}' has a hardcoded value for credential-like query parameter "${param.name}". Use n8n credentials instead.`,
+						message: `'${node.name}' has a hardcoded value for credential-like query parameter "${param.name}". Use n8n credentials instead (set genericAuthType to httpQueryAuth).`,
 						severity: 'warning',
 						nodeName: node.name,
 						parameterPath: `queryParameters.parameters[${param.name}]`,
