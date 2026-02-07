@@ -22,7 +22,7 @@ describe('TextEditorHandler', () => {
 
 			const result = handler.execute({
 				command: 'view',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 			});
 
 			expect(result).toBe('1: line1\n2: line2\n3: line3');
@@ -34,7 +34,7 @@ describe('TextEditorHandler', () => {
 
 			const result = handler.execute({
 				command: 'view',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				view_range: [2, 4],
 			});
 
@@ -47,7 +47,7 @@ describe('TextEditorHandler', () => {
 
 			const result = handler.execute({
 				command: 'view',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				view_range: [2, 100],
 			});
 
@@ -58,7 +58,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'view',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 				}),
 			).toThrow(FileNotFoundError);
 		});
@@ -69,7 +69,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'view',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					view_range: [0, 2],
 				}),
 			).toThrow(InvalidLineNumberError);
@@ -81,7 +81,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'view',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					view_range: [5, 10],
 				}),
 			).toThrow(InvalidLineNumberError);
@@ -93,7 +93,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'create',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					file_text: 'const x = 1;',
 				}),
 			).toThrow('The "create" command is not supported');
@@ -105,7 +105,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'create',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					file_text: 'new content',
 				}),
 			).toThrow('The "create" command is not supported');
@@ -118,7 +118,7 @@ describe('TextEditorHandler', () => {
 
 			const result = handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const y = 2;',
 				new_str: 'const y = 3;',
 			});
@@ -134,7 +134,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const pattern = "";',
 				new_str: "const pattern = '^\\\\d{4}-\\\\d{2}-\\\\d{2}$';",
 			});
@@ -151,7 +151,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const x = "hello";',
 				new_str: 'const x = "$&world";',
 			});
@@ -165,7 +165,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const x = "test";',
 				new_str: 'const x = "$`value";',
 			});
@@ -180,7 +180,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const price = 0;',
 				new_str: 'const price = "$$100";',
 			});
@@ -195,7 +195,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'const regex = /test/;',
 				new_str: 'const regex = /($1|$2)/;',
 			});
@@ -209,7 +209,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'str_replace',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					old_str: 'const y = 2;',
 					new_str: 'const y = 3;',
 				}),
@@ -222,7 +222,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'str_replace',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					old_str: 'const x = 1;',
 					new_str: 'const x = 2;',
 				}),
@@ -233,7 +233,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'str_replace',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					old_str: 'old',
 					new_str: 'new',
 				}),
@@ -245,7 +245,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'str_replace',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				old_str: 'function foo() {\n  return 1;\n}',
 				new_str: 'function foo() {\n  return 2;\n}',
 			});
@@ -260,7 +260,7 @@ describe('TextEditorHandler', () => {
 
 			const result = handler.execute({
 				command: 'insert',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				insert_line: 0,
 				new_str: 'line0',
 			});
@@ -274,7 +274,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'insert',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				insert_line: 1,
 				new_str: 'line2',
 			});
@@ -287,7 +287,7 @@ describe('TextEditorHandler', () => {
 
 			handler.execute({
 				command: 'insert',
-				path: '/workflow.ts',
+				path: '/workflow.js',
 				insert_line: 2,
 				new_str: 'line3',
 			});
@@ -301,7 +301,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'insert',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					insert_line: -1,
 					new_str: 'new',
 				}),
@@ -314,7 +314,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'insert',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					insert_line: 5,
 					new_str: 'new',
 				}),
@@ -325,7 +325,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'insert',
-					path: '/workflow.ts',
+					path: '/workflow.js',
 					insert_line: 0,
 					new_str: 'new',
 				}),
@@ -345,7 +345,7 @@ describe('TextEditorHandler', () => {
 			expect(() =>
 				handler.execute({
 					command: 'create',
-					path: '/src/workflow.ts',
+					path: '/src/workflow.js',
 					file_text: 'code',
 				}),
 			).toThrow(InvalidPathError);
@@ -402,7 +402,7 @@ describe('TextEditorHandler', () => {
 		it('InvalidPathError should include path', () => {
 			const error = new InvalidPathError('/bad/path.ts');
 			expect(error.message).toContain('/bad/path.ts');
-			expect(error.message).toContain('/workflow.ts');
+			expect(error.message).toContain('/workflow.js');
 			expect(error.name).toBe('InvalidPathError');
 		});
 

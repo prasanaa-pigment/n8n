@@ -48,7 +48,7 @@ describe('TextEditorToolHandler', () => {
 	describe('execute', () => {
 		const baseParams = {
 			toolCallId: 'test-id',
-			args: { command: 'view', path: '/workflow.ts' },
+			args: { command: 'view', path: '/workflow.js' },
 			currentWorkflow: undefined,
 			iteration: 1,
 		};
@@ -81,7 +81,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
+				args: { command: 'str_replace', path: '/workflow.js', old_str: 'x', new_str: 'y' },
 				messages,
 			});
 
@@ -112,7 +112,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
 				messages,
 			});
 
@@ -143,7 +143,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
 				messages,
 			});
 
@@ -167,7 +167,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
 				messages,
 			});
 
@@ -191,7 +191,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
+				args: { command: 'str_replace', path: '/workflow.js', old_str: 'x', new_str: 'y' },
 				messages,
 			});
 
@@ -236,7 +236,7 @@ describe('TextEditorToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				toolCallId: 'call-def',
-				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
+				args: { command: 'str_replace', path: '/workflow.js', old_str: 'x', new_str: 'y' },
 				messages,
 			});
 
@@ -305,7 +305,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
 				messages,
 				warningTracker,
 			});
@@ -351,7 +351,7 @@ describe('TextEditorToolHandler', () => {
 
 			const generator = handler.execute({
 				...baseParams,
-				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
 				messages,
 				warningTracker,
 			});

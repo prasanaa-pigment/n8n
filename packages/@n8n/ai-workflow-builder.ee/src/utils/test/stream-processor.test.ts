@@ -1449,7 +1449,7 @@ describe('stream-processor', () => {
 			const input = `<previous_requests>
 test
 </previous_requests>
-<workflow_file path="/workflow.ts">
+<workflow_file path="/workflow.js">
 1: const wf = workflow('id', 'name');
 </workflow_file>
 <user_request>
@@ -1461,7 +1461,7 @@ add set node
 		});
 
 		it('should extract multiline user request from XML tag', () => {
-			const input = `<workflow_file path="/workflow.ts">
+			const input = `<workflow_file path="/workflow.js">
 code
 </workflow_file>
 <user_request>
@@ -1474,7 +1474,7 @@ and connect it to the trigger
 		});
 
 		it('should handle backwards compatible "User request:" text format', () => {
-			const input = `<workflow_file path="/workflow.ts">
+			const input = `<workflow_file path="/workflow.js">
 code
 </workflow_file>
 User request:
@@ -1488,7 +1488,7 @@ old format request`;
 			const input = `<previous_requests>
 old request
 </previous_requests>
-<workflow_file path="/workflow.ts">
+<workflow_file path="/workflow.js">
 code
 </workflow_file>`;
 

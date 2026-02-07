@@ -102,7 +102,7 @@ export class InvalidLineNumberError extends Error {
  */
 export class InvalidPathError extends Error {
 	constructor(path: string) {
-		super(`Invalid path "${path}". Only /workflow.ts is supported.`);
+		super(`Invalid path "${path}". Only /workflow.js is supported.`);
 		this.name = 'InvalidPathError';
 	}
 }

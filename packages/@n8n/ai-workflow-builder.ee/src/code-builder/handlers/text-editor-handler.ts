@@ -3,7 +3,7 @@
  *
  * Handles text editor tool commands for the code builder agent.
  * Implements the Anthropic str_replace_based_edit_tool interface for
- * managing workflow code as a virtual file (/workflow.ts).
+ * managing workflow code as a virtual file (/workflow.js).
  */
 
 import type {
@@ -22,7 +22,7 @@ import {
 } from './text-editor.types';
 
 /** The only supported file path for workflow code */
-const WORKFLOW_FILE_PATH = '/workflow.ts';
+const WORKFLOW_FILE_PATH = '/workflow.js';
 
 /**
  * Format code with line numbers (matches view command output)
@@ -41,7 +41,7 @@ type DebugLogFn = (context: string, message: string, data?: Record<string, unkno
 /**
  * Handler for text editor tool commands
  *
- * Manages a single virtual file (/workflow.ts) containing workflow SDK code.
+ * Manages a single virtual file (/workflow.js) containing workflow SDK code.
  * Supports view, create, str_replace, and insert commands.
  */
 export class TextEditorHandler {
@@ -159,7 +159,7 @@ export class TextEditorHandler {
 		throw new Error(
 			'The "create" command is not supported. ' +
 				'Workflow code is pre-loaded. Use "view" to see current code, ' +
-				'then "str_replace" to edit it.',
+				'then text editor tools to edit it.',
 		);
 	}
 

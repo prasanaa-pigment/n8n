@@ -39,7 +39,7 @@ export const VALIDATE_TOOL = {
 			properties: {
 				path: {
 					type: 'string' as const,
-					description: 'Path to the workflow file (must be /workflow.ts)',
+					description: 'Path to the workflow file (must be /workflow.js)',
 				},
 			},
 			required: ['path'],

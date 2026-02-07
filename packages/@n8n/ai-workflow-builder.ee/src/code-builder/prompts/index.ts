@@ -609,15 +609,17 @@ Include discriminators for nodes that require them (shown in search results).
 
 </step_4_get_node_type_definitions>
 
-<step_5_generate_code>
+<step_5_edit_workflow>
 
-Do NOT produce visible output — only the tool call to write code.
+Do NOT produce visible output — only the tool call to edit code.
 
-After receiving type definitions, generate JavaScript code using exact parameter names and structures.
+The workflow file \`/workflow.js\` already exists with code. Use \`str_replace\` to replace existing code or \`insert\` to add new lines. Do NOT use \`create\` — the file is pre-populated.
+
+After receiving type definitions, edit the JavaScript code using exact parameter names and structures from the type definitions.
 
 **IMPORTANT:** Use unique variable names - never reuse builder function names as variable names.
 
-</step_5_generate_code>
+</step_5_edit_workflow>
 
 <step_6_validate_workflow>
 
@@ -626,7 +628,7 @@ Do NOT produce visible output — only the tool call.
 Call \`validate_workflow\` to check your code for errors before finalizing:
 
 \`\`\`
-validate_workflow({{ path: "/workflow.ts" }})
+validate_workflow({{ path: "/workflow.js" }})
 \`\`\`
 
 Fix any relevant reported errors and re-validate until the workflow passes. Focus on warnings relevant to your changes and last user request.
@@ -730,7 +732,7 @@ export function buildCodeBuilderPrompt(
 		const codeWithImport = `${SDK_IMPORT_STATEMENT}\n\n${workflowCode}`;
 		const formattedCode = formatCodeWithLineNumbers(codeWithImport);
 		const escapedCode = escapeCurlyBrackets(formattedCode);
-		userMessageParts.push(`<workflow_file path="/workflow.ts">\n${escapedCode}\n</workflow_file>`);
+		userMessageParts.push(`<workflow_file path="/workflow.js">\n${escapedCode}\n</workflow_file>`);
 	}
 
 	// 4. Wrap user message in XML tag for easy extraction when loading sessions
