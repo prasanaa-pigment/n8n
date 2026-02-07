@@ -216,6 +216,45 @@ describe('AutoFinalizeHandler', () => {
 			expect(warningTracker.allSeen([newWarning])).toBe(true);
 		});
 
+		it('should annotate pre-existing warnings with [pre-existing] tag', async () => {
+			const handler = createHandler();
+			const existingAiMessage = new AIMessage({ content: 'Some response text' });
+			const messages: BaseMessage[] = [existingAiMessage];
+			const warningTracker = new WarningTracker();
+
+			const mockWorkflow: WorkflowJSON = {
+				id: 'test',
+				name: 'Test',
+				nodes: [],
+				connections: {},
+			};
+
+			const preExistingWarning = { code: 'W001', message: 'Pre-existing issue', nodeName: 'Node1' };
+			const newWarning = { code: 'W002', message: 'New issue', nodeName: 'Node2' };
+
+			warningTracker.markAsPreExisting([preExistingWarning]);
+
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [preExistingWarning, newWarning],
+			});
+
+			const gen = handler.execute({
+				code: 'const workflow = { ... }',
+				currentWorkflow: undefined,
+				messages,
+				warningTracker,
+			});
+
+			await consumeGenerator(gen);
+
+			const toolMessage = messages[1] as ToolMessage;
+			const content = toolMessage.content as string;
+			expect(content).toContain('[W001] [pre-existing] Pre-existing issue');
+			expect(content).toContain('[W002] New issue');
+			expect(content).not.toContain('[W002] [pre-existing]');
+		});
+
 		it('should inject tool_use into content array when AIMessage has array content (extended thinking)', async () => {
 			const handler = createHandler();
 			const existingAiMessage = new AIMessage({

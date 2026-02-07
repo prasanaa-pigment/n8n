@@ -297,6 +297,46 @@ describe('ValidateToolHandler', () => {
 			expect(workflowUpdateChunk).toBeDefined();
 		});
 
+		it('should annotate pre-existing warnings with [pre-existing] tag', async () => {
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test',
+				nodes: [],
+				connections: {},
+			};
+
+			const preExistingWarning = {
+				code: 'WARN001',
+				message: 'Pre-existing issue',
+				nodeName: 'Node1',
+			};
+			const newWarning = { code: 'WARN002', message: 'New issue' };
+
+			// Mark one warning as pre-existing
+			warningTracker.markAsPreExisting([preExistingWarning]);
+
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [preExistingWarning, newWarning],
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				messages,
+				warningTracker,
+			});
+
+			for await (const _ of generator) {
+				// consume
+			}
+
+			expect(messages.length).toBe(1);
+			const content = (messages[0] as ToolMessage).content as string;
+			expect(content).toContain('[WARN001] [pre-existing] Pre-existing issue');
+			expect(content).toContain('[WARN002] New issue');
+			expect(content).not.toContain('[WARN002] [pre-existing]');
+		});
+
 		it('should yield partial workflow update on warnings', async () => {
 			const mockWorkflow = {
 				id: 'test',

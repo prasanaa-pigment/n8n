@@ -325,6 +325,49 @@ describe('TextEditorToolHandler', () => {
 			expect(warningTracker.allSeen([newWarning])).toBe(true);
 		});
 
+		it('should annotate pre-existing warnings with [pre-existing] tag after create', async () => {
+			const warningTracker = new WarningTracker();
+			const mockWorkflow = {
+				id: 'test',
+				name: 'Test',
+				nodes: [],
+				connections: {},
+			};
+
+			const preExistingWarning = {
+				code: 'WARN001',
+				message: 'Pre-existing issue',
+				nodeName: 'Node1',
+			};
+			const newWarning = { code: 'WARN002', message: 'New issue' };
+
+			warningTracker.markAsPreExisting([preExistingWarning]);
+
+			mockTextEditorExecute.mockReturnValue('File created.');
+			mockTextEditorGetCode.mockReturnValue('const workflow = {};');
+			mockParseAndValidate.mockResolvedValue({
+				workflow: mockWorkflow,
+				warnings: [preExistingWarning, newWarning],
+			});
+
+			const generator = handler.execute({
+				...baseParams,
+				args: { command: 'create', path: '/workflow.js', file_text: 'const workflow = {};' },
+				messages,
+				warningTracker,
+			});
+
+			for await (const _ of generator) {
+				// consume
+			}
+
+			expect(messages).toHaveLength(1);
+			const content = (messages[0] as ToolMessage).content as string;
+			expect(content).toContain('[WARN001] [pre-existing] Pre-existing issue');
+			expect(content).toContain('[WARN002] New issue');
+			expect(content).not.toContain('[WARN002] [pre-existing]');
+		});
+
 		it('should treat all-repeated warnings as workflowReady after create', async () => {
 			const warningTracker = new WarningTracker();
 			const mockWorkflow = {
