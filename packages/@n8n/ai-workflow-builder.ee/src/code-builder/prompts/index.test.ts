@@ -3,6 +3,24 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import { buildCodeBuilderPrompt } from '../../code-builder/prompts/index';
 
 describe('buildCodeBuilderPrompt', () => {
+	describe('extended thinking compatibility', () => {
+		it('does not contain <thinking> tag instructions in system prompt', async () => {
+			const prompt = buildCodeBuilderPrompt();
+			const messages = await prompt.formatMessages({ userMessage: 'test' });
+			const systemMessage = messages.find((m) => m._getType() === 'system');
+
+			// With native extended thinking enabled, the prompt should NOT reference
+			// <thinking> XML tags which cause the model to emit reasoning in output tokens
+			const content = Array.isArray(systemMessage?.content)
+				? systemMessage.content.map((b) => ('text' in b ? b.text : '')).join('')
+				: String(systemMessage?.content ?? '');
+
+			expect(content).not.toMatch(/<thinking>/);
+			expect(content).not.toMatch(/`<thinking>`/);
+			expect(content).not.toMatch(/Inside.*thinking.*tags/i);
+		});
+	});
+
 	describe('preGeneratedCode option', () => {
 		it('uses preGeneratedCode when provided instead of generating', async () => {
 			const workflow: WorkflowJSON = {

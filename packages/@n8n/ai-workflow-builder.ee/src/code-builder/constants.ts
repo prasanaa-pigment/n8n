@@ -14,7 +14,7 @@ export const MAX_VALIDATE_ATTEMPTS = 10;
 
 /** Instruction appended to validation/parse error messages with steps to fix */
 export const FIX_VALIDATION_ERRORS_INSTRUCTION = `
-Use <thinking> to analyze the error, then act:
+Use the think tool to analyze the error, then act:
 1. Is this error relevant to the last user request? If NOT, stop — do not fix unrelated warnings.
 2. Use search_nodes and get_node_types to look up the correct node schema (if not already fetched)
 3. Use str_replace or insert to fix the code
@@ -73,4 +73,9 @@ export const CODE_BUILDER_GET_NODE_TYPES_TOOL: BuilderToolBase = {
 export const CODE_BUILDER_GET_SUGGESTED_NODES_TOOL: BuilderToolBase = {
 	toolName: 'get_suggested_nodes',
 	displayTitle: 'Getting suggested nodes',
+};
+
+export const CODE_BUILDER_THINK_TOOL: BuilderToolBase = {
+	toolName: 'think',
+	displayTitle: 'Reasoning',
 };
