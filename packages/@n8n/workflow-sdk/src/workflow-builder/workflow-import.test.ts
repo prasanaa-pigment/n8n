@@ -52,7 +52,7 @@ describe('parseWorkflowJSON', () => {
 		const result = parseWorkflowJSON(json);
 
 		expect(result.nodes.size).toBe(1);
-		const node = result.nodes.get('node-1');
+		const node = result.nodes.get('HTTP Request');
 		expect(node?.instance.type).toBe('n8n-nodes-base.httpRequest');
 		expect(node?.instance.name).toBe('HTTP Request');
 		expect(node?.instance.config?.parameters).toEqual({ url: 'https://example.com' });
@@ -76,7 +76,7 @@ describe('parseWorkflowJSON', () => {
 		};
 
 		const result = parseWorkflowJSON(json);
-		const node = result.nodes.get('node-1');
+		const node = result.nodes.get('Set');
 
 		expect(node?.instance.version).toBe('v3.4');
 	});
@@ -104,7 +104,7 @@ describe('parseWorkflowJSON', () => {
 		} as unknown as WorkflowJSON;
 
 		const result = parseWorkflowJSON(json);
-		const node = result.nodes.get('node-1');
+		const node = result.nodes.get('OpenAI');
 
 		expect(node?.instance.config?.credentials).toEqual({ openAiApi: {} });
 	});
@@ -139,7 +139,7 @@ describe('parseWorkflowJSON', () => {
 		};
 
 		const result = parseWorkflowJSON(json);
-		const triggerNode = result.nodes.get('node-1');
+		const triggerNode = result.nodes.get('Trigger');
 		const mainConns = triggerNode?.connections.get('main');
 
 		expect(mainConns?.get(0)).toContainEqual({
@@ -249,7 +249,7 @@ describe('parseWorkflowJSON', () => {
 
 		const result = parseWorkflowJSON(json);
 
-		expect(result.lastNode).toBe('node-2');
+		expect(result.lastNode).toBe('Second');
 	});
 
 	it('returns null for lastNode when no nodes', () => {

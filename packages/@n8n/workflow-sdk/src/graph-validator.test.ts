@@ -1,4 +1,5 @@
 import { workflow, trigger, node, sticky, languageModel, tool, embedding } from './index';
+import type { WorkflowJSON } from './index';
 
 describe('graph validation', () => {
 	describe('checkNoNodes', () => {
@@ -613,6 +614,42 @@ describe('graph validation', () => {
 			const result = wf.validate();
 
 			// Sticky notes should NOT be flagged as disconnected (they never participate in data flow)
+			const disconnectedWarning = result.warnings.find((w) => w.code === 'DISCONNECTED_NODE');
+			expect(disconnectedWarning).toBeUndefined();
+		});
+
+		test('does not produce false DISCONNECTED_NODE warnings for connected fromJSON nodes', () => {
+			const json: WorkflowJSON = {
+				id: 'test-id',
+				name: 'Test Workflow',
+				nodes: [
+					{
+						id: 'node-1',
+						name: 'Trigger',
+						type: 'n8n-nodes-base.manualTrigger',
+						typeVersion: 1,
+						position: [0, 0],
+						parameters: {},
+					},
+					{
+						id: 'node-2',
+						name: 'Set',
+						type: 'n8n-nodes-base.set',
+						typeVersion: 3,
+						position: [200, 0],
+						parameters: {},
+					},
+				],
+				connections: {
+					Trigger: {
+						main: [[{ node: 'Set', type: 'main', index: 0 }]],
+					},
+				},
+			};
+
+			const wf = workflow.fromJSON(json);
+			const result = wf.validate();
+
 			const disconnectedWarning = result.warnings.find((w) => w.code === 'DISCONNECTED_NODE');
 			expect(disconnectedWarning).toBeUndefined();
 		});

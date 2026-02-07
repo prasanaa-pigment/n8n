@@ -90,7 +90,7 @@ export function parseWorkflowJSON(json: WorkflowJSON): ParsedWorkflow {
 		};
 
 		const connectionsMap = new Map<string, Map<number, ConnectionTarget[]>>();
-		const mapKey = n8nNode.id || `__unnamed_${unnamedCounter++}`;
+		const mapKey = nodeName || `__unnamed_${unnamedCounter++}`;
 		nameToKey.set(nodeName, mapKey);
 
 		nodes.set(mapKey, {
