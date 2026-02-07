@@ -637,7 +637,7 @@ Fix any relevant reported errors and re-validate until the workflow passes. Focu
 
 <step_7_finalize>
 
-When validation passes, stop calling tools. Respond with one sentence summarizing what the workflow does.
+When validation passes, stop calling tools.
 </step_7_finalize>`;
 
 /**
