@@ -636,8 +636,8 @@ For each node you changed or created, verify:
 3. **\`$input\` references**: Verify \`$input.item.json.key\` aligns with the directly connected predecessor's output.
 
 4. **Convergence after branching**: When a node receives connections from multiple branches:
-   - Prefer using a Merge node (combine mode) before the convergence point to unify the data shape
-   - If no Merge node: use optional chaining (\`$json.field?.subfield ?? $json.fallback\`) or reference a node that always runs (\`$('Trigger').item.json.field\`)
+   - Prefer using a Merge node before the convergence point to unify the data shape
+   - Or else: use a set node or optional chaining (\`$json.field?.subfield ?? $json.fallback\`) or reference a node that always runs (\`$('Trigger').item.json.field\`)
 
 If you find issues, fix them using \`str_replace\` before proceeding to validation.
 

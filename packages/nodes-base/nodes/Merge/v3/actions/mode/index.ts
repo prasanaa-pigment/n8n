@@ -22,7 +22,7 @@ export const description: INodeProperties[] = [
 				description: 'Output items of each input, one after the other',
 				builderHint: {
 					message:
-						'Do you need to collect items from multiple sources into a single list without modifying them? Use Append to concatenate items sequentially. Waits for all connected inputs. Supports any number of inputs. @example 2 items from Input A + 3 items from Input B → 5 items total',
+						'Do you need to collect items from multiple sources into a single list without modifying them? Use Append to concatenate items sequentially. Waits for all connected inputs. Supports any number of inputs. @example 2 items from Input A + 3 items from Input B → 5 items total. Next node will execute 5 times with 5 different items.',
 				},
 			},
 			{
@@ -31,7 +31,7 @@ export const description: INodeProperties[] = [
 				description: 'Merge matching items together',
 				builderHint: {
 					message:
-						'Do you need to JOIN items from exactly 2 inputs based on matching field values (like linking user IDs to user details)? Use Combine for database-style JOINs. Only accepts 2 inputs. Waits for both. @example 2 users + 2 profiles matched by userId → 2 enriched user records (not 4)',
+						'Do you need to combine items from exactly 2 inputs? Use Combine to join items by position or by a specific key. Only accepts 2 inputs. Waits for both. \n @example 2 users + 2 profiles matched by userId → 2 enriched user records (not 4). Next node will execute 2 times with 2 different items.',
 				},
 			},
 			{
