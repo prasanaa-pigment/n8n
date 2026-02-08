@@ -23,7 +23,6 @@ import { deepCopy } from 'n8n-workflow';
 import * as os from 'os';
 import * as path from 'path';
 
-import { generateOutputSchemaJson } from './generate-output-schemas';
 // eslint-disable-next-line import-x/no-cycle -- TODO: Refactor shared types/utils to break cycle
 import {
 	generateSingleVersionSchemaFile,
@@ -3880,19 +3879,6 @@ async function generateVersionSpecificFiles(
 					const schemaContent = generateSingleVersionSchemaFile(sourceNode, version);
 					const schemaFilePath = path.join(nodeDir, `${fileName}.schema.js`);
 					await fs.promises.writeFile(schemaFilePath, schemaContent);
-					generatedFiles++;
-				}
-
-				// Generate output schema JSON file for pin data generation (runtime loading)
-				const outputSchemas = discoverSchemasForNode(
-					sourceNode.name,
-					version,
-					sourceNode.schemaPath,
-				);
-				if (outputSchemas.length > 0) {
-					const jsonContent = generateOutputSchemaJson(outputSchemas);
-					const jsonFilePath = path.join(nodeDir, `${fileName}.output.json`);
-					await fs.promises.writeFile(jsonFilePath, jsonContent);
 					generatedFiles++;
 				}
 			}
