@@ -4243,4 +4243,115 @@ describe('generate-types', () => {
 			});
 		});
 	});
+
+	describe('discoverSchemasForNode', () => {
+		// Use real filesystem with temp directories under NODES_BASE_DIST
+		const NODES_BASE_DIST = path.resolve(__dirname, '../../../../nodes-base/dist/nodes');
+
+		function createTestSchemaDir(nodeName: string, version: string, files: Record<string, string>) {
+			const schemaDir = path.join(NODES_BASE_DIST, nodeName, '__schema__', version);
+			fs.mkdirSync(schemaDir, { recursive: true });
+			for (const [filePath, content] of Object.entries(files)) {
+				const fullPath = path.join(schemaDir, filePath);
+				fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+				fs.writeFileSync(fullPath, content);
+			}
+			return path.join(NODES_BASE_DIST, nodeName);
+		}
+
+		function cleanupTestDir(nodeName: string) {
+			const dir = path.join(NODES_BASE_DIST, nodeName);
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+
+		it('discovers JSON files directly in the version directory (no resource/operation)', () => {
+			const nodeName = '__TestWebhookRootJson__';
+			const mockSchema = {
+				type: 'object',
+				properties: {
+					body: { type: 'object' },
+					webhookUrl: { type: 'string' },
+				},
+				version: 1,
+			};
+
+			try {
+				createTestSchemaDir(nodeName, 'v2.0.0', {
+					'output.json': JSON.stringify(mockSchema),
+				});
+
+				const result = generateTypes.discoverSchemasForNode(
+					`n8n-nodes-base.${nodeName}`,
+					2,
+					nodeName,
+				);
+
+				expect(result).toHaveLength(1);
+				expect(result[0]).toEqual({
+					resource: '',
+					operation: 'output',
+					schema: mockSchema,
+				});
+			} finally {
+				cleanupTestDir(nodeName);
+			}
+		});
+
+		it('discovers both root-level JSON files and resource subdirectories', () => {
+			const nodeName = '__TestMixedNodeBoth__';
+			const rootSchema = { type: 'object', properties: { id: { type: 'string' } } };
+			const resourceSchema = { type: 'object', properties: { name: { type: 'string' } } };
+
+			try {
+				createTestSchemaDir(nodeName, 'v1.0.0', {
+					'output.json': JSON.stringify(rootSchema),
+					'contact/get.json': JSON.stringify(resourceSchema),
+				});
+
+				const result = generateTypes.discoverSchemasForNode(
+					`n8n-nodes-base.${nodeName}`,
+					1,
+					nodeName,
+				);
+
+				expect(result).toHaveLength(2);
+
+				const rootEntry = result.find((s) => s.resource === '');
+				const resourceEntry = result.find((s) => s.resource === 'contact');
+
+				expect(rootEntry).toEqual({
+					resource: '',
+					operation: 'output',
+					schema: rootSchema,
+				});
+				expect(resourceEntry).toEqual({
+					resource: 'contact',
+					operation: 'get',
+					schema: resourceSchema,
+				});
+			} finally {
+				cleanupTestDir(nodeName);
+			}
+		});
+
+		it('skips invalid JSON files at the root level', () => {
+			const nodeName = '__TestInvalidRootJson__';
+
+			try {
+				createTestSchemaDir(nodeName, 'v1.0.0', {
+					'broken.json': 'not valid json {{{',
+				});
+
+				const result = generateTypes.discoverSchemasForNode(
+					`n8n-nodes-base.${nodeName}`,
+					1,
+					nodeName,
+				);
+
+				expect(result).toHaveLength(0);
+			} finally {
+				cleanupTestDir(nodeName);
+			}
+		});
+	});
 });

@@ -431,13 +431,34 @@ export function discoverSchemasForNode(
 		return schemas;
 	}
 
-	// Scan resource directories
+	// Scan version directory entries
 	try {
-		const resources = fs.readdirSync(versionDir, { withFileTypes: true });
-		for (const resourceEntry of resources) {
-			if (!resourceEntry.isDirectory()) continue;
+		const entries = fs.readdirSync(versionDir, { withFileTypes: true });
 
-			const resourceDir = path.join(versionDir, resourceEntry.name);
+		for (const entry of entries) {
+			// JSON files directly in the version directory (nodes without resource/operation)
+			if (entry.isFile() && entry.name.endsWith('.json')) {
+				const operationName = entry.name.replace('.json', '');
+				const filePath = path.join(versionDir, entry.name);
+
+				try {
+					const schemaContent = fs.readFileSync(filePath, 'utf-8');
+					const schema = JSON.parse(schemaContent) as JsonSchema;
+					schemas.push({
+						resource: '',
+						operation: operationName,
+						schema,
+					});
+				} catch {
+					// Skip invalid JSON files
+				}
+				continue;
+			}
+
+			// Resource subdirectories containing operation JSON files
+			if (!entry.isDirectory()) continue;
+
+			const resourceDir = path.join(versionDir, entry.name);
 			const operations = fs.readdirSync(resourceDir, { withFileTypes: true });
 
 			for (const opEntry of operations) {
@@ -450,7 +471,7 @@ export function discoverSchemasForNode(
 					const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
 					const schema = JSON.parse(schemaContent) as JsonSchema;
 					schemas.push({
-						resource: resourceEntry.name,
+						resource: entry.name,
 						operation: operationName,
 						schema,
 					});
