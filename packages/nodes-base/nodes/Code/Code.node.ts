@@ -50,39 +50,56 @@ export class Code implements INodeType {
 		outputs: [NodeConnectionTypes.Main],
 		builderHint: {
 			message:
-				'Use Code node as a LAST RESORT — it runs in a sandboxed environment and is slower than native nodes. Prefer: Edit Fields (Set) for adding/renaming/removing fields, mapping data, setting variables; Filter for filtering items; If or Switch for routing; Split Out for splitting arrays; Aggregate for combining items; Merge for merging branches; Summarize for pivoting data; Sort, Remove Duplicates, Limit for list operations; HTML for formatting; Date & Time for date operations. Code node is ONLY appropriate for complex multi-step algorithms that cannot be expressed in single expressions, or operations requiring complex data structures.',
+				'Use Code node as a LAST RESORT — it runs in a sandboxed environment and is slower than native nodes. Code node is ONLY appropriate for complex multi-step algorithms that cannot be expressed in single expressions, or operations requiring complex data structures.',
 			relatedNodes: [
 				{
 					nodeType: 'n8n-nodes-base.set',
-					relationHint: 'For data manipulation: add/modify/rename fields, set values, map data',
+					relationHint:
+						'Use this instead for data manipulation: add/modify/rename fields, set values, map data',
 				},
 				{
 					nodeType: 'n8n-nodes-base.filter',
-					relationHint: 'For filtering items by condition',
+					relationHint: 'Use this instead for filtering items by condition',
 				},
 				{
 					nodeType: 'n8n-nodes-base.if',
-					relationHint: 'For routing by condition',
+					relationHint: 'Use this instead for routing by condition',
 				},
 				{
 					nodeType: 'n8n-nodes-base.switch',
-					relationHint: 'For multi-way routing by condition',
+					relationHint: 'Use this instead for multi-way routing by condition',
 				},
 				{
 					nodeType: 'n8n-nodes-base.splitOut',
-					relationHint: 'For splitting arrays into separate items',
+					relationHint: 'Use this instead for splitting arrays into separate items',
 				},
 				{
 					nodeType: 'n8n-nodes-base.aggregate',
-					relationHint: 'For combining multiple items into one',
+					relationHint: 'Use this instead for combining multiple items into one',
 				},
 				{
 					nodeType: 'n8n-nodes-base.summarize',
-					relationHint: 'For summarizing or pivoting data',
+					relationHint: 'Use this instead for summarizing or pivoting data',
+				},
+				{
+					nodeType: 'n8n-nodes-base.removeDuplicates',
+					relationHint: 'Use this instead for removing duplicates',
+				},
+				{
+					nodeType: 'n8n-nodes-base.limit',
+					relationHint: 'Use this instead to reduce the number of items returned',
 				},
 				{
 					nodeType: 'n8n-nodes-base.merge',
-					relationHint: 'For merging data from multiple branches',
+					relationHint: 'Use this instead for merging data from multiple branches',
+				},
+				{
+					nodeType: 'n8n-nodes-base.dateTime',
+					relationHint: 'Use this instead for date time operations',
+				},
+				{
+					nodeType: 'n8n-nodes-base.html',
+					relationHint: 'Use this instead for creating html pages',
 				},
 			],
 		},
