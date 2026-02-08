@@ -225,7 +225,7 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 		nodes: [
 			{
 				name: 'n8n-nodes-base.dataTable',
-				note: 'Use this to store scraped data. Preferred because no external config needed',
+				note: 'Default storage for scraped data when the user does not specify a destination. No external config needed. Always include a storage step in scraping workflows',
 			},
 			{
 				name: 'n8n-nodes-base.phantombuster',
