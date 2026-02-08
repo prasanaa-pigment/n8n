@@ -179,6 +179,67 @@ describe('CodeBuilderNodeSearchEngine', () => {
 		});
 	});
 
+	describe('searchByName - type name priority', () => {
+		it('should return node with matching type name as first result', () => {
+			// "set" is the type name of n8n-nodes-base.set (Edit Fields node)
+			// Even though other nodes may fuzzy-match "set" better, the exact type name match should win
+			const setNode = createNodeType({
+				name: 'n8n-nodes-base.set',
+				displayName: 'Edit Fields',
+				description: 'Modify, add, or remove item fields',
+				group: ['transform'],
+			});
+			// Add nodes that could fuzzy-match "set" via their names/descriptions
+			const settingsNode = createNodeType({
+				name: 'n8n-nodes-base.settingsManager',
+				displayName: 'Settings Manager',
+				description: 'Manage application settings',
+				group: ['transform'],
+			});
+			const datasetNode = createNodeType({
+				name: 'n8n-nodes-base.dataset',
+				displayName: 'Dataset',
+				description: 'Work with datasets',
+				group: ['transform'],
+			});
+			const engine = new CodeBuilderNodeSearchEngine([
+				...nodeTypes,
+				setNode,
+				settingsNode,
+				datasetNode,
+			]);
+
+			const results = engine.searchByName('set', 5);
+
+			expect(results.length).toBeGreaterThanOrEqual(1);
+			expect(results[0].name).toBe('n8n-nodes-base.set');
+			expect(results[0].displayName).toBe('Edit Fields');
+		});
+
+		it('should return type name match first even with small limit', () => {
+			const setNode = createNodeType({
+				name: 'n8n-nodes-base.set',
+				displayName: 'Edit Fields',
+				description: 'Modify, add, or remove item fields',
+				group: ['transform'],
+			});
+			// Add many nodes that fuzzy-match "set" to push the real match out of top results
+			const competitors = Array.from({ length: 10 }, (_, i) =>
+				createNodeType({
+					name: `n8n-nodes-base.setter${i}`,
+					displayName: `Setter Node ${i}`,
+					description: `Sets values for configuration ${i}`,
+					group: ['transform'],
+				}),
+			);
+			const engine = new CodeBuilderNodeSearchEngine([...competitors, setNode]);
+
+			const results = engine.searchByName('set', 3);
+
+			expect(results[0].name).toBe('n8n-nodes-base.set');
+		});
+	});
+
 	describe('searchByConnectionType', () => {
 		it('should find nodes with exact connection type match', () => {
 			const results = searchEngine.searchByConnectionType(NodeConnectionTypes.AiTool);

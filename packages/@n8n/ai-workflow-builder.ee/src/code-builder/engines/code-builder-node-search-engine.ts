@@ -44,6 +44,17 @@ const NODE_SEARCH_KEYS = [
 ];
 
 /**
+ * Extract the short type name from a full node name
+ * e.g., "n8n-nodes-base.set" -> "set"
+ * e.g., "@n8n/n8n-nodes-langchain.lmChatOpenAi" -> "lmChatOpenAi"
+ */
+function getTypeName(nodeName: string): string {
+	if (!nodeName) return '';
+	const lastDotIndex = nodeName.lastIndexOf('.');
+	return lastDotIndex >= 0 ? nodeName.substring(lastDotIndex + 1) : nodeName;
+}
+
+/**
  * Scoring weights for connection type matching
  */
 export const SCORE_WEIGHTS = {
@@ -113,8 +124,29 @@ export class CodeBuilderNodeSearchEngine {
 			NODE_SEARCH_KEYS,
 		);
 
-		// Map results to CodeBuilderNodeSearchResult format and apply limit
-		return searchResults
+		const queryLower = query.toLowerCase().trim();
+		const fuzzyResultNames = new Set(searchResults.map((r) => r.item.name));
+
+		// Direct type name match on all nodeTypes (catches nodes sublimeSearch ranked too low)
+		const typeNameMatches = this.nodeTypes
+			.filter((node) => {
+				if (fuzzyResultNames.has(node.name)) return false;
+				return getTypeName(node.name).toLowerCase() === queryLower;
+			})
+			.map((item) => ({ item, score: 0 }));
+
+		// Merge and sort: exact type name matches first, then by fuzzy score
+		const allResults = [...searchResults, ...typeNameMatches];
+		allResults.sort((a, b) => {
+			const exactA = getTypeName(a.item.name).toLowerCase() === queryLower;
+			const exactB = getTypeName(b.item.name).toLowerCase() === queryLower;
+			if (exactA && !exactB) return -1;
+			if (!exactA && exactB) return 1;
+			return b.score - a.score;
+		});
+
+		// Apply limit and map to result format
+		return allResults
 			.slice(0, limit)
 			.map(
 				({
