@@ -2611,10 +2611,16 @@ export function generateSingleVersionTypeFile(
 
 	for (const configInfo of unionResult.configTypes) {
 		// Try to find matching schema
-		const matchingSchema =
+		let matchingSchema =
 			configInfo.resource && configInfo.operation
 				? findSchemaForOperation(outputSchemas, configInfo.resource, configInfo.operation)
 				: undefined;
+
+		// Fallback for nodes without resource/operation discriminators:
+		// use root-level schema files (resource === '')
+		if (!matchingSchema && !configInfo.resource && !configInfo.operation) {
+			matchingSchema = outputSchemas.find((s) => s.resource === '');
+		}
 
 		if (matchingSchema) {
 			// Generate output type name by replacing 'Params' with 'Output'

@@ -73,6 +73,7 @@ interface NodeTypeDescription {
 	subtitle?: string;
 	usableAsTool?: boolean;
 	hidden?: boolean;
+	schemaPath?: string;
 	builderHint?: {
 		inputs?: Record<
 			string,
@@ -4349,6 +4350,76 @@ describe('generate-types', () => {
 				);
 
 				expect(result).toHaveLength(0);
+			} finally {
+				cleanupTestDir(nodeName);
+			}
+		});
+	});
+
+	describe('generateSingleVersionTypeFile with root-level output schema', () => {
+		const NODES_BASE_DIST = path.resolve(__dirname, '../../../../nodes-base/dist/nodes');
+
+		function createTestSchemaDir(nodeName: string, version: string, files: Record<string, string>) {
+			const schemaDir = path.join(NODES_BASE_DIST, nodeName, '__schema__', version);
+			fs.mkdirSync(schemaDir, { recursive: true });
+			for (const [filePath, content] of Object.entries(files)) {
+				const fullPath = path.join(schemaDir, filePath);
+				fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+				fs.writeFileSync(fullPath, content);
+			}
+		}
+
+		function cleanupTestDir(nodeName: string) {
+			const dir = path.join(NODES_BASE_DIST, nodeName);
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+
+		it('produces an output type for a node without resource/operation discriminators', () => {
+			const nodeName = '__TestWebhookOutput__';
+			const mockSchema = {
+				type: 'object',
+				properties: {
+					body: { type: 'object' },
+					webhookUrl: { type: 'string' },
+				},
+			};
+
+			const mockWebhookNode: NodeTypeDescription = {
+				name: `n8n-nodes-base.${nodeName}`,
+				displayName: 'Test Webhook',
+				description: 'Test webhook node',
+				group: ['trigger'],
+				version: 2,
+				inputs: [],
+				outputs: ['main'],
+				schemaPath: nodeName,
+				properties: [
+					{
+						displayName: 'HTTP Method',
+						name: 'httpMethod',
+						type: 'options',
+						options: [
+							{ name: 'GET', value: 'GET' },
+							{ name: 'POST', value: 'POST' },
+						],
+						default: 'GET',
+					},
+				],
+			};
+
+			try {
+				createTestSchemaDir(nodeName, 'v2.0.0', {
+					'output.json': JSON.stringify(mockSchema),
+				});
+
+				const content = generateTypes.generateSingleVersionTypeFile(mockWebhookNode, 2);
+
+				// Should contain an Output type derived from the schema
+				expect(content).toContain('Output');
+				expect(content).toMatch(/export type \w+Output\b/);
+				// Should contain the schema properties
+				expect(content).toContain('body');
+				expect(content).toContain('webhookUrl');
 			} finally {
 				cleanupTestDir(nodeName);
 			}
