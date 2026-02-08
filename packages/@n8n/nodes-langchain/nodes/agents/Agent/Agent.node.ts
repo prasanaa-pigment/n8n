@@ -44,6 +44,11 @@ export class Agent extends VersionedNodeType {
 						nodeType: '@n8n/n8n-nodes-langchain.agentTool',
 						relationHint: 'For multi-agent systems using orchestrator pattern',
 					},
+					{
+						nodeType: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+						relationHint:
+							'Required for conversational workflows - connect memory to every agent that needs to recall previous messages in the conversation',
+					},
 				],
 			},
 		};

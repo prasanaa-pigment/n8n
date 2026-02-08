@@ -21,17 +21,17 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 		nodes: [
 			{
 				name: '@n8n/n8n-nodes-langchain.chatTrigger',
-				note: 'For production deployments, consider platform triggers (Slack, Telegram) over built-in chat',
+				note: 'When loadPreviousSession is set to memory, the downstream Agent must also have its own memory subnode to maintain conversation context during processing',
 			},
 			{
 				name: '@n8n/n8n-nodes-langchain.agent',
-				note: 'For multi-turn conversations, connect memory to maintain context',
+				note: 'Every agent in a conversational workflow MUST have a memory subnode connected. If multiple agents share the same conversation, they must use the same memory session key',
 			},
 			{ name: '@n8n/n8n-nodes-langchain.lmChatOpenAi' },
 			{ name: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini' },
 			{
 				name: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
-				note: 'Maintains short-term conversation history',
+				note: 'Maintains short-term conversation history. Must be connected as a subnode to every Agent that participates in a conversation. When multiple agents share a conversation, use the same session key across all of them',
 			},
 			{ name: 'n8n-nodes-base.slack' },
 			{ name: 'n8n-nodes-base.telegram' },
