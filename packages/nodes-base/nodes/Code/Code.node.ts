@@ -48,6 +48,44 @@ export class Code implements INodeType {
 		},
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
+		builderHint: {
+			message:
+				'Use Code node as a LAST RESORT — it runs in a sandboxed environment and is slower than native nodes. Prefer: Edit Fields (Set) for adding/renaming/removing fields, mapping data, setting variables; Filter for filtering items; If or Switch for routing; Split Out for splitting arrays; Aggregate for combining items; Merge for merging branches; Summarize for pivoting data; Sort, Remove Duplicates, Limit for list operations; HTML for formatting; Date & Time for date operations. Code node is ONLY appropriate for complex multi-step algorithms that cannot be expressed in single expressions, or operations requiring complex data structures.',
+			relatedNodes: [
+				{
+					nodeType: 'n8n-nodes-base.set',
+					relationHint: 'For data manipulation: add/modify/rename fields, set values, map data',
+				},
+				{
+					nodeType: 'n8n-nodes-base.filter',
+					relationHint: 'For filtering items by condition',
+				},
+				{
+					nodeType: 'n8n-nodes-base.if',
+					relationHint: 'For routing by condition',
+				},
+				{
+					nodeType: 'n8n-nodes-base.switch',
+					relationHint: 'For multi-way routing by condition',
+				},
+				{
+					nodeType: 'n8n-nodes-base.splitOut',
+					relationHint: 'For splitting arrays into separate items',
+				},
+				{
+					nodeType: 'n8n-nodes-base.aggregate',
+					relationHint: 'For combining multiple items into one',
+				},
+				{
+					nodeType: 'n8n-nodes-base.summarize',
+					relationHint: 'For summarizing or pivoting data',
+				},
+				{
+					nodeType: 'n8n-nodes-base.merge',
+					relationHint: 'For merging data from multiple branches',
+				},
+			],
+		},
 		parameterPane: 'wide',
 		properties: [
 			{

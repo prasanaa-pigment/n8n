@@ -56,73 +56,12 @@ const WORKFLOW_RULES = `Follow these rules strictly when generating workflows:
    - Example: \`credentials: {{ slackApi: newCredential('Slack Bot') }}\`
    - The credential type must match what the node expects
 
-6. **Node connections use .to() for regular nodes**
-   - Chain nodes: \`trigger(...).to(node1.to(node2))\`
-   - IF branching: Use \`.onTrue(target).onFalse(target)\` on IF nodes
-   - Switch routing: Use \`.onCase(n, target)\` on Switch nodes
-   - Merge inputs: Use \`.to(mergeNode.input(n))\` to connect to specific merge inputs
-
 7. **Expressions and Data Flow** (see ExpressionContext in SDK API)
    - ALWAYS use \`expr()\` when a parameter contains \`{{{{ }}}}\` expression syntax
    - Template expressions: \`expr('Hello {{{{ $json.name }}}}')\`
    - Node references: \`expr("{{{{ $('Previous Node').item.json.data }}}}")\`
 
-8. **AI Agent architecture**
-    - Use \`@n8n/n8n-nodes-langchain.agent\` for most common AI tasks
-    - Provider nodes (openAi, anthropic, etc.) are subnodes, not standalone workflow nodes
-    - Use \`@n8n/n8n-nodes-langchain.agentTool\` for multi-agent systems
-
-9. **Prefer native n8n nodes over Code node**
-    - Code nodes are slower (sandboxed environment) - use them as a LAST RESORT
-    - **Edit Fields (Set) node** is your go-to for data manipulation:
-      - Adding, renaming, or removing fields
-      - Mapping data from one structure to another
-      - Setting variables, constants, hardcoded values
-      - Creating objects or arrays
-    - **Use these native nodes INSTEAD of Code node:**
-      | Task | Use This |
-      |------|----------|
-      | Add/modify/rename fields | Edit Fields (Set) |
-      | Set hardcoded values/config | Edit Fields (Set) |
-      | Filter items by condition | Filter |
-      | Route by condition | If or Switch |
-      | Split array into items | Split Out |
-      | Combine multiple items | Aggregate |
-      | Merge data from branches | Merge |
-      | Summarize/pivot data | Summarize |
-      | Sort items | Sort |
-      | Remove duplicates | Remove Duplicates |
-      | Limit items | Limit |
-      | Format as HTML | HTML |
-      | Parse AI output | Structured Output Parser |
-      | Date/time operations | Date & Time |
-      | Compare datasets | Compare Datasets |
-      | Regex operations | If or Edit Fields with expressions |
-    - **Code node is ONLY appropriate for:**
-      - Complex multi-step algorithms that cannot be expressed in single expressions
-      - Operations requiring external libraries or complex data structures
-    - **NEVER use Code node for:**
-      - Simple data transformations (use Edit Fields)
-      - Filtering/routing (use Filter, If, Switch)
-      - Array operations (use Split Out, Aggregate)
-      - Regex operations (use expressions in If or Edit Fields nodes)
-
-10. **Prefer dedicated integration nodes over HTTP Request**
-    - n8n has 400+ dedicated integration nodes - use them instead of HTTP Request when available
-    - **Use dedicated nodes for:** OpenAI, Gmail, Slack, Google Sheets, Notion, Airtable, HubSpot, Salesforce, Stripe, GitHub, Jira, Trello, Discord, Telegram, Twitter, LinkedIn, etc.
-    - **Only use HTTP Request when:**
-      - No dedicated n8n node exists for the service
-      - User explicitly requests HTTP Request
-      - Accessing a custom/internal API
-      - The dedicated node doesn't support the specific operation needed
-    - **Benefits of dedicated nodes:**
-      - Built-in authentication handling
-      - Pre-configured parameters for common operations
-      - Better error handling and response parsing
-      - Easier to configure and maintain
-    - **Example:** If user says "send email via Gmail", use the Gmail node, NOT HTTP Request to Gmail API
-
-11. **OUTPUT DECLARATION (MANDATORY)**
+8. **OUTPUT DECLARATION (MANDATORY)**
     Every node MUST include an \`output\` property showing sample output data
 		In order to reason about what data is available at each step.
 		Expressions in following nodes depend on output of previous nodes.

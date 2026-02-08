@@ -284,6 +284,7 @@ export class AgentV1 implements INodeType {
 			}}`,
 			outputs: [NodeConnectionTypes.Main],
 			builderHint: {
+				...baseDescription.builderHint,
 				inputs: {
 					ai_languageModel: { required: true },
 					ai_memory: { required: false },

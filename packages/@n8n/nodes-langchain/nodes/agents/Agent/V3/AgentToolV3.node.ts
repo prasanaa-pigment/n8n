@@ -35,6 +35,7 @@ export class AgentToolV3 implements INodeType {
 			}}`,
 			outputs: [NodeConnectionTypes.AiTool],
 			builderHint: {
+				...baseDescription.builderHint,
 				inputs: {
 					ai_languageModel: { required: true },
 					ai_memory: { required: false },

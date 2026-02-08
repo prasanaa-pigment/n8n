@@ -41,17 +41,7 @@ export class AgentV3 implements INodeType {
 			}}`,
 			outputs: [NodeConnectionTypes.Main],
 			builderHint: {
-				relatedNodes: [
-					{
-						nodeType: 'n8n-nodes-base.aggregate',
-						relationHint: 'Use to combine multiple items together before the agent',
-					},
-					{
-						nodeType: '@n8n/n8n-nodes-langchain.outputParserStructured',
-						relationHint:
-							'Attach for structured output; reference fields as $json.output.fieldName for use in subsequent nodes (conditions, storing data)',
-					},
-				],
+				...baseDescription.builderHint,
 				inputs: {
 					ai_languageModel: { required: true },
 					ai_memory: { required: false },
