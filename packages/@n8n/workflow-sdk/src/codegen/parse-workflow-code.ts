@@ -196,6 +196,42 @@ function readAndFixSingleQuotedString(code: string, start: number): [string, num
 			continue;
 		}
 
+		// Check for double-escaped $(\\'NodeName\\') pattern
+		// LLMs sometimes generate $( + \\ + ' thinking they need to escape the backslash
+		// In JS: \\' inside single quotes = literal \ + end-of-string, causing syntax error
+		// Fix: normalize to properly-escaped $(\'NodeName\')
+		if (
+			code[i] === '$' &&
+			code[i + 1] === '(' &&
+			code[i + 2] === '\\' &&
+			code[i + 3] === '\\' &&
+			code[i + 4] === "'"
+		) {
+			result += "$(\\'";
+			i += 5;
+
+			// Find the closing \\') pattern
+			while (i < code.length) {
+				if (
+					code[i] === '\\' &&
+					code[i + 1] === '\\' &&
+					code[i + 2] === "'" &&
+					code[i + 3] === ')'
+				) {
+					result += "\\')";
+					i += 4;
+					break;
+				} else if (code[i] === '\\' && i + 1 < code.length) {
+					result += code[i] + code[i + 1];
+					i += 2;
+				} else {
+					result += code[i];
+					i++;
+				}
+			}
+			continue;
+		}
+
 		// Check for problematic unescaped $(' pattern
 		if (code[i] === '$' && code[i + 1] === '(' && code[i + 2] === "'") {
 			// Found $(' - escape the opening quote and find the matching ')

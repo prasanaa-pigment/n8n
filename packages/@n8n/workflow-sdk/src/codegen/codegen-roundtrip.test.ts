@@ -930,6 +930,44 @@ return workflow('test-id', 'Test Workflow')
 				"={{ $('Lead Generation Form').item.json.fullName }}",
 			);
 		});
+
+		it('should fix double-escaped $() node references', () => {
+			// LLMs sometimes generate $(\\'NodeName\\') with double-escaped backslashes
+			// In a template literal, \\\\ produces \\, so the actual string chars are $( + \ + \ + '
+			const code = `
+return workflow('test-id', 'Test Workflow')
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
+    parameters: {
+      mode: 'raw',
+      jsonOutput: '={{ $(\\\\'Manual Trigger\\\\').item.json.data }}'
+    }
+  } })))
+`;
+			const parsedJson = parseWorkflowCode(code);
+			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
+			expect((setNode?.parameters as Record<string, unknown>)?.jsonOutput).toBe(
+				"={{ $('Manual Trigger').item.json.data }}",
+			);
+		});
+
+		it('should fix multiple double-escaped $() references in the same string', () => {
+			const code = `
+return workflow('test-id', 'Test Workflow')
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
+    parameters: {
+      mode: 'raw',
+      jsonOutput: '={{ $(\\\\'Node A\\\\').item.json.a + $(\\\\'Node B\\\\').item.json.b }}'
+    }
+  } })))
+`;
+			const parsedJson = parseWorkflowCode(code);
+			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
+			expect((setNode?.parameters as Record<string, unknown>)?.jsonOutput).toBe(
+				"={{ $('Node A').item.json.a + $('Node B').item.json.b }}",
+			);
+		});
 	});
 
 	describe('parses placeholder() in workflow code', () => {
