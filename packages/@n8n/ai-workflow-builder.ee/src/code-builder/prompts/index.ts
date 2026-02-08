@@ -414,7 +414,7 @@ Analyze the user request internally. Do NOT produce visible output in this step 
 
 1. **Extract Requirements**: Quote or paraphrase what the user wants to accomplish.
 
-2. **Identify Workflow Technique Category**: Does the request match a known pattern?
+2. **Identify All Relevant Workflow Technique Categories that might be relevant**:
    - chatbot: Receiving chat messages and replying (built-in chat, Telegram, Slack, etc.)
    - notification: Sending alerts or updates via email, chat, SMS when events occur
    - scheduling: Running actions at specific times or intervals
@@ -425,7 +425,7 @@ Analyze the user request internally. Do NOT produce visible output in this step 
    - form_input: Gathering data from users via forms
    - content_generation: Creating text, images, audio, or video
    - triage: Classifying data for routing or prioritization
-   - scraping_and_research: Collecting information from websites or APIs
+   - scraping_and_research: Collecting current/live information from external sources. ALSO applies when the workflow analyzes, monitors, tracks, or reports on real-world entities (stocks, weather, news, prices, people, companies) — the AI model alone cannot provide up-to-date data
 
 3. **Identify External Services**: List all external services mentioned (Gmail, Slack, Notion, APIs, etc.)
    - Do NOT assume you know the node names yet
@@ -466,37 +466,46 @@ Search for:
 - Workflow concepts (schedule, webhook, etc.)
 - **Utility nodes you'll need** (set/edit fields, filter, if, code, merge, switch, etc.)
 - AI-related terms if needed
+- **Nodes from suggested results you plan to use**
 
 </step_2b_search_for_nodes>
+
+<step_2c_review_search_results>
+
+Use the \`think\` tool to review all results. Do NOT produce visible output in this step.
+
+For each service/concept searched, list the matching node(s) found:
+- Note which nodes have [TRIGGER] tags for trigger nodes
+- Note discriminator requirements (resource/operation or mode) for each node
+- Note [RELATED] nodes that might be useful
+- Note @relatedNodes with relationHints for complementary nodes
+- **Pay special attention to @builderHint and @example annotations** — write these out as they are guides specifically meant to help you choose the right node configurations
+- It's OK for this section to be quite long if many nodes were found
+
+</step_2c_review_search_results>
 
 </step_2_search_for_nodes>
 
 <step_3_plan_workflow_design>
 
-Use the \`think\` tool to review search results and make design decisions. Do NOT produce visible output in this step.
+Use the \`think\` tool to make design decisions based on the reviewed results. Do NOT produce visible output in this step.
 
-1. **Review Search Results**: For each service/concept searched, list the matching node(s) found
-   - Note which nodes have [TRIGGER] tags for trigger nodes
-   - Note discriminator requirements (resource/operation or mode) for each node
-   - Note [RELATED] nodes that might be useful
-   - Note @relatedNodes with relationHints for complementary nodes
-   - **Pay special attention to @builderHint and @example annotations** - write these out as they are guides specifically meant to help you choose the right node configurations
-
-2. **Select Nodes**: Based on search results, choose specific nodes:
+1. **Select Nodes**: Based on search results AND suggested nodes, choose specific nodes:
    - Use dedicated integration nodes when available (from search)
    - Only use HTTP Request if no dedicated node was found
    - Note discriminators needed for each node
+   - **If you identified \`scraping_and_research\` in Step 1, you MUST include a data-fetching node or tool** (e.g., SerpApi tool, Perplexity, HTTP Request). Do not rely on the AI model's training data for real-world information — commit to the data source you identified earlier
 
-3. **Map Node Connections**:
+2. **Map Node Connections**:
    - Is this linear, branching, parallel, or looped? Or merge to combine parallel branches?
    - **Trace item counts**: For each connection A → B, if A returns N items, should B run N times or just once? If B doesn't need A's items (e.g., it fetches from an independent source), either set \`executeOnce: true\` on B or use parallel branches + Merge to combine results.
    - Which nodes connect to which?
 	 - Draw out the flow in text form (e.g., "Trigger → Node A → Node B → Node C" or "Trigger → Node A → [Node B (true), Node C (false)]")
    - **Handling convergence after branches**: When a node receives data from multiple paths (after Switch, IF, Merge): use optional chaining \`expr('{{{{ $json.data?.approved ?? $json.status }}}}')\`, reference a node that ALWAYS runs \`expr("{{{{ $('Webhook').item.json.field }}}}")\`, or normalize data before convergence with Set nodes
 
-4. **Prepare get_node_types Call**: Write the exact call including discriminators
+3. **Prepare get_node_types Call**: Write the exact call including discriminators
 
-It's OK for this section to be quite long as you review results and work through the design.
+It's OK for this section to be quite long as you work through the design.
 **Pay attention to @builderHint annotations in the type definitions** - these provide critical guidance on how to correctly configure node parameters.
 
 </step_3_plan_workflow_design>

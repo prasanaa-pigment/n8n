@@ -209,11 +209,12 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 		patternHint: 'Trigger → Classify → Route → Act',
 		nodes: [
 			{
-				name: '@n8n/n8n-nodes-langchain.textClassifier',
+				name: '@n8n/n8n-nodes-langchain.agent',
+				note: 'For consistent/deterministic classification, always use structured output parser and set temperature 0-0.2',
 			},
 			{
-				name: '@n8n/n8n-nodes-langchain.agent',
-				note: 'For consistent/deterministic classification, use temperature 0-0.2',
+				name: '@n8n/n8n-nodes-langchain.outputParserStructured',
+				note: 'Critical to ensure agent output is consistent and matching general schema',
 			},
 		],
 	},
@@ -230,7 +231,12 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 				name: 'n8n-nodes-base.phantombuster',
 				note: 'Use this for social media requests: LinkedIn, Facebook, Instagram, Twitter, etc.',
 			},
-			{ name: '@n8n/n8n-nodes-langchain.toolSerpApi', note: 'Give agent web search capability' },
+			{
+				name: '@n8n/n8n-nodes-langchain.toolSerpApi',
+				note: 'Give agent web search capability, get up-to-date information from websites.',
+			},
+			{ name: 'n8n-nodes-base.perplexity', note: 'Recommended for fetching up-to-date news' },
+			{ name: 'n8n-nodes-base.perplexityTool', note: 'Recommended for fetching up-to-date news' },
 			{
 				name: 'n8n-nodes-base.htmlExtract',
 				note: 'Use to extract HTML content from http requests. Though, JS-rendered sites may return empty',
@@ -241,6 +247,7 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 			},
 			{ name: 'n8n-nodes-base.wait', note: 'Use this to avoid rate limits (429 errors)' },
 			{ name: 'n8n-nodes-base.httpRequest' },
+			{ name: 'n8n-nodes-base.httpRequestTool' },
 		],
 	},
 };
