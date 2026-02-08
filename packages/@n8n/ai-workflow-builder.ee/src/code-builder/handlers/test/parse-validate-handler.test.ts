@@ -262,6 +262,56 @@ describe('ParseValidateHandler', () => {
 			expect(context).toContain('1:');
 			expect(context).toContain('line1');
 		});
+
+		it('should append hint when ${{ pattern is detected near the error line', () => {
+			const code = [
+				'const x = node({',
+				'  config: {',
+				'    parameters: {',
+				'      message: expr(`Amount: ${{ $json.amount }}`)',
+				'    }',
+				'  }',
+				'});',
+			].join('\n');
+
+			const context = handler.getErrorContext(code, 'Unexpected token at line 4');
+
+			expect(context).toContain('HINT:');
+			expect(context).toContain('${{');
+			expect(context).toContain('single quotes');
+		});
+
+		it('should not append hint when ${{ is not present near the error line', () => {
+			const code = [
+				'const x = node({',
+				'  config: {',
+				'    parameters: {',
+				"      message: expr('Hello {{ $json.name }}')",
+				'    }',
+				'  }',
+				'});',
+			].join('\n');
+
+			const context = handler.getErrorContext(code, 'error at line 4');
+
+			expect(context).not.toContain('HINT:');
+		});
+
+		it('should not false-positive on ${{ in single-quoted expr', () => {
+			const code = [
+				'const x = node({',
+				'  config: {',
+				'    parameters: {',
+				"      message: expr('Amount: ${{ $json.amount }}')",
+				'    }',
+				'  }',
+				'});',
+			].join('\n');
+
+			const context = handler.getErrorContext(code, 'error at line 4');
+
+			expect(context).not.toContain('HINT:');
+		});
 	});
 
 	describe('validateExistingWorkflow', () => {

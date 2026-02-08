@@ -1369,6 +1369,39 @@ return [{
 		expect(jsCode).toContain('${$today}');
 		expect(jsCode).toContain('${$now}');
 	});
+
+	it('should auto-escape ${{ pattern in template literals inside expr()', () => {
+		// When expr() is used with backtick template literals containing ${{ (e.g., currency $
+		// followed by n8n expression {{ }}), JS interprets ${{ as ${...} template interpolation.
+		// The parser should auto-escape ${{ → \${{ to prevent parse errors.
+		const codeWithDollarBrace = `return workflow('test', 'Test')
+  .add(trigger({ type: 'n8n-nodes-base.webhook', version: 2.1, config: { parameters: { httpMethod: 'POST', path: 'test' }, position: [0, 0] }, output: [{ body: { amount: 50 } }] })
+  .to(node({
+    type: 'n8n-nodes-base.gmail',
+    version: 2.2,
+    config: {
+      name: 'Send Email',
+      parameters: {
+        resource: 'message',
+        operation: 'send',
+        sendTo: 'test@test.com',
+        subject: expr('Purchase approved'),
+        emailType: 'html',
+        message: expr(\`<p>Amount: \${{ $json.body.amount }}</p>\`)
+      },
+      position: [200, 0]
+    },
+    output: [{ id: 'msg1' }]
+  })))`;
+
+		const workflow = parseWorkflowCode(codeWithDollarBrace);
+		const emailNode = workflow.nodes.find((n) => n.type === 'n8n-nodes-base.gmail');
+		expect(emailNode).toBeDefined();
+
+		// The message parameter should contain the n8n expression with literal $
+		const message = (emailNode?.parameters?.message as string) || '';
+		expect(message).toContain('${{');
+	});
 });
 
 describe('multiple triggers / disconnected chains', () => {

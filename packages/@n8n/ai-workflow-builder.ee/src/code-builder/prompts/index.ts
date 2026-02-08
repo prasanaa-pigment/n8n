@@ -434,46 +434,41 @@ Search for:
 
 </step_2b_search_for_nodes>
 
-<step_2c_review_search_results>
-
-Use the \`think\` tool to review the results by listing out each node found. Do NOT produce visible output in this step.
-- For each service/concept searched, list the matching node(s) found
-- Note which nodes have [TRIGGER] tags for trigger nodes
-- Note discriminator requirements (resource/operation or mode) for each node
-- Note [RELATED] nodes that might be useful
-- Note @relatedNodes with relationHints for complementary nodes
-- **Pay special attention to @builderHint annotations** - write these out as they are guides specifically meant to help you choose the right node configurations
-- It's OK for this section to be quite long if many nodes were found
-
-</step_2c_review_search_results>
 </step_2_search_for_nodes>
 
 <step_3_plan_workflow_design>
 
-Use the \`think\` tool to make decisions based on search results. Do NOT produce visible output in this step.
+Use the \`think\` tool to review search results and make design decisions. Do NOT produce visible output in this step.
 
-1. **Select Nodes**: Based on search results, choose specific nodes:
+1. **Review Search Results**: For each service/concept searched, list the matching node(s) found
+   - Note which nodes have [TRIGGER] tags for trigger nodes
+   - Note discriminator requirements (resource/operation or mode) for each node
+   - Note [RELATED] nodes that might be useful
+   - Note @relatedNodes with relationHints for complementary nodes
+   - **Pay special attention to @builderHint annotations** - write these out as they are guides specifically meant to help you choose the right node configurations
+
+2. **Select Nodes**: Based on search results, choose specific nodes:
    - Use dedicated integration nodes when available (from search)
    - Only use HTTP Request if no dedicated node was found
    - Note discriminators needed for each node
 
-2. **Map Node Connections**:
+3. **Map Node Connections**:
    - Is this linear, branching, parallel, or looped? Or merge to combine parallel branches?
    - Which nodes connect to which?
 	 - Draw out the flow in text form (e.g., "Trigger → Node A → Node B → Node C" or "Trigger → Node A → [Node B (true), Node C (false)]")
    - **Handling convergence after branches**: When a node receives data from multiple paths (after Switch, IF, Merge): use optional chaining \`expr('{{{{ $json.data?.approved ?? $json.status }}}}')\`, reference a node that ALWAYS runs \`expr("{{{{ $('Webhook').item.json.field }}}}")\`, or normalize data before convergence with Set nodes
 
-3. **Plan Node Positions**: Layout left-to-right, top-to-bottom
+4. **Plan Node Positions**: Layout left-to-right, top-to-bottom
    - Start trigger at \`[240, 300]\`, each subsequent node +300 in x: \`[540, 300]\`, \`[840, 300]\`, etc.
    - Branch vertically: \`[540, 200]\` for top branch, \`[540, 400]\` for bottom branch
 
-4. **Identify Placeholders and Credentials**:
+5. **Identify Placeholders and Credentials**:
    - List values needing user input → use placeholder()
    - List credentials needed → use newCredential()
 
-5. **Prepare get_node_types Call**: Write the exact call including discriminators
+6. **Prepare get_node_types Call**: Write the exact call including discriminators
 
-It's OK for this section to be quite long as you work through the design.
+It's OK for this section to be quite long as you review results and work through the design.
 
 </step_3_plan_workflow_design>
 
@@ -505,7 +500,9 @@ Rules:
 - Use unique variable names — never reuse builder function names (e.g. \`node\`, \`trigger\`) as variable names
 - Use descriptive node names (Good: "Fetch Weather Data", "Check Temperature"; Bad: "HTTP Request", "Set", "If")
 - Credentials: \`credentials: {{ slackApi: newCredential('Slack Bot') }}\` — type must match what the node expects
-- Expressions: use \`expr()\` for any \`{{{{ }}}}\` syntax — e.g. \`expr('Hello {{{{ $json.name }}}}')\` or \`expr("{{{{ $('Node').item.json.field }}}}")\`
+- Expressions: use \`expr()\` for any \`{{{{ }}}}\` syntax — always use single or double quotes, NOT backtick template literals
+  - e.g. \`expr('Hello {{{{ $json.name }}}}')\` or \`expr("{{{{ $('Node').item.json.field }}}}")\`
+  - For multiline expressions, use string concatenation: \`expr('Line 1\\n' + 'Line 2 {{{{ $json.value }}}}')\`
 - Every node MUST have an \`output\` property with sample data — following nodes depend on it for expressions
 
 </step_5_edit_workflow>

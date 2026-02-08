@@ -323,6 +323,36 @@ export class ParseValidateHandler {
 			})
 			.join('\n');
 
-		return `Code around line ${errorLine}:\n${context}`;
+		const contextText = `Code around line ${errorLine}:\n${context}`;
+
+		const hint = this.detectFixHint(lines, errorLine);
+		if (hint) {
+			return `${contextText}\n\n${hint}`;
+		}
+
+		return contextText;
+	}
+
+	/**
+	 * Detect known error patterns near the error line and return a fix hint.
+	 *
+	 * Checks for `${{` inside backtick template literals — a common issue where
+	 * JS interprets `${{` as template literal interpolation `${...}`.
+	 */
+	private detectFixHint(lines: string[], errorLine: number): string | null {
+		const searchStart = Math.max(0, errorLine - 5);
+		const searchEnd = Math.min(lines.length, errorLine + 5);
+		const nearbyCode = lines.slice(searchStart, searchEnd).join('\n');
+
+		// Detect ${{ inside backtick template literals (expr(`...${{...}}`))
+		if (/expr\s*\(\s*`[^`]*\$\{\{/.test(nearbyCode)) {
+			return (
+				"HINT: The '$' before '{{' inside a backtick template literal is interpreted as JS template interpolation. " +
+				"Use single quotes instead of backticks for expr(), e.g. expr('Amount: ${{ $json.amount }}'). " +
+				'Fix ALL occurrences in the file at once.'
+			);
+		}
+
+		return null;
 	}
 }

@@ -88,6 +88,10 @@ function escapeN8nVariablesInTemplateLiterals(code: string): string {
 	// This matches ${$( followed by anything (not preceded by backslash)
 	result = result.replace(/(?<!\\)\$\{\$\(/g, '\\${$(');
 
+	// Escape ${{ patterns (literal $ before n8n expression {{ }})
+	// This prevents JS from interpreting ${{ as template literal interpolation ${
+	result = result.replace(/(?<!\\)\$\{\{/g, '\\${{');
+
 	return result;
 }
 
