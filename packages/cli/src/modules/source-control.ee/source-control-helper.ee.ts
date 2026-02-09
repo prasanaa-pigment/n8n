@@ -48,21 +48,24 @@ export function getCredentialSynchableData(credential: Credentials) {
 export function sanitizeCredentialData(
 	data: ICredentialDataDecryptedObject,
 ): ICredentialDataDecryptedObject {
-	const result: ICredentialDataDecryptedObject = {};
+	const result: ICredentialDataDecryptedObject = {
+		...data,
+	};
 
 	for (const [key, value] of Object.entries(data)) {
-		if (!isSynchableProperty(key, value)) {
-			continue;
-		}
-
-		if (typeof value === 'string') {
-			result[key] = stringContainsExpression(value) ? value : '';
-		} else if (typeof value === 'number') {
-			// NOTE: number values are synchable for backward compatibility
-			result[key] = value;
+		if (value === null || key === 'oauthTokenData') {
+			// `oauthTokenData` is not synchable to force the pulling instance to reconnect
+			delete result[key];
 		} else if (typeof value === 'object') {
 			result[key] = sanitizeCredentialData(value as ICredentialDataDecryptedObject);
+		} else if (typeof value === 'string') {
+			result[key] = stringContainsExpression(value) ? value : '';
 		}
+
+		// NOTE: number and boolean values are synchable for backward compatibility
+		// Typically numbers represent PORT numbers or other numeric values that aren't sensitives
+		// Boolean are usually represent non sensitive flags
+		// This could be revisited in the future
 	}
 
 	return result;
@@ -70,7 +73,7 @@ export function sanitizeCredentialData(
 
 /**
  * Merges remote credential data into local data.
- * Remote expressions overwrite local values; empty strings are ignored (preserves local secrets).
+ * Remote expressions, numbers and boolean values overwrite local values.
  */
 export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 	local,
@@ -86,14 +89,9 @@ export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 	const sanitizedRemote = sanitizeCredentialData(remote);
 
 	for (const [key, remoteValue] of Object.entries(sanitizedRemote)) {
-		if (!isSynchableProperty(key, remoteValue)) {
-			continue;
-		}
-
 		if (typeof remoteValue === 'string' && stringContainsExpression(remoteValue)) {
 			merged[key] = remoteValue;
-		} else if (typeof remoteValue === 'number') {
-			// NOTE: number values are synchable for backward compatibility
+		} else if (typeof remoteValue === 'number' || typeof remoteValue === 'boolean') {
 			merged[key] = remoteValue;
 		} else if (typeof remoteValue === 'object' && remoteValue !== null) {
 			merged[key] = mergeRemoteCrendetialDataIntoLocalCredentialData({
@@ -480,24 +478,4 @@ function hasSynchableCredentialDataChanged(
 	const sanitizedData1 = sanitizeCredentialData(data1);
 	const sanitizedData2 = sanitizeCredentialData(data2);
 	return !isEqual(sanitizedData1, sanitizedData2);
-}
-
-function isSynchableProperty(key: string, value: unknown): boolean {
-	/**
-	 * Edge case: Do not export `oauthTokenData`, so that that the
-	 * pulling instance reconnects instead of trying to use stubbed values.
-	 */
-	if (key === 'oauthTokenData') return false;
-
-	// NOTE: number values are synchable for backward compatibility
-	// Typically numbers represent PORT numbers or other numeric values that aren't sensitives
-	const isNumber = typeof value === 'number';
-
-	// Expressions are safe to synch because they don't expose sensitive data
-	const isStringExpression = typeof value === 'string' && stringContainsExpression(value);
-
-	// Non null objects are synchable, but the internal properties need to be sanitizeds
-	const isObject = typeof value === 'object' && value !== null;
-
-	return isStringExpression || isNumber || isObject;
 }
