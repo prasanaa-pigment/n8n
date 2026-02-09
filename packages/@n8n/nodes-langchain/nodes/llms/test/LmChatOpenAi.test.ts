@@ -120,7 +120,9 @@ describe('LmChatOpenAi', () => {
 					configuration: {
 						baseURL: 'https://api.openai.com/v1',
 						defaultHeaders,
-						fetchOptions: expect.any(Object),
+						fetchOptions: {
+							dispatcher: expect.any(Object),
+						},
 					},
 					callbacks: expect.arrayContaining([expect.any(Object)]),
 					modelKwargs: undefined,
@@ -155,7 +157,9 @@ describe('LmChatOpenAi', () => {
 					configuration: {
 						baseURL: 'https://api.openai.com/v1',
 						defaultHeaders,
-						fetchOptions: expect.any(Object),
+						fetchOptions: {
+							dispatcher: expect.any(Object),
+						},
 					},
 					callbacks: expect.arrayContaining([expect.any(Object)]),
 					modelKwargs: undefined,
