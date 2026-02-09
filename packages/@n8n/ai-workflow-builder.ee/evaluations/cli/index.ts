@@ -173,6 +173,7 @@ function createCodeWorkflowBuilderGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	timeoutMs?: number,
+	nodeDefinitionDirs?: string[],
 ): (prompt: string, collectors?: GenerationCollectors) => Promise<GenerationResult> {
 	// Subgraph metrics are not applicable since CodeWorkflowBuilder doesn't use coordination logs.
 	return async (prompt: string, collectors?: GenerationCollectors): Promise<GenerationResult> => {
@@ -187,6 +188,7 @@ function createCodeWorkflowBuilderGenerator(
 			llm: llms.builder,
 			nodeTypes: parsedNodeTypes,
 			evalLogger,
+			nodeDefinitionDirs,
 			onTokenUsage: collectors?.tokenUsage
 				? (usage) => {
 						totalInputTokens += usage.inputTokens;
@@ -328,7 +330,12 @@ export async function runV2Evaluation(): Promise<void> {
 	// CODE_BUILDER uses CodeWorkflowBuilder
 	const generateWorkflow =
 		args.agent === AGENT_TYPES.CODE_BUILDER
-			? createCodeWorkflowBuilderGenerator(env.parsedNodeTypes, env.llms, args.timeoutMs)
+			? createCodeWorkflowBuilderGenerator(
+					env.parsedNodeTypes,
+					env.llms,
+					args.timeoutMs,
+					env.nodeDefinitionDirs,
+				)
 			: createWorkflowGenerator(env.parsedNodeTypes, env.llms, args.featureFlags);
 
 	// Create evaluators based on suite (using judge LLM for evaluation)

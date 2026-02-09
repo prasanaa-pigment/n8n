@@ -1,8 +1,10 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 import { MemorySaver } from '@langchain/langgraph';
+import fs from 'fs';
 import { Client } from 'langsmith/client';
 import type { INodeTypeDescription } from 'n8n-workflow';
+import path from 'path';
 
 import { DEFAULT_MODEL, getApiKeyEnvVar, MODEL_FACTORIES, type ModelId } from '@/llm-config';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
@@ -69,6 +71,8 @@ export interface TestEnvironment {
 	lsClient?: Client;
 	/** Trace filtering utilities (only present when minimal tracing is enabled) */
 	traceFilters?: TraceFilters;
+	/** Directories containing generated node definition files */
+	nodeDefinitionDirs: string[];
 }
 
 /**
@@ -170,6 +174,28 @@ export function createLangsmithClient(logger?: EvalLogger): LangsmithClientResul
 }
 
 /**
+ * Resolve built-in node definition directories from installed node packages.
+ * Mirrors `NodeDefinitionGeneratorService.getBuiltinDefinitionDirs()` for use
+ * in the eval harness where the DI container is not available.
+ */
+export function resolveBuiltinNodeDefinitionDirs(): string[] {
+	const dirs: string[] = [];
+	for (const packageId of ['n8n-nodes-base', '@n8n/n8n-nodes-langchain']) {
+		try {
+			const packageJsonPath = require.resolve(`${packageId}/package.json`);
+			const distDir = path.dirname(packageJsonPath);
+			const nodeDefsDir = path.join(distDir, 'dist', 'node-definitions');
+			if (fs.existsSync(nodeDefsDir)) {
+				dirs.push(nodeDefsDir);
+			}
+		} catch {
+			// Package not installed, skip
+		}
+	}
+	return dirs;
+}
+
+/**
  * Sets up the test environment with LLM, nodes, and tracing
  * @param stageModels - Per-stage model configuration (optional, uses default model if not provided)
  * @param logger - Optional logger for trace filter output
@@ -197,6 +223,7 @@ export async function setupTestEnvironment(
 		tracer,
 		lsClient,
 		traceFilters,
+		nodeDefinitionDirs: resolveBuiltinNodeDefinitionDirs(),
 	};
 }
 
