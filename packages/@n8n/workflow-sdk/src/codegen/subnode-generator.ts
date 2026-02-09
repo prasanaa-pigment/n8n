@@ -76,7 +76,7 @@ function containsExpressionAnnotation(value: unknown, ctx?: FormatValueContext):
 /**
  * Format a value for code output.
  * When expression annotations are present in an object, uses multi-line formatting.
- * Expression annotations use block comments (/** @example *​/) on the line before the value.
+ * Expression annotations use block comments on the line before the value.
  */
 export function formatValue(value: unknown, ctx?: FormatValueContext): string {
 	if (value === null) return 'null';

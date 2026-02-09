@@ -15,13 +15,13 @@ import { isStickyNoteType } from '../../../constants/node-types';
 import type { GraphNode } from '../../../types/base';
 import { isNodeChain } from '../../../types/base';
 import { isTriggerNodeType } from '../../../utils/trigger-detection';
-import type { ValidatorPlugin, PluginContext, ValidationIssue } from '../types';
-import { isAutoRenamed, formatNodeRef } from '../types';
 import {
 	isIfElseComposite,
 	isSwitchCaseComposite,
 	isSplitInBatchesBuilder,
 } from '../../type-guards';
+import type { ValidatorPlugin, PluginContext, ValidationIssue } from '../types';
+import { isAutoRenamed, formatNodeRef } from '../types';
 
 /**
  * AI connection types used by subnodes to connect to parent nodes.
@@ -90,7 +90,10 @@ function getTargetNodeName(target: unknown): string | undefined {
 	}
 
 	// For primitives, convert to string
-	if (typeof target !== 'object') {
+	if (typeof target === 'string') {
+		return target;
+	}
+	if (typeof target === 'number' || typeof target === 'boolean') {
 		return String(target);
 	}
 

@@ -301,18 +301,18 @@ describe('formatValue', () => {
 
 			const result = formatValue(expression, { expressionAnnotations: annotations });
 
-			expect(result).toBe(`/** @example "John Doe" */\nexpr('{{ $json.name }}')`);
+			expect(result).toBe('/** @example "John Doe" */\nexpr(\'{{ $json.name }}\')');
 		});
 
 		it('renders @example with newlines in block comment', () => {
 			const expression = '={{ $json.weather }}';
-			const annotationWithNewlines = `"Today's weather:\nTemperature: 20°C"`;
+			const annotationWithNewlines = '"Today\'s weather:\nTemperature: 20°C"';
 			const annotations = new Map([[expression, annotationWithNewlines]]);
 
 			const result = formatValue(expression, { expressionAnnotations: annotations });
 
 			expect(result).toBe(
-				`/** @example "Today's weather:\nTemperature: 20°C" */\nexpr('{{ $json.weather }}')`,
+				"/** @example \"Today's weather:\nTemperature: 20°C\" */\nexpr('{{ $json.weather }}')",
 			);
 		});
 
@@ -322,7 +322,7 @@ describe('formatValue', () => {
 
 			const result = formatValue(regularString, { expressionAnnotations: annotations });
 
-			expect(result).toBe(`/** @example "resolved" */\n'static value'`);
+			expect(result).toBe('/** @example "resolved" */\n\'static value\'');
 		});
 	});
 });
