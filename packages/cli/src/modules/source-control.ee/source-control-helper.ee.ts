@@ -6,8 +6,12 @@ import { generateKeyPairSync } from 'crypto';
 import { accessSync, constants as fsConstants, mkdirSync } from 'fs';
 import isEqual from 'lodash/isEqual';
 import type { Credentials } from 'n8n-core';
-import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
-import { jsonParse, UserError, type DataTableColumnType } from 'n8n-workflow';
+import {
+	jsonParse,
+	UserError,
+	type DataTableColumnType,
+	type ICredentialDataDecryptedObject,
+} from 'n8n-workflow';
 import { ok } from 'node:assert/strict';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import path from 'path';
@@ -31,6 +35,11 @@ import type { KeyPair } from './types/key-pair';
 import type { KeyPairType } from './types/key-pair-type';
 import type { RemoteResourceOwner, StatusResourceOwner } from './types/resource-owner';
 import type { SourceControlWorkflowVersionId } from './types/source-control-workflow-version-id';
+
+function stringContainsExpression(testString: string): boolean {
+	return /^=.*\{\{.+\}\}/.test(testString);
+}
+
 export function getCredentialSynchableData(credential: Credentials) {
 	const credentialData = credential.getData();
 	return sanitizeCredentialData(credentialData);
@@ -42,11 +51,14 @@ export function sanitizeCredentialData(
 	const result: ICredentialDataDecryptedObject = {};
 
 	for (const [key, value] of Object.entries(data)) {
-		if (!isSynchableProperty(key, value)) continue;
+		if (!isSynchableProperty(key, value)) {
+			continue;
+		}
 
 		if (typeof value === 'string') {
 			result[key] = stringContainsExpression(value) ? value : '';
 		} else if (typeof value === 'number') {
+			// NOTE: number values are synchable for backward compatibility
 			result[key] = value;
 		} else if (typeof value === 'object') {
 			result[key] = sanitizeCredentialData(value as ICredentialDataDecryptedObject);
@@ -74,13 +86,16 @@ export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 	const sanitizedRemote = sanitizeCredentialData(remote);
 
 	for (const [key, remoteValue] of Object.entries(sanitizedRemote)) {
-		if (!isSynchableProperty(key, remoteValue)) continue;
+		if (!isSynchableProperty(key, remoteValue)) {
+			continue;
+		}
 
 		if (typeof remoteValue === 'string' && stringContainsExpression(remoteValue)) {
 			merged[key] = remoteValue;
 		} else if (typeof remoteValue === 'number') {
+			// NOTE: number values are synchable for backward compatibility
 			merged[key] = remoteValue;
-		} else if (typeof remoteValue === 'object') {
+		} else if (typeof remoteValue === 'object' && remoteValue !== null) {
 			merged[key] = mergeRemoteCrendetialDataIntoLocalCredentialData({
 				local: local[key] as ICredentialDataDecryptedObject,
 				remote: remoteValue as ICredentialDataDecryptedObject,
@@ -89,10 +104,6 @@ export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 	}
 
 	return merged;
-}
-
-function stringContainsExpression(testString: string): boolean {
-	return /^=.*\{\{.+\}\}/.test(testString);
 }
 
 export function getWorkflowExportPath(workflowId: string, workflowExportFolder: string): string {
@@ -478,8 +489,14 @@ function isSynchableProperty(key: string, value: unknown): boolean {
 	 */
 	if (key === 'oauthTokenData') return false;
 
-	const isStringExpression = typeof value === 'string' && stringContainsExpression(value);
+	// NOTE: number values are synchable for backward compatibility
+	// Typically numbers represent PORT numbers or other numeric values that aren't sensitives
 	const isNumber = typeof value === 'number';
+
+	// Expressions are safe to synch because they don't expose sensitive data
+	const isStringExpression = typeof value === 'string' && stringContainsExpression(value);
+
+	// Non null objects are synchable, but the internal properties need to be sanitizeds
 	const isObject = typeof value === 'object' && value !== null;
 
 	return isStringExpression || isNumber || isObject;
