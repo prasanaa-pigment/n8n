@@ -545,6 +545,60 @@ describe('Node Builder', () => {
 		});
 	});
 
+	describe('NodeChain.output() with composite tail', () => {
+		it('should delegate to switchNode when tail is a SwitchCaseBuilder', () => {
+			const t = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: { name: 'Trigger' },
+			});
+			const sw = switchCase({
+				version: 3.2,
+				config: { name: 'Route' },
+			});
+			const targetA = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'Branch A' },
+			});
+			const builder = sw.onCase!(0, targetA);
+
+			// Chain whose tail is the SwitchCaseBuilder
+			const chain = t.to(builder);
+
+			// Should not throw — should delegate to the underlying switchNode
+			const outputSelector = chain.output(0);
+			expect(outputSelector._isOutputSelector).toBe(true);
+			expect(outputSelector.node).toBe(sw);
+		});
+
+		it('should delegate to ifNode when tail is an IfElseBuilder', () => {
+			const t = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: { name: 'Trigger' },
+			});
+			const ifNode = ifElse({
+				version: 2,
+				config: { name: 'IF Check' },
+			});
+			const target = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'True Branch' },
+			});
+			const builder = ifNode.onTrue!(target);
+
+			// Chain whose tail is the IfElseBuilder
+			const chain = t.to(builder);
+
+			// Should not throw — should delegate to the underlying ifNode
+			const outputSelector = chain.output(0);
+			expect(outputSelector._isOutputSelector).toBe(true);
+			expect(outputSelector.node).toBe(ifNode);
+		});
+	});
+
 	describe('AI nodes with subnodes', () => {
 		it('should create an AI node with subnodes', () => {
 			const modelNode = languageModel({

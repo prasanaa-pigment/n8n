@@ -58,6 +58,9 @@ function getCompositeOutputNode(value: unknown): NodeInstance<string, string, un
 	if (isSwitchCaseComposite(value)) {
 		return (value as { switchNode: NodeInstance<string, string, unknown> }).switchNode;
 	}
+	if (isSwitchCaseBuilder(value)) {
+		return value.switchNode;
+	}
 	if (isIfElseComposite(value)) {
 		return (value as { ifNode: NodeInstance<string, string, unknown> }).ifNode;
 	}
@@ -449,6 +452,14 @@ class NodeChainImpl<
 	 * Delegates to the tail node's output method.
 	 */
 	output(index: number): OutputSelector<TTail['type'], TTail['version'], TTail['_outputType']> {
+		const compositeNode = getCompositeOutputNode(this.tail);
+		if (compositeNode) {
+			return compositeNode.output(index) as OutputSelector<
+				TTail['type'],
+				TTail['version'],
+				TTail['_outputType']
+			>;
+		}
 		return this.tail.output(index);
 	}
 
