@@ -9,7 +9,7 @@ import { ChatGenerationChunk } from '@langchain/core/outputs';
 import type { Runnable } from '@langchain/core/runnables';
 import type { ISupplyDataFunctions } from 'n8n-workflow';
 
-import { fromLcMessage } from '../converters/message';
+import { fromLcMessage, toLcMessage } from '../converters/message';
 import { fromLcTool } from '../converters/tool';
 import type { ChatModel, ChatModelConfig } from '../types/chat-model';
 import { makeN8nLlmFailedAttemptHandler } from '../utils/failed-attempt-handler/n8nLlmFailedAttemptHandler';
@@ -59,14 +59,8 @@ export class LangchainAdapter<
 	): Promise<ChatResult> {
 		const transformedMessages = messages.map(fromLcMessage);
 		const result = await this.chatModel.generate(transformedMessages, options);
-		// TODO: use toLcMessage
-		const content: ContentBlock[] = [];
-		if (result.text) {
-			content.push({
-				type: 'text',
-				text: result.text,
-			});
-		}
+		// Build content blocks for the message
+		const lcMessage = toLcMessage(result.message);
 
 		// Build usage metadata
 		const usage_metadata = result.usage
@@ -87,33 +81,15 @@ export class LangchainAdapter<
 				}
 			: undefined;
 
-		// Convert tool calls to LangChain format
-		const tool_calls =
-			result.toolCalls?.map((tc) => ({
-				id: tc.id,
-				name: tc.name,
-				args: tc.arguments,
-				type: 'tool_call' as const,
-			})) ?? [];
-
-		// Convert back to LangChain format
-		const aiMessage = new AIMessage({
-			content,
-			usage_metadata,
-			response_metadata: {
-				...result.providerMetadata,
-				model: this.chatModel.modelId,
-				provider: this.chatModel.provider,
-			},
-			id: result.id,
-			tool_calls,
-		});
+		if (AIMessage.isInstance(lcMessage)) {
+			lcMessage.usage_metadata = usage_metadata;
+		}
 
 		return {
 			generations: [
 				{
-					text: result.text,
-					message: aiMessage,
+					text: lcMessage.text,
+					message: lcMessage,
 				},
 			],
 			llmOutput: {
@@ -132,58 +108,39 @@ export class LangchainAdapter<
 		const stream = this.chatModel.stream(genericMessages, options);
 
 		for await (const chunk of stream) {
-			if (chunk.type === 'text-delta' && chunk.textDelta) {
+			let lcChunk: ChatGenerationChunk | undefined = undefined;
+			if (chunk.type === 'text-delta') {
 				const content: ContentBlock[] = [
 					{
 						type: 'text',
-						text: chunk.textDelta,
+						text: chunk.delta,
 					},
 				];
 
-				const chunkResult = new ChatGenerationChunk({
+				lcChunk = new ChatGenerationChunk({
 					message: new AIMessageChunk({
 						content,
-						usage_metadata: chunk.usage
-							? {
-									input_tokens: chunk.usage.promptTokens ?? 0,
-									output_tokens: chunk.usage.completionTokens ?? 0,
-									total_tokens: chunk.usage.totalTokens ?? 0,
-								}
-							: undefined,
 					}),
-					text: chunk.textDelta,
+					text: chunk.delta,
 				});
-				yield chunkResult;
-				await runManager?.handleLLMNewToken(
-					chunkResult.text ?? '',
-					{
-						prompt: 0,
-						completion: 0,
-					},
-					undefined,
-					undefined,
-					undefined,
-					{ chunk: chunkResult },
-				);
-			} else if (chunk.type === 'tool-call-delta' && chunk.toolCallDelta) {
+			} else if (chunk.type === 'tool-call-delta') {
 				const tool_call_chunks = [
 					{
 						type: 'tool_call_chunk' as const,
-						id: chunk.toolCallDelta.id,
-						name: chunk.toolCallDelta.name,
-						args: chunk.toolCallDelta.argumentsDelta,
+						id: chunk.id,
+						name: chunk.name,
+						args: chunk.argumentsDelta,
 						index: 0,
 					},
 				];
 
-				const chunkResult = new ChatGenerationChunk({
+				lcChunk = new ChatGenerationChunk({
 					message: new AIMessageChunk({
 						content: '',
 						tool_call_chunks,
 					}),
 					text: '',
 				});
-				yield chunkResult;
 			} else if (chunk.type === 'finish') {
 				const usage_metadata = chunk.usage
 					? {
@@ -193,7 +150,7 @@ export class LangchainAdapter<
 						}
 					: undefined;
 
-				const chunkResult = new ChatGenerationChunk({
+				lcChunk = new ChatGenerationChunk({
 					message: new AIMessageChunk({
 						content: '',
 						usage_metadata,
@@ -206,7 +163,51 @@ export class LangchainAdapter<
 						finish_reason: chunk.finishReason,
 					},
 				});
-				yield chunkResult;
+			} else if (chunk.type === 'error') {
+				lcChunk = new ChatGenerationChunk({
+					message: new AIMessageChunk({
+						content: '',
+						response_metadata: {
+							finish_reason: 'error',
+							error: chunk.error,
+						},
+					}),
+					text: '',
+					generationInfo: {
+						finish_reason: 'error',
+						error: chunk.error,
+					},
+				});
+			} else if (chunk.type === 'content') {
+				const lcMessage = toLcMessage({
+					role: 'ai',
+					content: [chunk.content],
+					id: chunk.id,
+				});
+				const lcMessageChunk = new AIMessageChunk({
+					content: lcMessage.content,
+					id: lcMessage.id,
+					name: lcMessage.name,
+				});
+				lcChunk = new ChatGenerationChunk({
+					message: lcMessageChunk,
+					text: lcMessage.text,
+				});
+			}
+
+			if (lcChunk) {
+				yield lcChunk;
+				await runManager?.handleLLMNewToken(
+					lcChunk.text ?? '',
+					{
+						prompt: 0,
+						completion: 0,
+					},
+					undefined,
+					undefined,
+					undefined,
+					{ chunk: lcChunk },
+				);
 			}
 		}
 	}
