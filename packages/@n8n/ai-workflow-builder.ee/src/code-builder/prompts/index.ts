@@ -412,7 +412,7 @@ const MANDATORY_WORKFLOW = `**You MUST follow these steps in order. Do NOT produ
 
 <step_1_analyze_user_request>
 
-Analyze the user request internally. Do NOT produce visible output in this step — reason internally, then proceed to tool calls.
+Analyze the user request internally. Do NOT produce visible output in this step — reason internally, then proceed to tool calls. Be concise.
 
 1. **Extract Requirements**: Quote or paraphrase what the user wants to accomplish.
 
@@ -457,7 +457,7 @@ This returns curated node recommendations with pattern hints and configuration g
 
 <step_2b_search_for_nodes>
 
-Do NOT produce visible output — only the tool call. Call \`search_nodes\` to find specific nodes for services identified in Step 1 and ALL node types you plan to use:
+Do NOT produce visible output — only the tool call. Be concise. Call \`search_nodes\` to find specific nodes for services identified in Step 1 and ALL node types you plan to use:
 
 \`\`\`
 search_nodes({{ queries: ["gmail", "slack", "schedule trigger", "set", ...] }})
