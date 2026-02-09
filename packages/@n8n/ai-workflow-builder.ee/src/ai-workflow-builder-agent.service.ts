@@ -294,8 +294,19 @@ export class AiWorkflowBuilderService {
 				});
 			} else if (pendingHitl.value.type === 'plan') {
 				const decision = payload.resumeData as { action?: string; feedback?: string };
-				// Only store non-approve decisions; approved plans survive in the checkpoint
-				if (decision.action === 'reject' || decision.action === 'modify') {
+				// Store non-approve decisions always.
+				// Also store approve decisions when code builder is enabled, since the
+				// multi-agent graph won't process the approval (it's redirected to code builder).
+				const shouldStore =
+					decision.action === 'reject' ||
+					decision.action === 'modify' ||
+					(decision.action === 'approve' && isCodeBuilder);
+				if (
+					shouldStore &&
+					(decision.action === 'approve' ||
+						decision.action === 'reject' ||
+						decision.action === 'modify')
+				) {
 					this.sessionManager.addHitlEntry(threadId, {
 						type: 'plan_decided',
 						afterMessageId: pendingHitl.triggeringMessageId,

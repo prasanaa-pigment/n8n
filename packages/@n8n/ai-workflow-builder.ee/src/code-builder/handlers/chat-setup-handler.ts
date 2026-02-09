@@ -16,7 +16,7 @@ import { generateWorkflowCode } from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { ChatPayload } from '../../workflow-builder-agent';
-import { TEXT_EDITOR_TOOL, VALIDATE_TOOL } from '../constants';
+import { TEXT_EDITOR_TOOL, VALIDATE_TOOL, BATCH_STR_REPLACE_TOOL } from '../constants';
 import { buildCodeBuilderPrompt, type HistoryContext } from '../prompts';
 import { TextEditorHandler } from './text-editor-handler';
 import { TextEditorToolHandler } from './text-editor-tool-handler';
@@ -136,6 +136,7 @@ export class ChatSetupHandler {
 			preGeneratedCode: preGeneratedWorkflowCode,
 			valuesExcluded: payload.workflowContext?.valuesExcluded,
 			pinnedNodes: payload.workflowContext?.pinnedNodes,
+			planOutput: payload.planOutput,
 		});
 		this.logPromptBuilt(historyContext, textEditorEnabled);
 
@@ -247,7 +248,7 @@ export class ChatSetupHandler {
 		}
 
 		const toolsToUse = textEditorEnabled
-			? [...this.tools, TEXT_EDITOR_TOOL, VALIDATE_TOOL]
+			? [...this.tools, TEXT_EDITOR_TOOL, VALIDATE_TOOL, BATCH_STR_REPLACE_TOOL]
 			: this.tools;
 
 		// bindTools returns a Runnable that accepts BaseMessage[] and returns AIMessage

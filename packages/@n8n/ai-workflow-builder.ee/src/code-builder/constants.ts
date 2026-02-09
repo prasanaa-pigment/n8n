@@ -17,7 +17,7 @@ export const FIX_VALIDATION_ERRORS_INSTRUCTION = `
 Use the think tool to analyze ALL errors at once, then act:
 1. Which errors are relevant to the last user request? If NONE, stop — do not fix unrelated warnings.
 2. Use search_nodes and get_node_types to look up the correct node schema (if not already fetched)
-3. Use str_replace or insert to fix ALL identified issues — make multiple edits in a single response before validating
+3. Use batch_str_replace to fix ALL identified issues atomically in one call (preferred), or use individual str_replace/insert calls
 4. Call validate_workflow ONCE after all fixes are applied
 Do NOT output explanations — just fix the code.`;
 
@@ -25,6 +25,34 @@ Do NOT output explanations — just fix the code.`;
 export const TEXT_EDITOR_TOOL = {
 	type: 'text_editor_20250728' as const,
 	name: 'str_replace_based_edit_tool' as const,
+};
+
+/** Batch str_replace tool - applies multiple replacements atomically in one call */
+export const BATCH_STR_REPLACE_TOOL = {
+	type: 'function' as const,
+	function: {
+		name: 'batch_str_replace',
+		description:
+			'Apply multiple str_replace operations to /workflow.js atomically. All replacements are applied in order. If any replacement fails, all changes are rolled back.',
+		parameters: {
+			type: 'object' as const,
+			properties: {
+				replacements: {
+					type: 'array' as const,
+					items: {
+						type: 'object' as const,
+						properties: {
+							old_str: { type: 'string' as const, description: 'The exact string to find' },
+							new_str: { type: 'string' as const, description: 'The replacement string' },
+						},
+						required: ['old_str', 'new_str'],
+					},
+					description: 'Ordered list of replacements to apply',
+				},
+			},
+			required: ['replacements'],
+		},
+	},
 };
 
 /** Validate workflow tool schema - separate from text editor for clearer separation of concerns */
@@ -52,6 +80,11 @@ export const VALIDATE_TOOL = {
  */
 export const CODE_BUILDER_TEXT_EDITOR_TOOL: BuilderToolBase = {
 	toolName: 'str_replace_based_edit_tool',
+	displayTitle: 'Editing workflow',
+};
+
+export const CODE_BUILDER_BATCH_STR_REPLACE_TOOL: BuilderToolBase = {
+	toolName: 'batch_str_replace',
 	displayTitle: 'Editing workflow',
 };
 

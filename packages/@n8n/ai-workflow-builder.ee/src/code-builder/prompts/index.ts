@@ -11,6 +11,8 @@ import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import type { IRunExecutionData, NodeExecutionSchema } from 'n8n-workflow';
 
 import { escapeCurlyBrackets, SDK_API_CONTENT_ESCAPED } from './sdk-api';
+import type { PlanOutput } from '../../types/planning';
+import { formatPlanAsText } from '../../utils/plan-helpers';
 import type { ExpressionValue } from '../../workflow-builder-agent';
 import { formatCodeWithLineNumbers } from '../handlers/text-editor-handler';
 import { SDK_IMPORT_STATEMENT } from '../utils/extract-code';
@@ -535,7 +537,7 @@ Include discriminators for nodes that require them (shown in search results).
 
 Do NOT produce visible output — only the tool call to edit code.
 
-Edit \`/workflow.js\` using \`str_replace\` or \`insert\` (never \`create\` — file is pre-populated). Use exact parameter names and structures from the type definitions.
+Edit \`/workflow.js\` using \`str_replace\` or \`insert\` (never \`create\` — file is pre-populated). When making multiple edits, prefer \`batch_str_replace\` to apply all changes atomically in one call. Use exact parameter names and structures from the type definitions.
 
 Rules:
 - Use unique variable names — never reuse builder function names (e.g. \`node\`, \`trigger\`) as variable names
@@ -557,7 +559,7 @@ Call \`validate_workflow\` to check your code for errors before finalizing:
 validate_workflow({{ path: "/workflow.js" }})
 \`\`\`
 
-If errors are reported, fix ALL relevant issues using multiple str_replace/insert calls in a single response, then call validate_workflow again. Do not call validate_workflow after each individual fix — batch all fixes first, then validate once. Focus on warnings relevant to your changes and last user request.
+If errors are reported, fix ALL relevant issues using \`batch_str_replace\` (preferred for multiple fixes) or individual str_replace/insert calls, then call \`validate_workflow\` again. Do not call validate_workflow after each individual fix — batch all fixes first, then validate once. Focus on warnings relevant to your changes and last user request.
 
 </step_6_validate_workflow>
 
@@ -594,6 +596,8 @@ export interface BuildCodeBuilderPromptOptions {
 	valuesExcluded?: boolean;
 	/** Node names whose output schema was derived from pin data */
 	pinnedNodes?: string[];
+	/** Approved plan from planning phase */
+	planOutput?: PlanOutput;
 }
 
 /**
@@ -616,6 +620,12 @@ export function buildCodeBuilderPrompt(
 		`<sdk_api_reference>\n${SDK_API_CONTENT_ESCAPED}\n</sdk_api_reference>`,
 		`<mandatory_workflow_process>\n${MANDATORY_WORKFLOW}\n</mandatory_workflow_process>`,
 	];
+
+	if (options?.planOutput) {
+		promptSections.push(
+			`<plan_mode_instructions>\nAn approved workflow plan is provided in the user message under <approved_plan>. Use this plan as the authoritative specification for what to build. Your Step 1 analysis should follow this plan. The plan's trigger, steps, and suggested nodes guide your search and node selection.\n</plan_mode_instructions>`,
+		);
+	}
 
 	const systemMessage = promptSections.join('\n\n');
 
@@ -661,7 +671,14 @@ export function buildCodeBuilderPrompt(
 		userMessageParts.push(`<workflow_file path="/workflow.js">\n${escapedCode}\n</workflow_file>`);
 	}
 
-	// 4. Wrap user message in XML tag for easy extraction when loading sessions
+	// 4. Approved plan (when plan mode feeds into code builder)
+	if (options?.planOutput) {
+		userMessageParts.push(
+			`<approved_plan>\n${escapeCurlyBrackets(formatPlanAsText(options.planOutput))}\n</approved_plan>`,
+		);
+	}
+
+	// 5. Wrap user message in XML tag for easy extraction when loading sessions
 	if (userMessageParts.length > 0) {
 		userMessageParts.push('<user_request>');
 		userMessageParts.push('{userMessage}');

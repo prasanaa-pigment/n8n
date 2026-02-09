@@ -1,6 +1,7 @@
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import { buildCodeBuilderPrompt } from '../../code-builder/prompts/index';
+import type { PlanOutput } from '../../types/planning';
 
 describe('buildCodeBuilderPrompt', () => {
 	describe('extended thinking compatibility', () => {
@@ -54,6 +55,15 @@ return workflow('', 'Test').add(start);`;
 			expect(content).toContain('// Custom pre-generated code');
 		});
 
+		it('does not contain approved_plan section when no planOutput provided', async () => {
+			const prompt = buildCodeBuilderPrompt(undefined, undefined, {});
+			const messages = await prompt.formatMessages({ userMessage: 'test' });
+			const humanMessage = messages.find((m) => m._getType() === 'human');
+			const content = humanMessage?.content as string;
+
+			expect(content).not.toContain('<approved_plan>');
+		});
+
 		it('falls back to generateWorkflowCode when preGeneratedCode not provided', async () => {
 			const workflow: WorkflowJSON = {
 				name: 'Fallback Test',
@@ -78,6 +88,68 @@ return workflow('', 'Test').add(start);`;
 
 			// Should contain auto-generated code with workflow name
 			expect(content).toContain("workflow('', 'Fallback Test')");
+		});
+	});
+
+	describe('planOutput option', () => {
+		const mockPlan: PlanOutput = {
+			summary: 'Fetch weather and send Slack alert',
+			trigger: 'Runs every morning at 7 AM',
+			steps: [
+				{ description: 'Fetch weather forecast', suggestedNodes: ['n8n-nodes-base.httpRequest'] },
+				{ description: 'Check if rain is predicted' },
+				{ description: 'Send Slack notification', suggestedNodes: ['n8n-nodes-base.slack'] },
+			],
+			additionalSpecs: ['Use metric units for temperature'],
+		};
+
+		it('includes approved_plan section in user message when planOutput is provided', async () => {
+			const prompt = buildCodeBuilderPrompt(undefined, undefined, {
+				planOutput: mockPlan,
+			});
+
+			const messages = await prompt.formatMessages({ userMessage: 'Build weather workflow' });
+			const humanMessage = messages.find((m) => m._getType() === 'human');
+			const content = humanMessage?.content as string;
+
+			expect(content).toContain('<approved_plan>');
+			expect(content).toContain('</approved_plan>');
+			expect(content).toContain('Fetch weather and send Slack alert');
+			expect(content).toContain('Runs every morning at 7 AM');
+			expect(content).toContain('Fetch weather forecast');
+			expect(content).toContain('n8n-nodes-base.httpRequest');
+			expect(content).toContain('Use metric units for temperature');
+		});
+
+		it('includes plan_mode_instructions in system prompt when planOutput is provided', async () => {
+			const prompt = buildCodeBuilderPrompt(undefined, undefined, {
+				planOutput: mockPlan,
+			});
+
+			const messages = await prompt.formatMessages({ userMessage: 'Build weather workflow' });
+			const systemMessage = messages.find((m) => m._getType() === 'system');
+			const content = Array.isArray(systemMessage?.content)
+				? systemMessage.content.map((b) => ('text' in b ? b.text : '')).join('')
+				: String(systemMessage?.content ?? '');
+
+			expect(content).toContain('<plan_mode_instructions>');
+			expect(content).toContain('</plan_mode_instructions>');
+		});
+
+		it('does not include plan sections when planOutput is not provided', async () => {
+			const prompt = buildCodeBuilderPrompt();
+
+			const messages = await prompt.formatMessages({ userMessage: 'test' });
+			const humanMessage = messages.find((m) => m._getType() === 'human');
+			const humanContent = humanMessage?.content as string;
+
+			const systemMessage = messages.find((m) => m._getType() === 'system');
+			const systemContent = Array.isArray(systemMessage?.content)
+				? systemMessage.content.map((b) => ('text' in b ? b.text : '')).join('')
+				: String(systemMessage?.content ?? '');
+
+			expect(humanContent).not.toContain('<approved_plan>');
+			expect(systemContent).not.toContain('<plan_mode_instructions>');
 		});
 	});
 });

@@ -126,3 +126,35 @@ export class FileNotFoundError extends Error {
 		this.name = 'FileNotFoundError';
 	}
 }
+
+/**
+ * A single replacement in a batch operation
+ */
+export interface StrReplacement {
+	old_str: string;
+	new_str: string;
+}
+
+/**
+ * Error thrown when a batch replacement fails.
+ * Contains the index that failed and the underlying cause.
+ */
+export class BatchReplacementError extends Error {
+	readonly failedIndex: number;
+	readonly totalCount: number;
+	override readonly cause: NoMatchFoundError | MultipleMatchesError;
+
+	constructor(
+		failedIndex: number,
+		totalCount: number,
+		cause: NoMatchFoundError | MultipleMatchesError,
+	) {
+		super(
+			`Batch replacement failed at index ${failedIndex} of ${totalCount}: ${cause.message}. All changes have been rolled back.`,
+		);
+		this.name = 'BatchReplacementError';
+		this.failedIndex = failedIndex;
+		this.totalCount = totalCount;
+		this.cause = cause;
+	}
+}

@@ -137,11 +137,15 @@ export function pushValidationFeedback(messages: BaseMessage[], content: string)
 			{ id: toolCallId, name: 'validate_workflow', args: {} },
 		];
 
-		// When content is an array (e.g. extended thinking), LangChain's Anthropic
-		// adapter ignores tool_calls but serializes tool_use blocks from the content
-		// array. We cast because LangChain's TS types use "tool_call" while the
-		// Anthropic adapter expects "tool_use" at runtime.
-		if (Array.isArray(lastMessage.content)) {
+		// Always ensure content is in array format so the tool_use block is
+		// present in the content array. LangChain's Anthropic adapter serializes
+		// tool_use blocks from the content array, not the tool_calls property.
+		if (typeof lastMessage.content === 'string') {
+			lastMessage.content = [
+				...(lastMessage.content ? [{ type: 'text' as const, text: lastMessage.content }] : []),
+				{ type: 'tool_use', id: toolCallId, name: 'validate_workflow', input: {} },
+			];
+		} else if (Array.isArray(lastMessage.content)) {
 			(lastMessage.content as Array<Record<string, unknown>>).push({
 				type: 'tool_use',
 				id: toolCallId,

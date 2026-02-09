@@ -18,12 +18,13 @@ import {
 
 import { MAX_AI_BUILDER_PROMPT_LENGTH, MAX_MULTI_AGENT_STREAM_ITERATIONS } from '@/constants';
 
+import { parsePlanDecision } from './agents/planner.agent';
 import { CodeWorkflowBuilder } from './code-builder';
 import { ValidationError } from './errors';
 import { createMultiAgentWorkflowWithSubgraphs } from './multi-agent-workflow-subgraphs';
 import { SessionManagerService } from './session-manager.service';
 import type { ResourceLocatorCallback } from './types/callbacks';
-import type { HITLInterruptValue } from './types/planning';
+import type { HITLInterruptValue, PlanOutput } from './types/planning';
 import type { SimpleWorkflow } from './types/workflow';
 import { createStreamProcessor, type StreamEvent } from './utils/stream-processor';
 import { TokenUsageTrackingHandler } from './utils/token-usage-tracking-handler';
@@ -123,6 +124,8 @@ export interface ChatPayload {
 	resumeData?: unknown;
 	/** Interrupt record for session replay (server-provided on resume) */
 	resumeInterrupt?: HITLInterruptValue;
+	/** Approved plan from planning phase (injected when routing plan approval to code builder) */
+	planOutput?: PlanOutput;
 }
 
 export class WorkflowBuilderAgent {
@@ -208,48 +211,104 @@ export class WorkflowBuilderAgent {
 		const useCodeWorkflowBuilder = payload.featureFlags?.codeBuilder ?? false;
 
 		if (useCodeWorkflowBuilder) {
+			const usePlanMode = payload.featureFlags?.planMode === true;
+
+			// Check if this is a plan decision resume (approval/modify/reject)
+			if (payload.resumeData && payload.resumeInterrupt?.type === 'plan') {
+				const decision = parsePlanDecision(payload.resumeData);
+
+				if (decision.action === 'approve') {
+					// Plan approved: extract plan, route to CodeWorkflowBuilder with plan context
+					this.logger?.debug('Plan approved, routing to CodeWorkflowBuilder with plan', {
+						userId,
+					});
+					const codePayload: ChatPayload = {
+						...payload,
+						planOutput: payload.resumeInterrupt.plan,
+						resumeData: undefined,
+						resumeInterrupt: undefined,
+					};
+					yield* this.runCodeWorkflowBuilder(codePayload, userId, abortSignal, startTime);
+					return;
+				}
+
+				// Plan modify or reject: resume multi-agent system
+				this.logger?.debug('Plan modify/reject, resuming multi-agent system', {
+					userId,
+					action: decision.action,
+				});
+				yield* this.runMultiAgentSystem(payload, userId, abortSignal, externalCallbacks, startTime);
+				return;
+			}
+
+			// Initial plan request: route to multi-agent for discovery + planning
+			if (usePlanMode && payload.mode === 'plan') {
+				this.logger?.debug('Plan mode with code builder, routing to multi-agent for planning', {
+					userId,
+				});
+				yield* this.runMultiAgentSystem(payload, userId, abortSignal, externalCallbacks, startTime);
+				return;
+			}
+
+			// Normal code builder flow (no plan mode)
 			this.logger?.debug('Routing to CodeWorkflowBuilder', { userId });
-
-			let accumulatedInputTokens = 0;
-			let accumulatedOutputTokens = 0;
-			let accumulatedThinkingTokens = 0;
-
-			// Use CodeWorkflowBuilder (unified code builder agent)
-			const codeWorkflowBuilder = new CodeWorkflowBuilder({
-				llm: this.stageLLMs.builder,
-				nodeTypes: this.parsedNodeTypes,
-				logger: this.logger,
-				nodeDefinitionDirs: this.nodeDefinitionDirs,
-				checkpointer: this.checkpointer,
-				onGenerationSuccess: this.onGenerationSuccess,
-				callbacks: this.tracer ? [this.tracer] : undefined,
-				runMetadata: {
-					...this.runMetadata,
-					userMessageId: payload.id,
-					workflowId: payload.workflowContext?.currentWorkflow?.id,
-				},
-				onTelemetryEvent: this.onTelemetryEvent,
-				onTokenUsage: (usage) => {
-					accumulatedInputTokens += usage.inputTokens;
-					accumulatedOutputTokens += usage.outputTokens;
-					accumulatedThinkingTokens += usage.thinkingTokens;
-				},
-			});
-
-			yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);
-
-			this.lastChatMetrics = {
-				durationMs: Date.now() - startTime,
-				inputTokens: accumulatedInputTokens,
-				outputTokens: accumulatedOutputTokens,
-				thinkingTokens: accumulatedThinkingTokens,
-			};
+			yield* this.runCodeWorkflowBuilder(payload, userId, abortSignal, startTime);
 			return;
 		}
 
 		// Fall back to legacy multi-agent system
 		this.logger?.debug('Routing to legacy multi-agent system', { userId });
+		yield* this.runMultiAgentSystem(payload, userId, abortSignal, externalCallbacks, startTime);
+	}
 
+	private async *runCodeWorkflowBuilder(
+		payload: ChatPayload,
+		userId: string | undefined,
+		abortSignal: AbortSignal | undefined,
+		startTime: number,
+	) {
+		let accumulatedInputTokens = 0;
+		let accumulatedOutputTokens = 0;
+		let accumulatedThinkingTokens = 0;
+
+		const codeWorkflowBuilder = new CodeWorkflowBuilder({
+			llm: this.stageLLMs.builder,
+			nodeTypes: this.parsedNodeTypes,
+			logger: this.logger,
+			nodeDefinitionDirs: this.nodeDefinitionDirs,
+			checkpointer: this.checkpointer,
+			onGenerationSuccess: this.onGenerationSuccess,
+			callbacks: this.tracer ? [this.tracer] : undefined,
+			runMetadata: {
+				...this.runMetadata,
+				userMessageId: payload.id,
+				workflowId: payload.workflowContext?.currentWorkflow?.id,
+			},
+			onTelemetryEvent: this.onTelemetryEvent,
+			onTokenUsage: (usage) => {
+				accumulatedInputTokens += usage.inputTokens;
+				accumulatedOutputTokens += usage.outputTokens;
+				accumulatedThinkingTokens += usage.thinkingTokens;
+			},
+		});
+
+		yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);
+
+		this.lastChatMetrics = {
+			durationMs: Date.now() - startTime,
+			inputTokens: accumulatedInputTokens,
+			outputTokens: accumulatedOutputTokens,
+			thinkingTokens: accumulatedThinkingTokens,
+		};
+	}
+
+	private async *runMultiAgentSystem(
+		payload: ChatPayload,
+		userId: string | undefined,
+		abortSignal: AbortSignal | undefined,
+		externalCallbacks: Callbacks | undefined,
+		startTime: number,
+	) {
 		const tokenTracker = new TokenUsageTrackingHandler();
 		const { agent, threadConfig, streamConfig } = this.setupAgentAndConfigs(
 			payload,
