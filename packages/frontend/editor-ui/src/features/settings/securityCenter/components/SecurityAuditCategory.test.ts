@@ -3,7 +3,14 @@ import { screen } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
 import SecurityAuditCategory from './SecurityAuditCategory.vue';
-import type { StandardReport, StandardSection, RiskCategory } from '../securityCenter.api';
+import type {
+	StandardReport,
+	StandardSection,
+	RiskCategory,
+	AdvisoryDetails,
+	AdvisorySection,
+	AdvisoryReport,
+} from '../securityCenter.api';
 
 const createMockReport = (
 	overrides: Partial<StandardReport> & { risk?: Exclude<RiskCategory, 'instance'> } = {},
@@ -37,6 +44,34 @@ const createMockNodeLocations = (count: number) =>
 		nodeName: `Node ${i}`,
 		nodeType: 'n8n-nodes-base.code',
 	}));
+
+const createMockAdvisoryDetails = (overrides: Partial<AdvisoryDetails> = {}): AdvisoryDetails => ({
+	kind: 'advisory',
+	ghsaId: 'GHSA-xxxx-yyyy-zzzz',
+	cveId: 'CVE-2024-12345',
+	severity: 'high',
+	summary: 'Test vulnerability summary',
+	vulnerableVersionRange: '< 1.0.0',
+	patchedVersions: '>= 1.0.0',
+	publishedAt: '2024-01-15T00:00:00Z',
+	htmlUrl: 'https://github.com/advisories/GHSA-xxxx-yyyy-zzzz',
+	...overrides,
+});
+
+const createMockAdvisorySection = (overrides: Partial<AdvisorySection> = {}): AdvisorySection => ({
+	title: 'Test Advisory Section',
+	description: 'Advisory section description',
+	recommendation: 'Upgrade to latest version',
+	advisories: [],
+	affectsCurrentVersion: false,
+	...overrides,
+});
+
+const createMockAdvisoryReport = (overrides: Partial<AdvisoryReport> = {}): AdvisoryReport => ({
+	risk: 'advisories',
+	sections: [],
+	...overrides,
+});
 
 describe('SecurityAuditCategory', () => {
 	const renderComponent = createComponentRenderer(SecurityAuditCategory, {
@@ -561,5 +596,213 @@ describe('SecurityAuditCategory', () => {
 				expect(container.querySelector('[class*="categoryIcon"]')).toBeInTheDocument();
 			},
 		);
+	});
+
+	describe('advisory rendering', () => {
+		it('should render severity badge with correct text', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: true,
+								advisories: [createMockAdvisoryDetails({ severity: 'high' })],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			expect(screen.getByText('High')).toBeInTheDocument();
+		});
+
+		it('should render GHSA ID as link', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: true,
+								advisories: [
+									createMockAdvisoryDetails({
+										ghsaId: 'GHSA-test-link-1234',
+										htmlUrl: 'https://github.com/advisories/GHSA-test-link-1234',
+									}),
+								],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			const link = screen.getByRole('link', { name: 'GHSA-test-link-1234' });
+			expect(link).toHaveAttribute('href', 'https://github.com/advisories/GHSA-test-link-1234');
+		});
+
+		it('should render CVE ID when present', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: true,
+								advisories: [createMockAdvisoryDetails({ cveId: 'CVE-2024-99999' })],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			expect(screen.getByText('(CVE-2024-99999)')).toBeInTheDocument();
+		});
+
+		it('should hide CVE ID when null', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: true,
+								advisories: [createMockAdvisoryDetails({ cveId: null })],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			expect(screen.queryByText(/CVE-/)).not.toBeInTheDocument();
+		});
+
+		it('should render summary, vulnerable range, patched version, and published date', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: true,
+								advisories: [
+									createMockAdvisoryDetails({
+										summary: 'XSS vulnerability in workflow editor',
+										vulnerableVersionRange: '>= 1.0.0, < 2.0.0',
+										patchedVersions: '>= 2.0.0',
+										publishedAt: '2024-06-15T00:00:00Z',
+									}),
+								],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			expect(screen.getByText('XSS vulnerability in workflow editor')).toBeInTheDocument();
+			expect(screen.getByText('>= 1.0.0, < 2.0.0')).toBeInTheDocument();
+			expect(screen.getByText('>= 2.0.0')).toBeInTheDocument();
+			// Published date is formatted by Intl.DateTimeFormat - check for the advisory-item
+			expect(screen.getByTestId('advisory-item')).toBeInTheDocument();
+		});
+	});
+
+	describe('historical advisories', () => {
+		it('should show historical header with count badge', () => {
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								affectsCurrentVersion: false,
+								advisories: [
+									createMockAdvisoryDetails(),
+									createMockAdvisoryDetails({ ghsaId: 'GHSA-2222-3333-4444' }),
+								],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			expect(screen.getByTestId('historical-advisories-header')).toBeInTheDocument();
+			expect(screen.getByText('2')).toBeInTheDocument();
+		});
+
+		it('should expand historical on click', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								title: 'Historical Section Title',
+								affectsCurrentVersion: false,
+								advisories: [createMockAdvisoryDetails()],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			// Historical should be collapsed initially
+			expect(screen.queryByText('Historical Section Title')).not.toBeInTheDocument();
+
+			// Click to expand
+			await user.click(screen.getByTestId('historical-advisories-header'));
+			expect(screen.getByText('Historical Section Title')).toBeInTheDocument();
+		});
+
+		it('should toggle historical on Enter key', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								title: 'Historical Keyboard Test',
+								affectsCurrentVersion: false,
+								advisories: [createMockAdvisoryDetails()],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			const header = screen.getByTestId('historical-advisories-header');
+			expect(screen.queryByText('Historical Keyboard Test')).not.toBeInTheDocument();
+
+			header.focus();
+			await user.keyboard('{Enter}');
+			expect(screen.getByText('Historical Keyboard Test')).toBeInTheDocument();
+		});
+
+		it('should toggle historical on Space key', async () => {
+			const user = userEvent.setup();
+			renderComponent({
+				props: {
+					report: createMockAdvisoryReport({
+						sections: [
+							createMockAdvisorySection({
+								title: 'Historical Space Test',
+								affectsCurrentVersion: false,
+								advisories: [createMockAdvisoryDetails()],
+							}),
+						],
+					}),
+					initiallyExpanded: true,
+				},
+			});
+
+			const header = screen.getByTestId('historical-advisories-header');
+			expect(screen.queryByText('Historical Space Test')).not.toBeInTheDocument();
+
+			header.focus();
+			await user.keyboard(' ');
+			expect(screen.getByText('Historical Space Test')).toBeInTheDocument();
+		});
 	});
 });

@@ -9,7 +9,7 @@ import {
 	N8nCallout,
 	N8nIcon,
 } from '@n8n/design-system';
-import { RISK_CATEGORIES, type RiskCategory } from '@n8n/api-types';
+import { RISK_CATEGORIES, type RiskCategory, type AuditReport } from '@n8n/api-types';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
 import { useToast } from '@/app/composables/useToast';
 import { usePostHog } from '@/app/stores/posthog.store';
@@ -73,9 +73,15 @@ const isSecure = computed(
 	() => securityAuditStore.isEmptyResult || actionableIssueCount.value === 0,
 );
 
-const getReportForCategory = (category: RiskCategory) => {
-	return securityAuditStore.getReportByCategory(category);
-};
+const reportsByCategory = computed(() => {
+	const map = new Map<RiskCategory, AuditReport>();
+	for (const report of securityAuditStore.reports) {
+		map.set(report.risk, report);
+	}
+	return map;
+});
+
+const getReportForCategory = (category: RiskCategory) => reportsByCategory.value.get(category);
 
 const runAudit = async () => {
 	try {
@@ -108,6 +114,7 @@ onMounted(() => {
 			</div>
 			<N8nButton
 				:loading="securityAuditStore.isLoading"
+				:disabled="securityAuditStore.isLoading"
 				size="large"
 				data-test-id="run-security-check-button"
 				@click="runAudit"
@@ -156,11 +163,12 @@ onMounted(() => {
 			</N8nCallout>
 		</div>
 
-		<div v-else :class="$style.results" data-test-id="security-center-results">
+		<div v-else :class="$style.results" data-test-id="security-center-results" aria-live="polite">
 			<!-- Status Overview Section -->
 			<div
 				:class="[$style.statusOverview, isSecure ? $style.statusSecure : $style.statusWarning]"
 				data-test-id="security-center-status"
+				role="status"
 			>
 				<div :class="$style.statusMain">
 					<div :class="$style.statusIcon">
@@ -294,6 +302,7 @@ onMounted(() => {
 						target="_blank"
 						rel="noopener noreferrer"
 						:class="$style.resourceCard"
+						data-test-id="security-center-resource-trust-center"
 					>
 						<N8nIcon icon="badge-check" :class="$style.resourceIcon" />
 						<div :class="$style.resourceContent">
@@ -311,6 +320,7 @@ onMounted(() => {
 						target="_blank"
 						rel="noopener noreferrer"
 						:class="$style.resourceCard"
+						data-test-id="security-center-resource-documentation"
 					>
 						<N8nIcon icon="book-open" :class="$style.resourceIcon" />
 						<div :class="$style.resourceContent">
@@ -328,6 +338,7 @@ onMounted(() => {
 						target="_blank"
 						rel="noopener noreferrer"
 						:class="$style.resourceCard"
+						data-test-id="security-center-resource-report-vulnerability"
 					>
 						<N8nIcon icon="shield-alert" :class="$style.resourceIcon" />
 						<div :class="$style.resourceContent">

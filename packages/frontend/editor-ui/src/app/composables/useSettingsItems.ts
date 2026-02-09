@@ -159,7 +159,7 @@ export function useSettingsItems() {
 		menuItems.push({
 			id: 'settings-security-center',
 			icon: 'lock',
-			label: i18n.baseText('settings.securityCenter' as never),
+			label: i18n.baseText('settings.securityCenter'),
 			position: 'top',
 			available:
 				posthog.isFeatureEnabled(SECURITY_AUDIT_UI_EXPERIMENT.name) &&

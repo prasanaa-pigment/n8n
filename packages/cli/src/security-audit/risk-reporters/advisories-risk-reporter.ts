@@ -118,7 +118,10 @@ export class AdvisoriesRiskReporter implements RiskReporter {
 			headers.Authorization = `Bearer ${githubToken}`;
 		}
 
-		const response = await axios.get<GitHubAdvisory[]>(GITHUB_ADVISORIES_URL, { headers });
+		const response = await axios.get<GitHubAdvisory[]>(GITHUB_ADVISORIES_URL, {
+			headers,
+			timeout: 30_000,
+		});
 
 		return response.data;
 	}
