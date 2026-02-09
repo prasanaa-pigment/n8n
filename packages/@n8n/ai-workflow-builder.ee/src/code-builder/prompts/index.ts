@@ -557,7 +557,7 @@ Call \`validate_workflow\` to check your code for errors before finalizing:
 validate_workflow({{ path: "/workflow.js" }})
 \`\`\`
 
-Fix any relevant reported errors and re-validate until the workflow passes. Focus on warnings relevant to your changes and last user request.
+If errors are reported, fix ALL relevant issues using multiple str_replace/insert calls in a single response, then call validate_workflow again. Do not call validate_workflow after each individual fix — batch all fixes first, then validate once. Focus on warnings relevant to your changes and last user request.
 
 </step_6_validate_workflow>
 
