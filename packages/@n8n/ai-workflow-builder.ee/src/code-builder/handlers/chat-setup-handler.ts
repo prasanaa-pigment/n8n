@@ -120,15 +120,20 @@ export class ChatSetupHandler {
 
 		this.logWorkflowContext(currentWorkflow);
 
+		// Treat empty workflows (no nodes) as no workflow for code context.
+		// This forces the agent to use `create` instead of editing pre-populated code.
+		const workflowForCodeContext =
+			(currentWorkflow?.nodes?.length ?? 0) > 0 ? currentWorkflow : undefined;
+
 		// Pre-generate workflow code for consistency between prompt and text editor
-		const preGeneratedWorkflowCode = this.preGenerateWorkflowCode(payload, currentWorkflow);
+		const preGeneratedWorkflowCode = this.preGenerateWorkflowCode(payload, workflowForCodeContext);
 
 		// Check if text editor mode should be enabled
 		const textEditorEnabled = this.shouldEnableTextEditor();
 		this.debugLog('CHAT_SETUP', 'Text editor mode', { textEditorEnabled });
 
 		// Build prompt
-		const prompt = buildCodeBuilderPrompt(currentWorkflow, historyContext, {
+		const prompt = buildCodeBuilderPrompt(workflowForCodeContext, historyContext, {
 			enableTextEditor: textEditorEnabled,
 			executionSchema: payload.workflowContext?.executionSchema,
 			executionData: payload.workflowContext?.executionData,

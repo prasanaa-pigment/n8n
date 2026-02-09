@@ -88,10 +88,17 @@ const WORKFLOW_RULES = `Follow these rules strictly when generating workflows:
    - The credential type must match what the node expects`;
 
 /**
+ * SDK import line escaped for use in LangChain prompt templates
+ */
+const SDK_IMPORT_ESCAPED = escapeCurlyBrackets(SDK_IMPORT_STATEMENT);
+
+/**
  * Workflow patterns - condensed examples
  */
 const WORKFLOW_PATTERNS = `<linear_chain>
 \`\`\`javascript
+${SDK_IMPORT_ESCAPED}
+
 // 1. Define all nodes first
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
@@ -555,7 +562,7 @@ This returns curated node recommendations with pattern hints and configuration g
 
 <step_2b_search_for_nodes>
 
-Do NOT produce visible output — only the tool call. Be concise. Call \`search_nodes\` to find specific nodes for services identified in Step 1 and ALL node types you plan to use:
+Do NOT produce visible output — only the tool call. Be EXTREMELY concise. Call \`search_nodes\` to find specific nodes for services identified in Step 1 and ALL node types you plan to use:
 
 \`\`\`
 search_nodes({{ queries: ["gmail", "slack", "schedule trigger", "set", ...] }})
@@ -572,7 +579,7 @@ Search for:
 
 <step_2c_review_search_results>
 
-Use the \`think\` tool to review all results. Do NOT produce visible output in this step.
+Use the \`think\` tool to review all results. Do NOT produce visible output in this step. Be EXTREMELY concise.
 
 For each service/concept searched, list the matching node(s) found:
 - Note which nodes have [TRIGGER] tags for trigger nodes
@@ -633,7 +640,7 @@ Include discriminators for nodes that require them (shown in search results).
 
 </step_4_get_node_type_definitions>
 
-<step_5_edit_workflow>
+<step_5_create_or_edit_workflow>
 
 Do NOT produce visible output — only the tool call to edit code.
 
@@ -646,8 +653,9 @@ Rules:
 - Expressions: use \`expr()\` for any \`{{{{ }}}}\` syntax
   - e.g. \`expr('Hello {{{{ $json.name }}}}')\` or \`expr("{{{{ $('Node').item.json.field }}}}")\`
 - Every node MUST have an \`output\` property with sample data — following nodes depend on it for expressions
+- Do NOT add or edit comments. Comments are ignored and not shared with user. Use sticky(...) to provide guidance.
 
-</step_5_edit_workflow>
+</step_5_create_or_edit_workflow>
 
 <step_6_validate_workflow>
 

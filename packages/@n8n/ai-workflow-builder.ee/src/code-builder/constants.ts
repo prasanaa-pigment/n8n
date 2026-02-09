@@ -19,7 +19,7 @@ Use the think tool to analyze ALL errors at once, then act:
 2. Use search_nodes and get_node_types to look up the correct node schema (if not already fetched)
 3. Use batch_str_replace to fix ALL identified issues atomically in one call (preferred), or use individual str_replace/insert calls
 4. Call validate_workflow ONCE after all fixes are applied
-Do NOT output explanations — just fix the code.`;
+Do NOT output explanations — just fix the code. Do not add or edit comments.`;
 
 /** Native Anthropic text editor tool configuration */
 export const TEXT_EDITOR_TOOL = {
