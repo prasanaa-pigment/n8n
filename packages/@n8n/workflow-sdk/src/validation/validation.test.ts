@@ -1,20 +1,9 @@
 import { validateWorkflow, ValidationError } from '.';
-import { loadSchema } from './schema-validator';
 import type { NodeInstance } from '../types/base';
 import { workflow } from '../workflow-builder';
 import { node, trigger, sticky } from '../workflow-builder/node-builders/node-builder';
 import { languageModel, tool } from '../workflow-builder/node-builders/subnode-builders';
-
-// Check if generated schemas are available (they're generated locally, not in CI)
-const schemasAvailable = loadSchema('n8n-nodes-base.set', 2) !== null;
-
-// Helper to conditionally register describe blocks that require schemas
-// Uses a wrapper instead of .skip() to comply with lint rules
-function describeIfSchemas(name: string, fn: () => void) {
-	if (schemasAvailable) {
-		describe(name, fn);
-	}
-}
+import { setupTestSchemas, teardownTestSchemas } from './test-schema-setup';
 
 describe('Validation', () => {
 	describe('validateWorkflow()', () => {
@@ -479,7 +468,10 @@ describe('Validation', () => {
 		});
 	});
 
-	describeIfSchemas('schema validation integration', () => {
+	describe('schema validation integration', () => {
+		beforeAll(setupTestSchemas, 120_000);
+		afterAll(teardownTestSchemas);
+
 		it('should validate node parameters against schema by default', () => {
 			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
 			// keepOnlySet should be boolean, not a string
@@ -1893,7 +1885,9 @@ describe('Validation', () => {
 		});
 	});
 
-	describeIfSchemas('Invalid subnode error message enhancement', () => {
+	describe('Invalid subnode error message enhancement', () => {
+		beforeAll(setupTestSchemas, 120_000);
+		afterAll(teardownTestSchemas);
 		// Mock node types provider that returns builderHint.inputs for OpenAI
 		const mockNodeTypesProviderForOpenAi = {
 			getByNameAndVersion: (type: string, _version?: number) => {

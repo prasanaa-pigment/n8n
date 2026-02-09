@@ -5,25 +5,18 @@
  * Covers discriminated schemas (resource/operation, mode) and non-discriminated schemas
  * with all displayOptions combinations.
  *
- * NOTE: These tests require generated schemas (configured via setSchemaBaseDirs)
- * They are skipped on CI where schemas are not available.
+ * Schemas are generated to os.tmpdir() during test setup.
  */
 
 import { validateNodeConfig, loadSchema } from './schema-validator';
 import { parseWorkflowCode } from '../codegen/parse-workflow-code';
 import { validateWorkflow } from '../validation';
+import { setupTestSchemas, teardownTestSchemas } from './test-schema-setup';
 
-// Check if generated schemas are available (they're generated locally, not in CI)
-const schemasAvailable = loadSchema('n8n-nodes-base.set', 2) !== null;
+describe('Schema Validation Integration', () => {
+	beforeAll(setupTestSchemas, 120_000);
+	afterAll(teardownTestSchemas);
 
-// Conditionally register suite - uses wrapper instead of .skip() to comply with lint rules
-function describeIfSchemas(name: string, fn: () => void) {
-	if (schemasAvailable) {
-		describe(name, fn);
-	}
-}
-
-describeIfSchemas('Schema Validation Integration', () => {
 	describe('Resource/Operation Discriminated (MS Teams v2 - task/create)', () => {
 		// Schema: nodes/n8n-nodes-base/microsoftTeams/v2/resource_task/operation_create.schema.js
 		// Required fields: groupId, planId, bucketId (resourceLocator type), title (no displayOptions)

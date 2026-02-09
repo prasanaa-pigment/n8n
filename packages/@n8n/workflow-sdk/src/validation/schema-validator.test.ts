@@ -4,29 +4,19 @@ import {
 	setSchemaBaseDirs,
 	getSchemaBaseDirs,
 } from './schema-validator';
-
-// Check if generated schemas are available (they're generated locally, not in CI)
-// Schema loading requires dirs to be configured - check with current dirs
-const schemasAvailable = loadSchema('n8n-nodes-base.set', 2) !== null;
-
-// Helper to conditionally run tests that require schemas
-// Uses a wrapper instead of .skip() to comply with lint rules
-function itIfSchemas(name: string, fn: jest.ProvidesCallback) {
-	if (schemasAvailable) {
-		it(name, fn);
-	}
-}
+import { setupTestSchemas, teardownTestSchemas } from './test-schema-setup';
 
 describe('schema-validator', () => {
 	// Store original dirs to restore after tests
 	let originalBaseDirs: string[];
 
-	beforeAll(() => {
+	beforeAll(async () => {
+		await setupTestSchemas();
 		originalBaseDirs = getSchemaBaseDirs();
-	});
+	}, 120_000);
 
 	afterAll(() => {
-		setSchemaBaseDirs(originalBaseDirs);
+		teardownTestSchemas();
 	});
 
 	describe('loadSchema', () => {
@@ -35,26 +25,26 @@ describe('schema-validator', () => {
 			expect(schema).toBeNull();
 		});
 
-		itIfSchemas('loads schema for flat version structure (e.g., set v2)', () => {
+		it('loads schema for flat version structure (e.g., set v2)', () => {
 			// Uses generated schemas from configured schemaBaseDirs
 			// SetV2ConfigSchema in nodes/n8n-nodes-base/set/v2.schema.js
 			const schema = loadSchema('n8n-nodes-base.set', 2);
 			expect(schema).not.toBeNull();
 		});
 
-		itIfSchemas('loads schema for version with decimal (e.g., httpRequest v4.2)', () => {
+		it('loads schema for version with decimal (e.g., httpRequest v4.2)', () => {
 			// HttpRequestV42ConfigSchema in nodes/n8n-nodes-base/httpRequest/v42.schema.js
 			const schema = loadSchema('n8n-nodes-base.httpRequest', 4.2);
 			expect(schema).not.toBeNull();
 		});
 
-		itIfSchemas('loads schema for langchain nodes with @n8n prefix', () => {
+		it('loads schema for langchain nodes with @n8n prefix', () => {
 			// LcAgentV1ConfigSchema in nodes/n8n-nodes-langchain/agent/v1.schema.js
 			const schema = loadSchema('@n8n/n8n-nodes-langchain.agent', 1);
 			expect(schema).not.toBeNull();
 		});
 
-		itIfSchemas('caches schema after first load', () => {
+		it('caches schema after first load', () => {
 			// First load
 			const schema1 = loadSchema('n8n-nodes-base.set', 2);
 			// Second load should return same cached instance
@@ -71,7 +61,7 @@ describe('schema-validator', () => {
 			expect(result.errors).toEqual([]);
 		});
 
-		itIfSchemas('returns valid:true for valid config with correct parameter types', () => {
+		it('returns valid:true for valid config with correct parameter types', () => {
 			// Set v2 has keepOnlySet: boolean
 			const result = validateNodeConfig('n8n-nodes-base.set', 2, {
 				parameters: { keepOnlySet: true },
@@ -80,7 +70,7 @@ describe('schema-validator', () => {
 			expect(result.errors).toEqual([]);
 		});
 
-		itIfSchemas('accepts expressions as valid parameter values', () => {
+		it('accepts expressions as valid parameter values', () => {
 			// Expressions like ={{ $json.value }} are always valid
 			const result = validateNodeConfig('n8n-nodes-base.set', 2, {
 				parameters: { keepOnlySet: '={{ $json.flag }}' },
@@ -88,7 +78,7 @@ describe('schema-validator', () => {
 			expect(result.valid).toBe(true);
 		});
 
-		itIfSchemas('returns errors for invalid parameter type', () => {
+		it('returns errors for invalid parameter type', () => {
 			// keepOnlySet should be boolean or expression, not a plain string
 			const result = validateNodeConfig('n8n-nodes-base.set', 2, {
 				parameters: { keepOnlySet: 'not-a-boolean' },
@@ -98,7 +88,7 @@ describe('schema-validator', () => {
 			expect(result.errors[0].path).toContain('keepOnlySet');
 		});
 
-		itIfSchemas('accepts missing discriminator when default matches a valid branch', () => {
+		it('accepts missing discriminator when default matches a valid branch', () => {
 			// Set v3 mode defaults to 'manual', so missing mode is valid
 			// The schema applies the default and validates against the manual branch
 			const result = validateNodeConfig('n8n-nodes-base.set', 3, {
@@ -111,7 +101,7 @@ describe('schema-validator', () => {
 			expect(result.errors).toEqual([]);
 		});
 
-		itIfSchemas('returns clear error when discriminator has wrong value', () => {
+		it('returns clear error when discriminator has wrong value', () => {
 			// Set v3 mode must be 'manual' or 'raw'
 			const result = validateNodeConfig('n8n-nodes-base.set', 3, {
 				parameters: {
@@ -127,7 +117,7 @@ describe('schema-validator', () => {
 			expect(errorMsg).toMatch(/invalid-mode/i);
 		});
 
-		itIfSchemas('validates AI node with valid subnode config', () => {
+		it('validates AI node with valid subnode config', () => {
 			// The schema now models conditional visibility with displayOptions.
 			// For 'conversationalAgent' (default), only certain fields are visible.
 			// We provide only the fields that are visible for this agent type.
@@ -144,7 +134,7 @@ describe('schema-validator', () => {
 			expect(result.valid).toBe(true);
 		});
 
-		itIfSchemas('validates AI node subnode config with array of tools', () => {
+		it('validates AI node subnode config with array of tools', () => {
 			// Use 'conversationalAgent' which only needs the model subnode
 			const result = validateNodeConfig('@n8n/n8n-nodes-langchain.agent', 1, {
 				parameters: {
@@ -161,13 +151,13 @@ describe('schema-validator', () => {
 			expect(result.valid).toBe(true);
 		});
 
-		itIfSchemas('accepts undefined parameters (optional)', () => {
+		it('accepts undefined parameters (optional)', () => {
 			// Config with no parameters should be valid (parameters is optional in schema)
 			const result = validateNodeConfig('n8n-nodes-base.set', 2, {});
 			expect(result.valid).toBe(true);
 		});
 
-		itIfSchemas('accepts empty parameters object', () => {
+		it('accepts empty parameters object', () => {
 			const result = validateNodeConfig('n8n-nodes-base.set', 2, {
 				parameters: {},
 			});
@@ -182,7 +172,7 @@ describe('schema-validator', () => {
 			expect(getSchemaBaseDirs()).toEqual(customDirs);
 		});
 
-		itIfSchemas('affects schema loading behavior', () => {
+		it('affects schema loading behavior', () => {
 			// Set to a non-existent path
 			setSchemaBaseDirs(['/nonexistent/path']);
 
