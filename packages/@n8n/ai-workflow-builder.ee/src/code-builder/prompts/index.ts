@@ -10,12 +10,58 @@ import { generateWorkflowCode } from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import type { IRunExecutionData, NodeExecutionSchema } from 'n8n-workflow';
 
-import { escapeCurlyBrackets, SDK_API_CONTENT_ESCAPED } from './sdk-api';
 import type { PlanOutput } from '../../types/planning';
 import { formatPlanAsText } from '../../utils/plan-helpers';
 import type { ExpressionValue } from '../../workflow-builder-agent';
 import { formatCodeWithLineNumbers } from '../handlers/text-editor-handler';
 import { SDK_IMPORT_STATEMENT } from '../utils/extract-code';
+
+/**
+ * Escape curly brackets for LangChain prompt templates
+ */
+function escapeCurlyBrackets(text: string): string {
+	return text.replace(/\{/g, '{{').replace(/\}/g, '}}');
+}
+
+/**
+ * Expression context reference - documents variables available inside expr()
+ */
+const EXPRESSION_REFERENCE = `Available variables inside \`expr('{{{{ ... }}}}')\`:
+
+- \`$json\` — current item's JSON data from the immediate predecessor node
+- \`$('NodeName').item.json\` — access any node's output by name
+- \`$input.first()\` — first item from immediate predecessor
+- \`$input.all()\` — all items from immediate predecessor
+- \`$input.item\` — current item being processed
+- \`$binary\` — binary data of current item from immediate predecessor
+- \`$now\` — current date/time (Luxon DateTime). Example: \`$now.toISO()\`
+- \`$today\` — start of today (Luxon DateTime). Example: \`$today.plus(1, 'days')\`
+- \`$itemIndex\` — index of current item being processed
+- \`$runIndex\` — current run index
+- \`$execution.id\` — unique execution ID
+- \`$execution.mode\` — 'test' or 'production'
+- \`$workflow.id\` — workflow ID
+- \`$workflow.name\` — workflow name`;
+
+/**
+ * Additional SDK functions not covered by main workflow patterns
+ */
+const ADDITIONAL_FUNCTIONS = `Additional SDK functions:
+
+- \`placeholder('hint')\` — marks a parameter value for user input. Must be the entire value, cannot be concatenated.
+  Example: \`parameters: {{ url: placeholder('Your API URL (e.g. https://api.example.com/v1)') }}\`
+
+- \`sticky('content', nodes?, config?)\` — creates a sticky note on the canvas.
+  Example: \`sticky('## Data Processing', [httpNode, setNode], {{ color: 2 }})\`
+
+- \`.output(n)\` — selects a specific output index for multi-output nodes. IF and Switch have dedicated methods (\`onTrue/onFalse\`, \`onCase\`), but \`.output(n)\` works as a generic alternative.
+  Example: \`classifier.output(1).to(categoryB)\`
+
+- \`.onError(handler)\` — connects a node's error output to a handler node. Requires \`onError: 'continueErrorOutput'\` in the node config.
+  Example: \`httpNode.onError(errorHandler)\` (with \`config: {{ onError: 'continueErrorOutput' }}\`)
+
+- Additional subnode factories (all follow the same pattern as \`languageModel()\` and \`tool()\`):
+  \`memory()\`, \`outputParser()\`, \`embeddings()\`, \`vectorStore()\`, \`retriever()\`, \`documentLoader()\`, \`textSplitter()\``;
 
 /**
  * Role and capabilities of the agent
@@ -619,7 +665,8 @@ export function buildCodeBuilderPrompt(
 		`<response_style>\n${RESPONSE_STYLE}\n</response_style>`,
 		`<workflow_rules>\n${WORKFLOW_RULES}\n</workflow_rules>`,
 		`<workflow_patterns>\n${WORKFLOW_PATTERNS}\n</workflow_patterns>`,
-		`<sdk_api_reference>\n${SDK_API_CONTENT_ESCAPED}\n</sdk_api_reference>`,
+		`<expression_reference>\n${EXPRESSION_REFERENCE}\n</expression_reference>`,
+		`<additional_functions>\n${ADDITIONAL_FUNCTIONS}\n</additional_functions>`,
 		`<mandatory_workflow_process>\n${MANDATORY_WORKFLOW}\n</mandatory_workflow_process>`,
 	];
 
