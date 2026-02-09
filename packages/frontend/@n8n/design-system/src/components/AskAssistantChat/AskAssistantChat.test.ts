@@ -642,14 +642,22 @@ describe('AskAssistantChat', () => {
 		});
 
 		it('should use thinkingCompletionMessage prop instead of default when provided and tools completed', () => {
-			const message = createToolMessage({
-				id: '1',
-				status: 'completed',
-				displayTitle: 'Search Results',
-				updates: [{ type: 'output', data: { result: 'Found items' } }],
-			});
+			const messages: ChatUI.AssistantMessage[] = [
+				createToolMessage({
+					id: '1',
+					status: 'completed',
+					displayTitle: 'Search Results',
+					updates: [{ type: 'output', data: { result: 'Found items' } }],
+				}),
+				{
+					id: 'wu-1',
+					role: 'assistant' as const,
+					type: 'workflow-updated' as const,
+					codeSnippet: '',
+				},
+			];
 
-			renderWithMessages([message], {
+			renderWithMessages(messages, {
 				streaming: false,
 				thinkingCompletionMessage: 'Crafting workflow',
 			});
@@ -662,14 +670,22 @@ describe('AskAssistantChat', () => {
 		});
 
 		it('should use default i18n key when thinkingCompletionMessage is not provided', () => {
-			const message = createToolMessage({
-				id: '1',
-				status: 'completed',
-				displayTitle: 'Search Results',
-				updates: [{ type: 'output', data: { result: 'Found items' } }],
-			});
+			const messages: ChatUI.AssistantMessage[] = [
+				createToolMessage({
+					id: '1',
+					status: 'completed',
+					displayTitle: 'Search Results',
+					updates: [{ type: 'output', data: { result: 'Found items' } }],
+				}),
+				{
+					id: 'wu-1',
+					role: 'assistant' as const,
+					type: 'workflow-updated' as const,
+					codeSnippet: '',
+				},
+			];
 
-			renderWithMessages([message], { streaming: false });
+			renderWithMessages(messages, { streaming: false });
 
 			expect(thinkingMessageCallCount).toBe(1);
 

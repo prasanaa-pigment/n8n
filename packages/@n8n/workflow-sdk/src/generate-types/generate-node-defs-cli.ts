@@ -10,9 +10,8 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
-
 import { jsonParse } from 'n8n-workflow';
+import * as path from 'path';
 
 import type { NodeTypeDescription } from './generate-types';
 import { orchestrateGeneration } from './generate-types';
