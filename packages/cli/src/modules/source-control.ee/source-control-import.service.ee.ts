@@ -439,35 +439,21 @@ export class SourceControlImportService {
 			where:
 				this.sourceControlScopedService.getCredentialsInAdminProjectsFromContextFilter(context),
 		});
+
 		return localCredentials.map((local) => {
 			const remoteOwnerProject = local.shared?.find((s) => s.role === 'credential:owner')?.project;
 
-			let sanitizedData: ExportableCredential['data'] | undefined;
-
-			if (local.data) {
-				try {
-					const credentials = new Credentials(
-						{ id: local.id, name: local.name },
-						local.type,
-						local.data,
-					);
-
-					sanitizedData = sanitizeCredentialData(credentials.getData());
-				} catch (error) {
-					this.logger.warn(
-						`Failed to decrypt credential "${local.name}" (ID: ${local.id}) for status comparison`,
-						{
-							credentialType: local.type,
-						},
-					);
-				}
-			}
+			const credentials = new Credentials(
+				{ id: local.id, name: local.name },
+				local.type,
+				local.data,
+			);
 
 			return {
 				id: local.id,
 				name: local.name,
 				type: local.type,
-				data: sanitizedData,
+				data: sanitizeCredentialData(credentials.getData()),
 				filename: getCredentialExportPath(local.id, this.credentialExportFolder),
 				ownedBy: remoteOwnerProject ? getOwnerFromProject(remoteOwnerProject) : undefined,
 				isGlobal: local.isGlobal,
