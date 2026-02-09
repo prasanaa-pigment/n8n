@@ -39,10 +39,11 @@ export interface CodeWorkflowBuilderConfig {
 	/** Optional logger */
 	logger?: Logger;
 	/**
-	 * Path to the generated types directory (from InstanceSettings.generatedTypesDir).
-	 * If not provided, falls back to workflow-sdk static types.
+	 * Ordered list of directories to search for node definitions.
+	 * Built-in dirs come first, then the community dir.
+	 * If not provided, falls back to ~/.n8n/node-definitions.
 	 */
-	generatedTypesDir?: string;
+	nodeDefinitionDirs?: string[];
 	/** Optional evaluation logger for capturing debug info during evals */
 	evalLogger?: EvaluationLogger;
 	/**
@@ -94,7 +95,7 @@ export class CodeWorkflowBuilder {
 			llm: config.llm,
 			nodeTypes: config.nodeTypes,
 			logger: config.logger,
-			generatedTypesDir: config.generatedTypesDir,
+			nodeDefinitionDirs: config.nodeDefinitionDirs,
 			evalLogger: config.evalLogger,
 			enableTextEditor: true,
 			onTokenUsage: config.onTokenUsage,
@@ -177,13 +178,13 @@ export function createCodeWorkflowBuilder(
 	nodeTypes: INodeTypeDescription[],
 	options?: {
 		logger?: Logger;
-		generatedTypesDir?: string;
+		nodeDefinitionDirs?: string[];
 	},
 ): CodeWorkflowBuilder {
 	return new CodeWorkflowBuilder({
 		llm,
 		nodeTypes,
 		logger: options?.logger,
-		generatedTypesDir: options?.generatedTypesDir,
+		nodeDefinitionDirs: options?.nodeDefinitionDirs,
 	});
 }

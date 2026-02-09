@@ -224,12 +224,12 @@ describe('CodeWorkflowBuilder Integration', () => {
 			expect(mockChatFn).toHaveBeenCalledWith(payload, 'user-789', controller.signal);
 		});
 
-		it('should pass generatedTypesDir to CodeWorkflowBuilder', async () => {
-			const configWithTypesDir: WorkflowBuilderAgentConfig = {
+		it('should pass nodeDefinitionDirs to CodeWorkflowBuilder', async () => {
+			const configWithDirs: WorkflowBuilderAgentConfig = {
 				...config,
-				generatedTypesDir: '/path/to/generated/types',
+				nodeDefinitionDirs: ['/path/to/builtin', '/path/to/community'],
 			};
-			const agentWithTypesDir = new WorkflowBuilderAgent(configWithTypesDir);
+			const agentWithDirs = new WorkflowBuilderAgent(configWithDirs);
 
 			mockChatFn.mockImplementation(async function* () {
 				yield {
@@ -245,12 +245,12 @@ describe('CodeWorkflowBuilder Integration', () => {
 				},
 			};
 
-			const generator = agentWithTypesDir.chat(payload, 'user-types');
+			const generator = agentWithDirs.chat(payload, 'user-types');
 			await generator.next();
 
 			expect(CodeWorkflowBuilder).toHaveBeenCalledWith(
 				expect.objectContaining({
-					generatedTypesDir: '/path/to/generated/types',
+					nodeDefinitionDirs: ['/path/to/builtin', '/path/to/community'],
 				}),
 			);
 		});

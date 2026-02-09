@@ -10,6 +10,7 @@ import type { License } from '@/license';
 import type { Push } from '@/push';
 import { WorkflowBuilderService } from '@/services/ai-workflow-builder.service';
 import type { DynamicNodeParametersService } from '@/services/dynamic-node-parameters.service';
+import type { NodeDefinitionGeneratorService } from '@/services/node-definition-generator.service';
 import type { UrlService } from '@/services/url.service';
 import type { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import type { Telemetry } from '@/telemetry';
@@ -33,6 +34,7 @@ describe('WorkflowBuilderService', () => {
 	let mockPush: Push;
 	let mockTelemetry: Telemetry;
 	let mockInstanceSettings: InstanceSettings;
+	let mockNodeDefinitionGenerator: NodeDefinitionGeneratorService;
 	let mockDynamicNodeParametersService: DynamicNodeParametersService;
 	let mockUser: IUser;
 
@@ -70,6 +72,7 @@ describe('WorkflowBuilderService', () => {
 		mockPush = mock<Push>();
 		mockTelemetry = mock<Telemetry>();
 		mockInstanceSettings = mock<InstanceSettings>();
+		mockNodeDefinitionGenerator = mock<NodeDefinitionGeneratorService>();
 		mockDynamicNodeParametersService = mock<DynamicNodeParametersService>();
 		mockUser = mock<IUser>();
 		mockUser.id = 'test-user-id';
@@ -79,7 +82,7 @@ describe('WorkflowBuilderService', () => {
 		(mockLicense.loadCertStr as jest.Mock).mockResolvedValue('test-cert');
 		(mockLicense.getConsumerId as jest.Mock).mockReturnValue('test-consumer-id');
 		(mockInstanceSettings.instanceId as unknown) = 'test-instance-id';
-		(mockInstanceSettings.generatedTypesDir as unknown) = undefined;
+		(mockNodeDefinitionGenerator.getNodeDefinitionDirs as jest.Mock).mockReturnValue([]);
 		mockConfig.aiAssistant = { baseUrl: '' };
 
 		// Reset the mocked AiWorkflowBuilderService
@@ -95,6 +98,7 @@ describe('WorkflowBuilderService', () => {
 			mockPush,
 			mockTelemetry,
 			mockInstanceSettings,
+			mockNodeDefinitionGenerator,
 			mockDynamicNodeParametersService,
 		);
 	});
@@ -133,7 +137,7 @@ describe('WorkflowBuilderService', () => {
 				expect.any(String), // n8nVersion
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
-				undefined, // generatedTypesDir
+				expect.anything(), // nodeDefinitionDirs
 				expect.any(Function), // resourceLocatorCallbackFactory
 			);
 
@@ -177,7 +181,7 @@ describe('WorkflowBuilderService', () => {
 				expect.any(String), // n8nVersion
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
-				undefined, // generatedTypesDir
+				expect.anything(), // nodeDefinitionDirs
 				expect.any(Function), // resourceLocatorCallbackFactory
 			);
 		});

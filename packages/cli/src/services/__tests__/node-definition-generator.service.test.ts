@@ -1,8 +1,8 @@
 /**
- * Tests for NodeTypeGeneratorService
+ * Tests for NodeDefinitionGeneratorService
  *
  * Following TDD: These tests are written BEFORE the implementation.
- * Run with: cd packages/cli && pnpm test src/services/__tests__/node-type-generator.service.test.ts
+ * Run with: cd packages/cli && pnpm jest src/services/__tests__/node-definition-generator.service.test.ts
  */
 
 import * as fs from 'fs';
@@ -11,7 +11,7 @@ import { mock } from 'jest-mock-extended';
 import type { Logger } from '@n8n/backend-common';
 import type { InstanceSettings } from 'n8n-core';
 
-import { NodeTypeGeneratorService } from '../node-type-generator.service';
+import { NodeDefinitionGeneratorService } from '../node-definition-generator.service';
 
 // Mock fs module
 jest.mock('fs', () => ({
@@ -19,16 +19,17 @@ jest.mock('fs', () => ({
 		readFile: jest.fn(),
 		writeFile: jest.fn(),
 		mkdir: jest.fn(),
+		rm: jest.fn(),
 	},
 	existsSync: jest.fn(),
 }));
 
-describe('NodeTypeGeneratorService', () => {
+describe('NodeDefinitionGeneratorService', () => {
 	const mockLogger = mock<Logger>();
-	const generatedTypesDir = '/test/.n8n/generated-types';
-	const mockInstanceSettings = mock<InstanceSettings>({ generatedTypesDir });
+	const nodeDefinitionsDir = '/test/.n8n/node-definitions';
+	const mockInstanceSettings = mock<InstanceSettings>({ nodeDefinitionsDir });
 
-	let service: NodeTypeGeneratorService;
+	let service: NodeDefinitionGeneratorService;
 
 	const sampleNodesJson = JSON.stringify([
 		{
@@ -44,19 +45,19 @@ describe('NodeTypeGeneratorService', () => {
 
 	beforeEach(() => {
 		jest.resetAllMocks();
-		service = new NodeTypeGeneratorService(mockLogger, mockInstanceSettings);
+		service = new NodeDefinitionGeneratorService(mockLogger, mockInstanceSettings);
 	});
 
 	describe('constructor', () => {
 		it('should be injectable with Logger and InstanceSettings', () => {
 			expect(service).toBeDefined();
-			expect(service).toBeInstanceOf(NodeTypeGeneratorService);
+			expect(service).toBeInstanceOf(NodeDefinitionGeneratorService);
 		});
 	});
 
 	describe('generateIfNeeded', () => {
 		const nodesJsonPath = '/path/to/nodes.json';
-		const hashFilePath = path.join(generatedTypesDir, 'nodes.json.hash');
+		const hashFilePath = path.join(nodeDefinitionsDir, 'nodes.json.hash');
 
 		it('should generate types if hash file does not exist', async () => {
 			// Hash file doesn't exist
@@ -69,7 +70,7 @@ describe('NodeTypeGeneratorService', () => {
 
 			expect(result).toBe(true); // Types were generated
 			expect(fs.promises.mkdir).toHaveBeenCalledWith(
-				expect.stringContaining('generated-types'),
+				expect.stringContaining('node-definitions'),
 				expect.objectContaining({ recursive: true }),
 			);
 		});
@@ -115,18 +116,18 @@ describe('NodeTypeGeneratorService', () => {
 	describe('generate', () => {
 		const nodesJsonPath = '/path/to/nodes.json';
 
-		it('should create the generated-types directory if it does not exist', async () => {
+		it('should create the node-definitions directory if it does not exist', async () => {
 			(fs.promises.readFile as jest.Mock).mockResolvedValue(sampleNodesJson);
 			(fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
 			(fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
 
 			await service.generate(nodesJsonPath);
 
-			expect(fs.promises.mkdir).toHaveBeenCalledWith(generatedTypesDir, { recursive: true });
+			expect(fs.promises.mkdir).toHaveBeenCalledWith(nodeDefinitionsDir, { recursive: true });
 		});
 
 		it('should write the hash file after generation', async () => {
-			const hashFilePath = path.join(generatedTypesDir, 'nodes.json.hash');
+			const hashFilePath = path.join(nodeDefinitionsDir, 'nodes.json.hash');
 
 			(fs.promises.readFile as jest.Mock).mockResolvedValue(sampleNodesJson);
 			(fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
@@ -176,6 +177,29 @@ describe('NodeTypeGeneratorService', () => {
 			const hash2 = service.computeHash(content);
 
 			expect(hash1).toBe(hash2);
+		});
+	});
+
+	describe('getNodeDefinitionDirs', () => {
+		it('should return built-in dirs from node packages first, then community dir', () => {
+			const dirs = service.getNodeDefinitionDirs();
+			// Should have at least the community dir
+			expect(dirs).toContain(nodeDefinitionsDir);
+			// Community dir should be last
+			expect(dirs[dirs.length - 1]).toBe(nodeDefinitionsDir);
+		});
+	});
+
+	describe('removeForPackage', () => {
+		it('should remove package directory from nodeDefinitionsDir', async () => {
+			(fs.promises.rm as jest.Mock).mockResolvedValue(undefined);
+
+			await service.removeForPackage('n8n-nodes-custom');
+
+			expect(fs.promises.rm).toHaveBeenCalledWith(
+				path.join(nodeDefinitionsDir, 'nodes', 'n8n-nodes-custom'),
+				{ recursive: true, force: true },
+			);
 		});
 	});
 });

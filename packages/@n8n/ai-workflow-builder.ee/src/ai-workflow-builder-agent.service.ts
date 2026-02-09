@@ -41,7 +41,7 @@ export class AiWorkflowBuilderService {
 		private readonly n8nVersion?: string,
 		private readonly onCreditsUpdated?: OnCreditsUpdated,
 		private readonly onTelemetryEvent?: OnTelemetryEvent,
-		private readonly generatedTypesDir?: string,
+		private readonly nodeDefinitionDirs?: string[],
 		private readonly resourceLocatorCallbackFactory?: ResourceLocatorCallbackFactory,
 	) {
 		this.nodeTypes = this.filterNodeTypes(parsedNodeTypes);
@@ -239,7 +239,7 @@ export class AiWorkflowBuilderService {
 				featureFlags: featureFlags ?? {},
 			},
 			onGenerationSuccess: async () => await this.onGenerationSuccess(user, authHeaders),
-			generatedTypesDir: this.generatedTypesDir,
+			nodeDefinitionDirs: this.nodeDefinitionDirs,
 			resourceLocatorCallback,
 			onTelemetryEvent: this.onTelemetryEvent,
 		});

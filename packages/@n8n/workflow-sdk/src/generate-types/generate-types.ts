@@ -13,7 +13,7 @@
  *   pnpm generate-types
  *
  * Output:
- *   ~/.n8n/generated-types/
+ *   ~/.n8n/node-definitions/
  *
  * @generated - This file generates code, but is itself manually maintained.
  */
@@ -42,7 +42,7 @@ const NODES_LANGCHAIN_TYPES = path.resolve(
 	__dirname,
 	'../../../nodes-langchain/dist/types/nodes.json',
 );
-const OUTPUT_PATH = path.join(os.homedir(), '.n8n', 'generated-types');
+const OUTPUT_PATH = path.join(os.homedir(), '.n8n', 'node-definitions');
 
 // Path to nodes-base dist for finding output schemas
 const NODES_BASE_DIST = path.resolve(__dirname, '../../../../nodes-base/dist/nodes');
@@ -3901,21 +3901,74 @@ async function generateVersionSpecificFiles(
 	return allNodes;
 }
 
+// =============================================================================
+// Orchestration - Reusable generation logic
+// =============================================================================
+
+export interface GenerationOptions {
+	nodes: NodeTypeDescription[];
+	outputDir: string;
+}
+
+export interface GenerationResult {
+	nodeCount: number;
+}
+
 /**
- * Generate all types
+ * Orchestrate generation of node definition files (types + schemas) for a set of nodes.
+ * This is the core reusable function used by both the dev-time script and build-time CLI.
+ *
+ * @param options.nodes - Array of node type descriptions to generate for
+ * @param options.outputDir - Directory to write generated files to
+ * @returns Result with count of nodes processed
+ */
+export async function orchestrateGeneration(options: GenerationOptions): Promise<GenerationResult> {
+	const { nodes, outputDir } = options;
+
+	// Group nodes by package, filtering hidden
+	const nodesByPackage = new Map<string, Map<string, NodeTypeDescription[]>>();
+
+	for (const node of nodes) {
+		if (node.hidden) continue;
+
+		const packageName = getPackageName(node.name);
+		const fileName = nodeNameToFileName(node.name);
+
+		if (!nodesByPackage.has(packageName)) {
+			nodesByPackage.set(packageName, new Map());
+		}
+
+		const packageNodes = nodesByPackage.get(packageName)!;
+		if (!packageNodes.has(fileName)) {
+			packageNodes.set(fileName, []);
+		}
+		packageNodes.get(fileName)!.push(node);
+	}
+
+	const allNodes: NodeTypeDescription[] = [];
+
+	// Generate files for each package
+	for (const [packageName, nodesByName] of nodesByPackage) {
+		const packageDir = path.join(outputDir, 'nodes', packageName);
+		const packageNodes = await generateVersionSpecificFiles(packageDir, packageName, nodesByName);
+		allNodes.push(...packageNodes);
+	}
+
+	// Generate root index file
+	if (allNodes.length > 0) {
+		const indexContent = generateIndexFile(allNodes);
+		await fs.promises.writeFile(path.join(outputDir, 'index.ts'), indexContent);
+	}
+
+	return { nodeCount: allNodes.length };
+}
+
+/**
+ * Generate all types (dev-time script entry point).
+ * Loads nodes from built packages and generates to the default output path.
  */
 export async function generateTypes(): Promise<void> {
 	console.log('Starting type generation...');
-
-	// Ensure output directories exist
-	const nodesBaseDir = path.join(OUTPUT_PATH, 'nodes/n8n-nodes-base');
-	const nodesLangchainDir = path.join(OUTPUT_PATH, 'nodes/n8n-nodes-langchain');
-
-	await fs.promises.mkdir(nodesBaseDir, { recursive: true });
-	await fs.promises.mkdir(nodesLangchainDir, { recursive: true });
-
-	// Note: base.schema.js is no longer generated - schema helpers are now passed as parameters
-	// to factory functions from schema-validator.ts via schema-helpers.ts
 
 	const allNodes: NodeTypeDescription[] = [];
 
@@ -3924,41 +3977,7 @@ export async function generateTypes(): Promise<void> {
 		console.log(`Loading nodes from ${NODES_BASE_TYPES}...`);
 		const nodesBase = await loadNodeTypes(NODES_BASE_TYPES, 'n8n-nodes-base');
 		console.log(`  Found ${nodesBase.length} node entries in nodes-base`);
-
-		// Group nodes by their base name (for nodes with multiple version entries)
-		// Also create Tool variants for nodes with usableAsTool: true
-		const nodesByName = new Map<string, NodeTypeDescription[]>();
-		let toolVariantCount = 0;
-		for (const node of nodesBase) {
-			if (node.hidden) continue;
-			const fileName = nodeNameToFileName(node.name);
-			if (!nodesByName.has(fileName)) {
-				nodesByName.set(fileName, []);
-			}
-			nodesByName.get(fileName)!.push(node);
-
-			// Create Tool variant if node is usable as tool
-			const toolVariant = convertNodeToToolVariant(node);
-			if (toolVariant) {
-				const toolFileName = nodeNameToFileName(toolVariant.name);
-				if (!nodesByName.has(toolFileName)) {
-					nodesByName.set(toolFileName, []);
-				}
-				nodesByName.get(toolFileName)!.push(toolVariant);
-				toolVariantCount++;
-			}
-		}
-		console.log(
-			`  Grouped into ${nodesByName.size} unique nodes (${toolVariantCount} tool variants)`,
-		);
-
-		// Generate version-specific files
-		const baseNodes = await generateVersionSpecificFiles(
-			nodesBaseDir,
-			'n8n-nodes-base',
-			nodesByName,
-		);
-		allNodes.push(...baseNodes);
+		allNodes.push(...groupAndAddToolVariants(nodesBase));
 	} else {
 		console.log(`Warning: ${NODES_BASE_TYPES} not found. Run 'pnpm build' in nodes-base first.`);
 	}
@@ -3968,53 +3987,16 @@ export async function generateTypes(): Promise<void> {
 		console.log(`Loading nodes from ${NODES_LANGCHAIN_TYPES}...`);
 		const nodesLangchain = await loadNodeTypes(NODES_LANGCHAIN_TYPES, '@n8n/n8n-nodes-langchain');
 		console.log(`  Found ${nodesLangchain.length} node entries in nodes-langchain`);
-
-		// Group nodes by their base name (for nodes with multiple version entries)
-		// Also create Tool variants for nodes with usableAsTool: true
-		const nodesByName = new Map<string, NodeTypeDescription[]>();
-		let toolVariantCount = 0;
-		for (const node of nodesLangchain) {
-			if (node.hidden) continue;
-			const fileName = nodeNameToFileName(node.name);
-			if (!nodesByName.has(fileName)) {
-				nodesByName.set(fileName, []);
-			}
-			nodesByName.get(fileName)!.push(node);
-
-			// Create Tool variant if node is usable as tool
-			const toolVariant = convertNodeToToolVariant(node);
-			if (toolVariant) {
-				const toolFileName = nodeNameToFileName(toolVariant.name);
-				if (!nodesByName.has(toolFileName)) {
-					nodesByName.set(toolFileName, []);
-				}
-				nodesByName.get(toolFileName)!.push(toolVariant);
-				toolVariantCount++;
-			}
-		}
-		console.log(
-			`  Grouped into ${nodesByName.size} unique nodes (${toolVariantCount} tool variants)`,
-		);
-
-		// Generate version-specific files
-		const langchainNodes = await generateVersionSpecificFiles(
-			nodesLangchainDir,
-			'n8n-nodes-langchain',
-			nodesByName,
-		);
-		allNodes.push(...langchainNodes);
+		allNodes.push(...groupAndAddToolVariants(nodesLangchain));
 	} else {
 		console.log(
 			`Warning: ${NODES_LANGCHAIN_TYPES} not found. Run 'pnpm build' in nodes-langchain first.`,
 		);
 	}
 
-	// Generate index file
-	if (allNodes.length > 0) {
-		const indexContent = generateIndexFile(allNodes);
-		await fs.promises.writeFile(path.join(OUTPUT_PATH, 'index.ts'), indexContent);
-		console.log(`Generated index.ts with ${allNodes.length} node exports`);
-	} else {
+	const result = await orchestrateGeneration({ nodes: allNodes, outputDir: OUTPUT_PATH });
+
+	if (result.nodeCount === 0) {
 		// Generate placeholder if no nodes found
 		const placeholderContent = `/**
  * Generated Node Types
@@ -4031,9 +4013,29 @@ export {};
 `;
 		await fs.promises.writeFile(path.join(OUTPUT_PATH, 'index.ts'), placeholderContent);
 		console.log('Generated placeholder index.ts (no nodes found)');
+	} else {
+		console.log(`Generated definitions for ${result.nodeCount} nodes`);
 	}
 
 	console.log('Type generation complete!');
+}
+
+/**
+ * Takes raw loaded nodes and returns a flat array with tool variants added.
+ * Filters hidden nodes.
+ */
+function groupAndAddToolVariants(nodes: NodeTypeDescription[]): NodeTypeDescription[] {
+	const result: NodeTypeDescription[] = [];
+	for (const node of nodes) {
+		if (node.hidden) continue;
+		result.push(node);
+
+		const toolVariant = convertNodeToToolVariant(node);
+		if (toolVariant) {
+			result.push(toolVariant);
+		}
+	}
+	return result;
 }
 
 // Run if called directly

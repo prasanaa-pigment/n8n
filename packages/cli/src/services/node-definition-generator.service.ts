@@ -16,19 +16,21 @@ import {
 	versionToFileName,
 	nodeNameToFileName,
 	getPackageName,
+	orchestrateGeneration,
 	type NodeTypeDescription,
 } from '@n8n/workflow-sdk';
 
 /**
- * Service for generating node types at runtime.
+ * Service for generating node definitions at runtime.
  *
- * Generates TypeScript type definitions from nodes.json files
- * and stores them in the ~/.n8n/generated-types/ directory.
+ * Generates TypeScript type definitions and Zod schemas from nodes.json files
+ * and stores them in the ~/.n8n/node-definitions/ directory.
  *
- * Types are regenerated on first startup and when community nodes change.
+ * For built-in nodes, definitions are pre-generated at build time.
+ * This service handles community/custom nodes at install time.
  */
 @Service()
-export class NodeTypeGeneratorService {
+export class NodeDefinitionGeneratorService {
 	private generationInProgress: Promise<void> | null = null;
 
 	constructor(
@@ -58,7 +60,7 @@ export class NodeTypeGeneratorService {
 			return false;
 		}
 
-		const hashFilePath = path.join(this.instanceSettings.generatedTypesDir, 'nodes.json.hash');
+		const hashFilePath = path.join(this.instanceSettings.nodeDefinitionsDir, 'nodes.json.hash');
 
 		// Read the nodes.json content
 		const content = await fs.promises.readFile(nodesJsonPath, 'utf-8');
@@ -93,7 +95,7 @@ export class NodeTypeGeneratorService {
 	 * @param nodesJsonPath Path to the nodes.json file
 	 */
 	async generate(nodesJsonPath: string): Promise<void> {
-		const outputDir = this.instanceSettings.generatedTypesDir;
+		const outputDir = this.instanceSettings.nodeDefinitionsDir;
 		const hashFilePath = path.join(outputDir, 'nodes.json.hash');
 
 		this.logger.info('Generating node types and schemas from nodes.json...');
@@ -201,6 +203,52 @@ export class NodeTypeGeneratorService {
 		await fs.promises.writeFile(hashFilePath, hash, 'utf-8');
 
 		this.logger.info(`Generated types and schemas for ${allNodes.length} nodes`);
+	}
+
+	/**
+	 * Returns ordered list of directories to search for node definitions.
+	 * Built-in dirs (from node packages) come first, then the community dir.
+	 */
+	getNodeDefinitionDirs(): string[] {
+		return [...this.getBuiltinDefinitionDirs(), this.instanceSettings.nodeDefinitionsDir];
+	}
+
+	/**
+	 * Generate node definitions for a community package into nodeDefinitionsDir.
+	 */
+	async generateForPackage(_packageName: string, nodeTypes: NodeTypeDescription[]): Promise<void> {
+		await orchestrateGeneration({
+			nodes: nodeTypes,
+			outputDir: this.instanceSettings.nodeDefinitionsDir,
+		});
+	}
+
+	/**
+	 * Remove generated definitions for a community package from nodeDefinitionsDir.
+	 */
+	async removeForPackage(packageName: string): Promise<void> {
+		const packageDir = path.join(this.instanceSettings.nodeDefinitionsDir, 'nodes', packageName);
+		await fs.promises.rm(packageDir, { recursive: true, force: true });
+	}
+
+	/**
+	 * Resolve built-in node definition directories from installed node packages.
+	 */
+	private getBuiltinDefinitionDirs(): string[] {
+		const dirs: string[] = [];
+		for (const packageId of ['n8n-nodes-base', '@n8n/n8n-nodes-langchain']) {
+			try {
+				const packageJsonPath = require.resolve(`${packageId}/package.json`);
+				const distDir = path.dirname(packageJsonPath);
+				const nodeDefsDir = path.join(distDir, 'dist', 'node-definitions');
+				if (fs.existsSync(nodeDefsDir)) {
+					dirs.push(nodeDefsDir);
+				}
+			} catch {
+				// Package not installed, skip
+			}
+		}
+		return dirs;
 	}
 
 	/**

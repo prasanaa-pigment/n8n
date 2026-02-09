@@ -102,10 +102,11 @@ export interface CodeBuilderAgentConfig {
 	/** Optional logger */
 	logger?: Logger;
 	/**
-	 * Path to the generated types directory (from InstanceSettings.generatedTypesDir).
-	 * If not provided, falls back to workflow-sdk static types.
+	 * Ordered list of directories to search for node definitions.
+	 * Built-in dirs come first, then the community dir.
+	 * If not provided, falls back to ~/.n8n/node-definitions.
 	 */
-	generatedTypesDir?: string;
+	nodeDefinitionDirs?: string[];
 	/** Optional evaluation logger for capturing debug info during evals */
 	evalLogger?: EvaluationLogger;
 	/**

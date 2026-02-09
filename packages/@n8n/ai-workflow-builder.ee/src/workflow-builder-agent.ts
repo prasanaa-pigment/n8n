@@ -70,10 +70,11 @@ export interface WorkflowBuilderAgentConfig {
 	/** Callback when generation completes successfully (not aborted) */
 	onGenerationSuccess?: () => Promise<void>;
 	/**
-	 * Path to the generated types directory (from InstanceSettings.generatedTypesDir).
-	 * If not provided, falls back to workflow-sdk static types.
+	 * Ordered list of directories to search for node definitions.
+	 * Built-in dirs come first, then the community dir.
+	 * If not provided, falls back to ~/.n8n/node-definitions.
 	 */
-	generatedTypesDir?: string;
+	nodeDefinitionDirs?: string[];
 	/** Callback for fetching resource locator options */
 	resourceLocatorCallback?: ResourceLocatorCallback;
 	/** Callback for emitting telemetry events */
@@ -133,7 +134,7 @@ export class WorkflowBuilderAgent {
 	private instanceUrl?: string;
 	private runMetadata?: Record<string, unknown>;
 	private onGenerationSuccess?: () => Promise<void>;
-	private generatedTypesDir?: string;
+	private nodeDefinitionDirs?: string[];
 	private resourceLocatorCallback?: ResourceLocatorCallback;
 	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 	private lastChatMetrics?: ChatMetrics;
@@ -149,7 +150,7 @@ export class WorkflowBuilderAgent {
 		this.instanceUrl = config.instanceUrl;
 		this.runMetadata = config.runMetadata;
 		this.onGenerationSuccess = config.onGenerationSuccess;
-		this.generatedTypesDir = config.generatedTypesDir;
+		this.nodeDefinitionDirs = config.nodeDefinitionDirs;
 		this.resourceLocatorCallback = config.resourceLocatorCallback;
 		this.onTelemetryEvent = config.onTelemetryEvent;
 	}
@@ -218,7 +219,7 @@ export class WorkflowBuilderAgent {
 				llm: this.stageLLMs.builder,
 				nodeTypes: this.parsedNodeTypes,
 				logger: this.logger,
-				generatedTypesDir: this.generatedTypesDir,
+				nodeDefinitionDirs: this.nodeDefinitionDirs,
 				checkpointer: this.checkpointer,
 				onGenerationSuccess: this.onGenerationSuccess,
 				callbacks: this.tracer ? [this.tracer] : undefined,

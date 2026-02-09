@@ -155,7 +155,7 @@ export class CodeBuilderAgent {
 
 		// Create tools
 		const searchTool = createCodeBuilderSearchTool(this.nodeTypeParser);
-		const getTool = createCodeBuilderGetTool({ generatedTypesDir: config.generatedTypesDir });
+		const getTool = createCodeBuilderGetTool({ nodeDefinitionDirs: config.nodeDefinitionDirs });
 		const suggestedNodesTool = createGetSuggestedNodesTool(this.nodeTypeParser);
 		const thinkTool = createThinkTool();
 		this.tools = [searchTool, getTool, suggestedNodesTool, thinkTool];

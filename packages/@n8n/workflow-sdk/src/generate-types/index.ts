@@ -54,6 +54,10 @@ export {
 	// Async utilities
 	loadNodeTypes,
 	generateTypes,
+	// Orchestration
+	orchestrateGeneration,
+	type GenerationOptions,
+	type GenerationResult,
 } from './generate-types';
 
 // Zod schema generation

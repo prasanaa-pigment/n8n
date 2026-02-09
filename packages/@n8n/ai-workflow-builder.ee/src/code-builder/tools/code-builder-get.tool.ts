@@ -75,22 +75,39 @@ function debugLog(message: string, data?: Record<string, unknown>): void {
 }
 
 /**
- * Get the path to the generated nodes directory
- * Uses either a custom path (from InstanceSettings.generatedTypesDir) or falls back to
- * the static types in workflow-sdk for development/testing.
+ * Get the paths to the generated nodes directories.
+ * Searches multiple directories in order (built-in first, then community).
+ * Falls back to ~/.n8n/node-definitions if no dirs are provided.
  */
-function getGeneratedNodesPath(customGeneratedTypesDir?: string): string {
-	if (customGeneratedTypesDir) {
-		const nodesPath = join(customGeneratedTypesDir, 'nodes');
-		debugLog('Using custom generated nodes path', { customGeneratedTypesDir, nodesPath });
-		return nodesPath;
+function getGeneratedNodesPaths(nodeDefinitionDirs?: string[]): string[] {
+	if (nodeDefinitionDirs && nodeDefinitionDirs.length > 0) {
+		const nodesPaths = nodeDefinitionDirs.map((dir) => join(dir, 'nodes'));
+		debugLog('Using custom node definition dirs', { nodeDefinitionDirs, nodesPaths });
+		return nodesPaths;
 	}
 
-	// Default to ~/.n8n/generated-types (same location as runtime and CLI)
-	const defaultTypesDir = join(homedir(), '.n8n', 'generated-types');
+	// Default to ~/.n8n/node-definitions (same location as runtime and CLI)
+	const defaultTypesDir = join(homedir(), '.n8n', 'node-definitions');
 	const nodesPath = join(defaultTypesDir, 'nodes');
 	debugLog('Using default generated nodes path', { defaultTypesDir, nodesPath });
-	return nodesPath;
+	return [nodesPath];
+}
+
+/**
+ * Find the first nodes path that contains the given node directory.
+ * Returns { nodesPath, nodeDir } or null if not found in any dir.
+ */
+function findNodeDir(
+	parsed: { packageName: string; nodeName: string },
+	nodesPaths: string[],
+): { nodesPath: string; nodeDir: string } | null {
+	for (const nodesPath of nodesPaths) {
+		const nodeDir = join(nodesPath, parsed.packageName, parsed.nodeName);
+		if (existsSync(nodeDir)) {
+			return { nodesPath, nodeDir };
+		}
+	}
+	return null;
 }
 
 /**
@@ -194,20 +211,22 @@ function parseNodeId(nodeId: string): { packageName: string; nodeName: string } 
  * Get available versions for a node
  * Returns array of version strings like ['v34', 'v2'] sorted by version descending
  */
-function getNodeVersions(nodeId: string, generatedTypesDir?: string): string[] {
+function getNodeVersions(nodeId: string, nodeDefinitionDirs?: string[]): string[] {
 	const parsed = parseNodeId(nodeId);
 	if (!parsed) {
 		debugLog('Could not get versions - parsing failed', { nodeId });
 		return [];
 	}
 
-	const nodesPath = getGeneratedNodesPath(generatedTypesDir);
-	const nodeDir = join(nodesPath, parsed.packageName, parsed.nodeName);
+	const nodesPaths = getGeneratedNodesPaths(nodeDefinitionDirs);
+	const found = findNodeDir(parsed, nodesPaths);
 
-	if (!existsSync(nodeDir)) {
-		debugLog('Node directory does not exist', { nodeDir });
+	if (!found) {
+		debugLog('Node directory does not exist in any dir', { nodeId });
 		return [];
 	}
+
+	const { nodeDir } = found;
 
 	try {
 		const entries = readdirSync(nodeDir, { withFileTypes: true });
@@ -378,7 +397,7 @@ function resolveModePath(
 function tryGetNodeFilePath(
 	nodeId: string,
 	version: string | undefined,
-	generatedTypesDir: string | undefined,
+	nodeDefinitionDirs: string[] | undefined,
 	discriminators: { resource?: string; operation?: string; mode?: string } | undefined,
 ): PathResolutionResult {
 	const parsed = parseNodeId(nodeId);
@@ -399,26 +418,28 @@ function tryGetNodeFilePath(
 		};
 	}
 
-	const nodesPath = getGeneratedNodesPath(generatedTypesDir);
-	const nodeDir = join(nodesPath, parsed.packageName, parsed.nodeName);
+	const nodesPaths = getGeneratedNodesPaths(nodeDefinitionDirs);
+	const found = findNodeDir(parsed, nodesPaths);
+
+	if (!found) {
+		debugLog('Node directory does not exist in any dir', { nodeId });
+		return {
+			error: `Node type '${nodeId}' not found. Use search_node to find the correct node ID.`,
+		};
+	}
+
+	const { nodesPath, nodeDir } = found;
 
 	// Security: Final path validation - ensure we're still within nodesPath
 	if (!validatePathWithinBase(nodeDir, nodesPath)) {
 		return { error: 'Error: Invalid path - path traversal detected' };
 	}
 
-	if (!existsSync(nodeDir)) {
-		debugLog('Node directory does not exist', { nodeDir });
-		return {
-			error: `Node type '${nodeId}' not found. Use search_node to find the correct node ID.`,
-		};
-	}
-
 	let targetVersion = version;
 
 	// If no version specified, find the latest version
 	if (!targetVersion) {
-		const versions = getNodeVersions(nodeId, generatedTypesDir);
+		const versions = getNodeVersions(nodeId, nodeDefinitionDirs);
 		if (versions.length === 0) {
 			debugLog('No versions found for node', { nodeId });
 			return { error: `No versions found for node '${nodeId}'` };
@@ -495,11 +516,11 @@ function tryGetNodeFilePath(
 function getNodeFilePath(
 	nodeId: string,
 	version?: string,
-	generatedTypesDir?: string,
+	nodeDefinitionDirs?: string[],
 	discriminators?: { resource?: string; operation?: string; mode?: string },
 ): PathResolutionResult {
 	// Try exact node ID first
-	let result = tryGetNodeFilePath(nodeId, version, generatedTypesDir, discriminators);
+	let result = tryGetNodeFilePath(nodeId, version, nodeDefinitionDirs, discriminators);
 
 	// If not found and node name ends with 'Tool', try base node as fallback
 	// (e.g., n8n-nodes-base.googleCalendarTool -> n8n-nodes-base.googleCalendar)
@@ -508,7 +529,7 @@ function getNodeFilePath(
 	if (result.error && nodeId.endsWith('Tool')) {
 		const baseNodeId = nodeId.slice(0, -4);
 		debugLog('Trying base node fallback', { nodeId, baseNodeId });
-		result = tryGetNodeFilePath(baseNodeId, version, generatedTypesDir, discriminators);
+		result = tryGetNodeFilePath(baseNodeId, version, nodeDefinitionDirs, discriminators);
 	}
 
 	return result;
@@ -520,7 +541,7 @@ function getNodeFilePath(
 function getNodeTypeDefinition(
 	nodeId: string,
 	version?: string,
-	generatedTypesDir?: string,
+	nodeDefinitionDirs?: string[],
 	discriminators?: { resource?: string; operation?: string; mode?: string },
 ): {
 	nodeId: string;
@@ -532,15 +553,16 @@ function getNodeTypeDefinition(
 	debugLog('Getting type definition for node', {
 		nodeId,
 		version,
-		generatedTypesDir,
+		nodeDefinitionDirs,
 		discriminators,
 	});
 
-	// Check if the types directory exists
-	const nodesPath = getGeneratedNodesPath(generatedTypesDir);
-	if (!existsSync(nodesPath)) {
-		const errorMsg = generatedTypesDir
-			? `Node types directory not found at '${nodesPath}'. Types may not have been generated yet.`
+	// Check if any types directory exists
+	const nodesPaths = getGeneratedNodesPaths(nodeDefinitionDirs);
+	const anyDirExists = nodesPaths.some((p) => existsSync(p));
+	if (!anyDirExists) {
+		const errorMsg = nodeDefinitionDirs
+			? `Node types directory not found in any of the configured dirs. Types may not have been generated yet.`
 			: 'Node types not found. The generated types directory does not exist. Ensure the application has started properly and types have been generated.';
 		return {
 			nodeId,
@@ -549,10 +571,10 @@ function getNodeTypeDefinition(
 		};
 	}
 
-	const pathResult = getNodeFilePath(nodeId, version, generatedTypesDir, discriminators);
+	const pathResult = getNodeFilePath(nodeId, version, nodeDefinitionDirs, discriminators);
 
 	if (pathResult.error) {
-		const availableVersions = getNodeVersions(nodeId, generatedTypesDir);
+		const availableVersions = getNodeVersions(nodeId, nodeDefinitionDirs);
 		return {
 			nodeId,
 			version,
@@ -619,10 +641,11 @@ type NodeRequest =
  */
 export interface CodeBuilderGetToolOptions {
 	/**
-	 * Path to the generated types directory (from InstanceSettings.generatedTypesDir).
-	 * If not provided, falls back to workflow-sdk static types.
+	 * Ordered list of directories to search for node definitions.
+	 * Built-in dirs come first, then the community dir.
+	 * If not provided, falls back to ~/.n8n/node-definitions.
 	 */
-	generatedTypesDir?: string;
+	nodeDefinitionDirs?: string[];
 }
 
 /**
@@ -630,13 +653,17 @@ export interface CodeBuilderGetToolOptions {
  * Accepts a list of node IDs (with optional versions) and returns all type definitions in a single call
  */
 export function createCodeBuilderGetTool(options: CodeBuilderGetToolOptions = {}) {
-	const { generatedTypesDir } = options;
-	debugLog('Creating get_node_types tool', { generatedTypesDir });
+	const { nodeDefinitionDirs } = options;
+	debugLog('Creating get_node_types tool', { nodeDefinitionDirs });
 
 	return tool(
 		async (input: { nodeIds: NodeRequest[] }) => {
 			debugLog('========== GET_NODE_TYPES TOOL INVOKED ==========');
-			debugLog('Input', { nodeIds: input.nodeIds, count: input.nodeIds.length, generatedTypesDir });
+			debugLog('Input', {
+				nodeIds: input.nodeIds,
+				count: input.nodeIds.length,
+				nodeDefinitionDirs,
+			});
 
 			const results: string[] = [];
 			const errors: string[] = [];
@@ -656,7 +683,7 @@ export function createCodeBuilderGetTool(options: CodeBuilderGetToolOptions = {}
 								mode: nodeRequest.mode,
 							};
 
-				const result = getNodeTypeDefinition(nodeId, version, generatedTypesDir, discriminators);
+				const result = getNodeTypeDefinition(nodeId, version, nodeDefinitionDirs, discriminators);
 				if (result.error) {
 					errors.push(result.error);
 				} else {

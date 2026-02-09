@@ -19,6 +19,7 @@ import { License } from '@/license';
 import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { Push } from '@/push';
 import { DynamicNodeParametersService } from '@/services/dynamic-node-parameters.service';
+import { NodeDefinitionGeneratorService } from '@/services/node-definition-generator.service';
 import { UrlService } from '@/services/url.service';
 import { Telemetry } from '@/telemetry';
 import { getBase } from '@/workflow-execute-additional-data';
@@ -44,6 +45,7 @@ export class WorkflowBuilderService {
 		private readonly push: Push,
 		private readonly telemetry: Telemetry,
 		private readonly instanceSettings: InstanceSettings,
+		private readonly nodeDefinitionGenerator: NodeDefinitionGeneratorService,
 		private readonly dynamicNodeParametersService: DynamicNodeParametersService,
 	) {
 		// Register a post-processor to update node types when they change.
@@ -154,7 +156,7 @@ export class WorkflowBuilderService {
 			N8N_VERSION,
 			onCreditsUpdated,
 			onTelemetryEvent,
-			this.instanceSettings.generatedTypesDir,
+			this.nodeDefinitionGenerator.getNodeDefinitionDirs(),
 			resourceLocatorCallbackFactory,
 		);
 

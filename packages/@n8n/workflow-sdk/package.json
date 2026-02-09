@@ -37,6 +37,9 @@
 	"main": "dist/index.js",
 	"module": "src/index.ts",
 	"types": "dist/index.d.ts",
+	"bin": {
+		"n8n-generate-node-defs": "./dist/generate-types/generate-node-defs-cli.js"
+	},
 	"files": [
 		"dist/**/*"
 	],

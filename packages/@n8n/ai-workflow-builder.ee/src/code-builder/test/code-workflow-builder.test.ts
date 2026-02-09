@@ -64,11 +64,11 @@ describe('CodeWorkflowBuilder', () => {
 			expect(builder).toBeInstanceOf(CodeWorkflowBuilder);
 		});
 
-		it('should accept optional generatedTypesDir', () => {
+		it('should accept optional nodeDefinitionDirs', () => {
 			const config: CodeWorkflowBuilderConfig = {
 				llm: createMockLLM() as unknown as CodeWorkflowBuilderConfig['llm'],
 				nodeTypes: mockNodeTypes as unknown as CodeWorkflowBuilderConfig['nodeTypes'],
-				generatedTypesDir: '/path/to/generated/types',
+				nodeDefinitionDirs: ['/path/to/generated/types'],
 			};
 
 			const builder = new CodeWorkflowBuilder(config);
@@ -246,13 +246,13 @@ describe('createCodeWorkflowBuilder', () => {
 		expect(builder).toBeInstanceOf(CodeWorkflowBuilder);
 	});
 
-	it('should accept optional generatedTypesDir', () => {
+	it('should accept optional nodeDefinitionDirs', () => {
 		const mockLLM = createMockLLM();
 
 		const builder = createCodeWorkflowBuilder(
 			mockLLM as unknown as CodeWorkflowBuilderConfig['llm'],
 			mockNodeTypes as unknown as CodeWorkflowBuilderConfig['nodeTypes'],
-			{ generatedTypesDir: '/path/to/types' },
+			{ nodeDefinitionDirs: ['/path/to/types'] },
 		);
 
 		expect(builder).toBeInstanceOf(CodeWorkflowBuilder);

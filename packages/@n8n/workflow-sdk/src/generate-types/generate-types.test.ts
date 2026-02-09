@@ -4426,3 +4426,112 @@ describe('generate-types', () => {
 		});
 	});
 });
+
+// =============================================================================
+// orchestrateGeneration Tests
+// =============================================================================
+
+describe('orchestrateGeneration', () => {
+	const os = require('os');
+	const outputDir = path.join(os.tmpdir(), `n8n-test-orchestrate-${Date.now()}`);
+	let mod: typeof GenerateTypesModule;
+
+	beforeAll(async () => {
+		mod = await import('../generate-types/generate-types');
+	});
+
+	afterAll(async () => {
+		await fs.promises.rm(outputDir, { recursive: true, force: true });
+	});
+
+	it('should generate .ts type files and .schema.js schema files for each node version', async () => {
+		const nodes: NodeTypeDescription[] = [
+			{
+				name: 'n8n-nodes-base.testNode',
+				displayName: 'Test Node',
+				description: 'A test node',
+				group: ['transform'],
+				version: 1,
+				properties: [
+					{
+						name: 'operation',
+						displayName: 'Operation',
+						type: 'string',
+						default: 'get',
+					},
+				] as NodeProperty[],
+				inputs: ['main'],
+				outputs: ['main'],
+			},
+		];
+
+		const result = await mod.orchestrateGeneration({ nodes, outputDir });
+		expect(result.nodeCount).toBe(1);
+
+		// Verify .ts file exists
+		const tsFile = path.join(outputDir, 'nodes', 'n8n-nodes-base', 'testNode', 'v1.ts');
+		expect(fs.existsSync(tsFile)).toBe(true);
+
+		// Verify .schema.js file exists alongside each .ts
+		const schemaFile = path.join(outputDir, 'nodes', 'n8n-nodes-base', 'testNode', 'v1.schema.js');
+		expect(fs.existsSync(schemaFile)).toBe(true);
+
+		// Verify index.ts generated
+		const indexFile = path.join(outputDir, 'nodes', 'n8n-nodes-base', 'testNode', 'index.ts');
+		expect(fs.existsSync(indexFile)).toBe(true);
+	});
+
+	it('should skip hidden nodes', async () => {
+		const hiddenOutputDir = path.join(outputDir, 'hidden-test');
+
+		const nodes: NodeTypeDescription[] = [
+			{
+				name: 'n8n-nodes-base.hiddenNode',
+				displayName: 'Hidden Node',
+				group: ['transform'],
+				version: 1,
+				properties: [] as NodeProperty[],
+				inputs: ['main'],
+				outputs: ['main'],
+				hidden: true,
+			},
+		];
+
+		const result = await mod.orchestrateGeneration({ nodes, outputDir: hiddenOutputDir });
+		expect(result.nodeCount).toBe(0);
+	});
+
+	it('should generate root index.ts with all node exports', async () => {
+		const indexOutputDir = path.join(outputDir, 'index-test');
+
+		const nodes: NodeTypeDescription[] = [
+			{
+				name: 'n8n-nodes-base.nodeA',
+				displayName: 'Node A',
+				group: ['transform'],
+				version: 1,
+				properties: [] as NodeProperty[],
+				inputs: ['main'],
+				outputs: ['main'],
+			},
+			{
+				name: 'n8n-nodes-base.nodeB',
+				displayName: 'Node B',
+				group: ['output'],
+				version: [1, 2],
+				properties: [] as NodeProperty[],
+				inputs: ['main'],
+				outputs: ['main'],
+			},
+		];
+
+		await mod.orchestrateGeneration({ nodes, outputDir: indexOutputDir });
+
+		const indexFile = path.join(indexOutputDir, 'index.ts');
+		expect(fs.existsSync(indexFile)).toBe(true);
+
+		const content = fs.readFileSync(indexFile, 'utf-8');
+		expect(content).toContain('nodeA');
+		expect(content).toContain('nodeB');
+	});
+});

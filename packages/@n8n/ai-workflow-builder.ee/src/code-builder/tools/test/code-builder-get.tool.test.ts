@@ -10,14 +10,14 @@ import {
 
 describe('CodeBuilderGetTool', () => {
 	describe('createCodeBuilderGetTool', () => {
-		it('should create tool without throwing when generatedTypesDir is not provided', () => {
+		it('should create tool without throwing when nodeDefinitionDirs is not provided', () => {
 			// This test verifies that the tool can be created without errors
-			// when no custom generatedTypesDir is provided.
+			// when no custom nodeDefinitionDirs is provided.
 			expect(() => createCodeBuilderGetTool()).not.toThrow();
 		});
 
-		it('should create tool with custom generatedTypesDir', () => {
-			expect(() => createCodeBuilderGetTool({ generatedTypesDir: '/tmp/test' })).not.toThrow();
+		it('should create tool with custom nodeDefinitionDirs', () => {
+			expect(() => createCodeBuilderGetTool({ nodeDefinitionDirs: ['/tmp/test'] })).not.toThrow();
 		});
 
 		it('should return a tool with correct name', () => {
@@ -44,10 +44,10 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should provide helpful error when generated types directory does not exist', async () => {
-			// When a non-existent generatedTypesDir is provided, the error message
+			// When a non-existent nodeDefinitionDirs is provided, the error message
 			// should indicate that the types need to be generated.
 			const tool = createCodeBuilderGetTool({
-				generatedTypesDir: '/non-existent-path-that-does-not-exist-12345',
+				nodeDefinitionDirs: ['/non-existent-path-that-does-not-exist-12345'],
 			});
 
 			// Request a valid node that should exist if types were generated
@@ -129,7 +129,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should read flat version file for nodes without discriminators', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: ['n8n-nodes-base.aggregate'],
@@ -140,7 +140,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should read specific operation file when resource and operation provided', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: [
@@ -157,7 +157,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should read specific mode file when mode provided', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: [
@@ -173,7 +173,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should return error when split node is requested without discriminators', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: ['n8n-nodes-base.freshservice'],
@@ -185,7 +185,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should return error when invalid discriminator value is provided', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: [
@@ -203,7 +203,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should accept string nodeId for backwards compatibility', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			// String nodeId should work for flat files
 			const result = await tool.invoke({
@@ -214,7 +214,7 @@ describe('CodeBuilderGetTool', () => {
 		});
 
 		it('should handle mixed array of string and object nodeIds', async () => {
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: [
@@ -260,7 +260,7 @@ describe('CodeBuilderGetTool', () => {
 
 			fs.writeFileSync(path.join(openaiDir, 'index.ts'), "export * from './v21';");
 
-			const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 			const result = await tool.invoke({
 				nodeIds: [
@@ -276,6 +276,82 @@ describe('CodeBuilderGetTool', () => {
 			expect(result).toContain('splitFileMarker');
 			expect(result).not.toContain('flatFileMarker');
 			expect(result).toContain('OpenAIV21VideoGenerateConfig');
+		});
+	});
+
+	describe('multi-dir resolution', () => {
+		let builtinDir: string;
+		let communityDir: string;
+
+		beforeAll(() => {
+			// Create two separate temp directories to simulate built-in and community dirs
+			builtinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'builtin-nodes-test-'));
+			communityDir = fs.mkdtempSync(path.join(os.tmpdir(), 'community-nodes-test-'));
+
+			// Put nodeA (aggregate) in builtinDir only
+			const builtinNodeDir = path.join(builtinDir, 'nodes/n8n-nodes-base/aggregate');
+			fs.mkdirSync(builtinNodeDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(builtinNodeDir, 'v1.ts'),
+				'export type AggregateV1Config = { source: "builtin" };',
+			);
+			fs.writeFileSync(path.join(builtinNodeDir, 'index.ts'), "export * from './v1';");
+
+			// Put nodeB (customNode) in communityDir only
+			const communityNodeDir = path.join(communityDir, 'nodes/n8n-nodes-community/customNode');
+			fs.mkdirSync(communityNodeDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(communityNodeDir, 'v1.ts'),
+				'export type CustomNodeV1Config = { source: "community" };',
+			);
+			fs.writeFileSync(path.join(communityNodeDir, 'index.ts'), "export * from './v1';");
+
+			// Put aggregate in communityDir too (to test priority)
+			const communityOverrideDir = path.join(communityDir, 'nodes/n8n-nodes-base/aggregate');
+			fs.mkdirSync(communityOverrideDir, { recursive: true });
+			fs.writeFileSync(
+				path.join(communityOverrideDir, 'v1.ts'),
+				'export type AggregateV1Config = { source: "community-override" };',
+			);
+			fs.writeFileSync(path.join(communityOverrideDir, 'index.ts'), "export * from './v1';");
+		});
+
+		afterAll(() => {
+			fs.rmSync(builtinDir, { recursive: true, force: true });
+			fs.rmSync(communityDir, { recursive: true, force: true });
+		});
+
+		it('should resolve node from built-in dir when it exists there', async () => {
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [builtinDir, communityDir] });
+
+			const result = await tool.invoke({
+				nodeIds: ['n8n-nodes-base.aggregate'],
+			});
+
+			// Should find it in builtinDir (first dir searched)
+			expect(result).toContain('source: "builtin"');
+			expect(result).not.toContain('community-override');
+		});
+
+		it('should resolve node from community dir when not in built-in', async () => {
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [builtinDir, communityDir] });
+
+			const result = await tool.invoke({
+				nodeIds: ['n8n-nodes-community.customNode'],
+			});
+
+			// Should find it in communityDir (second dir searched)
+			expect(result).toContain('source: "community"');
+		});
+
+		it('should return error when node not found in any dir', async () => {
+			const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [builtinDir, communityDir] });
+
+			const result = await tool.invoke({
+				nodeIds: ['n8n-nodes-base.nonExistent'],
+			});
+
+			expect(result).toContain('not found');
 		});
 	});
 
@@ -397,7 +473,7 @@ describe('CodeBuilderGetTool', () => {
 			});
 
 			it('should reject nodeId with path traversal', async () => {
-				const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+				const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 				const result = await tool.invoke({
 					nodeIds: ['n8n-nodes-base.../../../etc/passwd'],
@@ -408,7 +484,7 @@ describe('CodeBuilderGetTool', () => {
 			});
 
 			it('should reject resource discriminator with path traversal', async () => {
-				const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+				const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 				const result = await tool.invoke({
 					nodeIds: [
@@ -425,7 +501,7 @@ describe('CodeBuilderGetTool', () => {
 			});
 
 			it('should reject mode discriminator with path traversal', async () => {
-				const tool = createCodeBuilderGetTool({ generatedTypesDir: tempDir });
+				const tool = createCodeBuilderGetTool({ nodeDefinitionDirs: [tempDir] });
 
 				const result = await tool.invoke({
 					nodeIds: [
