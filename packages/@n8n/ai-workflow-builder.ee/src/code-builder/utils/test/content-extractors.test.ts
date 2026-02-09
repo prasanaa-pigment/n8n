@@ -95,7 +95,7 @@ describe('extractThinkingContent', () => {
 });
 
 describe('pushValidationFeedback', () => {
-	it('should inject tool_call and append ToolMessage when AIMessage has string content', () => {
+	it('should convert string content to array with text and tool_use blocks', () => {
 		const aiMessage = new AIMessage({ content: 'Some response' });
 		const messages: BaseMessage[] = [aiMessage];
 
@@ -106,8 +106,20 @@ describe('pushValidationFeedback', () => {
 		expect((messages[0] as AIMessage).tool_calls![0].name).toBe('validate_workflow');
 		expect(messages[1]).toBeInstanceOf(ToolMessage);
 		expect((messages[1] as ToolMessage).content).toBe('Validation feedback');
-		// String content should NOT be modified
-		expect(typeof (messages[0] as AIMessage).content).toBe('string');
+		// String content should be converted to array with text + tool_use blocks
+		const content = (messages[0] as AIMessage).content as Array<Record<string, unknown>>;
+		expect(Array.isArray(content)).toBe(true);
+		expect(content).toHaveLength(2);
+		expect(content[0]).toMatchObject({ type: 'text', text: 'Some response' });
+		expect(content[1]).toMatchObject({
+			type: 'tool_use',
+			name: 'validate_workflow',
+			input: {},
+		});
+		expect(content[1].id).toMatch(/^auto-validate-/);
+		// ToolMessage should reference same ID
+		const toolMessage = messages[1] as ToolMessage;
+		expect(toolMessage.tool_call_id).toBe(content[1].id);
 	});
 
 	it('should inject tool_use block into content array when AIMessage has array content', () => {
