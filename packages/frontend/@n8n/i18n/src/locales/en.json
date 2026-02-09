@@ -4009,7 +4009,7 @@
 	"settings.mfa.updateConfiguration": "MFA configuration updated",
 	"settings.mfa.invalidAuthenticatorCode": "Invalid authenticator code",
 	"projects.header.overview.subtitle": "All the workflows, credentials and executions you have access to",
-	"projects.header.overview.subtitleWithDataTables": "All the workflows, credentials and data tables you have access to",
+	"projects.header.overview.subtitleWithDataTables": "All the workflows, credentials and data tables you have access to[Experimental]",
 	"projects.header.shared.title": "Shared with you",
 	"projects.header.personal.subtitle": "Workflows and credentials owned by you",
 	"projects.header.personal.subtitleWithDataTables": "Workflows, credentials and data tables owned by you",
