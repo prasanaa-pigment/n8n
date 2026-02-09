@@ -12,9 +12,19 @@ import type { INodeUpdatePropertiesInformation, IUpdateInformation } from '@/Int
 import { N8nButton, N8nInlineTextEdit } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { createEventBus } from '@n8n/utils/event-bus';
-import type { Workflow } from 'n8n-workflow';
-import { NodeHelpers, type INode } from 'n8n-workflow';
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import {
+	Workflow,
+	NodeHelpers,
+	type INode,
+	type INodeTypes,
+	type INodeType,
+	type IVersionedNodeType,
+	type IDataObject,
+} from 'n8n-workflow';
+import { computed, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue';
+import { ExpressionLocalResolveContextSymbol } from '@/app/constants';
+import type { ExpressionLocalResolveContext } from '@/app/types/expressions';
+import useEnvironmentsStore from '@/features/settings/environments.ee/environments.store';
 
 const props = defineProps<{
 	modalName: string;
@@ -30,6 +40,7 @@ const nodeTypesStore = useNodeTypesStore();
 const credentialsStore = useCredentialsStore();
 const projectsStore = useProjectsStore();
 const nodeHelpers = useNodeHelpers();
+const environmentsStore = useEnvironmentsStore();
 
 const modalBus = ref(createEventBus());
 const node = shallowRef(props.data.node);
@@ -75,9 +86,64 @@ const hasCredentialIssues = computed(() => {
 	return Object.keys(credentialIssues?.credentials ?? {}).length > 0;
 });
 
+const expressionResolveCtx = computed<ExpressionLocalResolveContext | undefined>(() => {
+	if (!node.value) return undefined;
+
+	const nodeTypes: INodeTypes = {
+		getByName(nodeType: string): INodeType | IVersionedNodeType {
+			const description = nodeTypesStore.getNodeType(nodeType);
+			if (description === null) {
+				throw new Error(`Node type "${nodeType}" not found`);
+			}
+
+			return {
+				description,
+			} as INodeType;
+		},
+		getByNameAndVersion(nodeType: string, version?: number): INodeType {
+			const description = nodeTypesStore.getNodeType(nodeType, version);
+			if (description === null) {
+				throw new Error(`Node type "${nodeType}" (v${version}) not found`);
+			}
+
+			return {
+				description,
+			} as INodeType;
+		},
+		getKnownTypes(): IDataObject {
+			return {};
+		},
+	};
+
+	// Minimal workflow containing only this node for parameter resolution
+	const workflow = new Workflow({
+		id: 'chat-tool-workflow',
+		name: 'Tool Configuration',
+		nodes: [node.value],
+		connections: {},
+		active: false,
+		nodeTypes,
+		settings: {},
+	});
+
+	return {
+		localResolve: true,
+		envVars: environmentsStore.variablesAsObject,
+		workflow,
+		execution: null,
+		nodeName: node.value.name,
+		additionalKeys: {},
+		connections: {},
+		inputNode: undefined,
+	};
+});
+
 const isValid = computed(() => {
 	return node.value?.name && !hasParameterIssues.value && !hasCredentialIssues.value;
 });
+
+// Provide expression resolve context for dynamic parameter loading
+provide(ExpressionLocalResolveContextSymbol, expressionResolveCtx);
 
 function handleConfirm() {
 	if (!node.value) {
@@ -180,14 +246,24 @@ watch(
 );
 
 onMounted(async () => {
-	// Ensure credentials are loaded for the credentials selector to work
+	// Set personal project as current project for dynamic parameter loading
 	const personalProject = projectsStore.personalProject;
-	if (personalProject && credentialsStore.allCredentials.length === 0) {
-		await Promise.all([
-			credentialsStore.fetchCredentialTypes(false),
-			credentialsStore.fetchAllCredentialsForWorkflow({ projectId: personalProject.id }),
-		]);
+	if (personalProject) {
+		projectsStore.setCurrentProject(personalProject);
+
+		// Ensure credentials are loaded for the credentials selector to work
+		if (credentialsStore.allCredentials.length === 0) {
+			await Promise.all([
+				credentialsStore.fetchCredentialTypes(false),
+				credentialsStore.fetchAllCredentialsForWorkflow({ projectId: personalProject.id }),
+			]);
+		}
 	}
+});
+
+onBeforeUnmount(() => {
+	// Clear current project to avoid side effects
+	projectsStore.setCurrentProject(null);
 });
 </script>
 
