@@ -345,6 +345,28 @@ export class AiWorkflowBuilderService {
 		}
 	}
 
+	private extractLastAiMessageContent(messages: BaseMessage[]): string {
+		const lastAiMessage = messages.findLast(
+			(m: BaseMessage): m is AIMessage => m instanceof AIMessage,
+		);
+		return typeof lastAiMessage?.content === 'string'
+			? lastAiMessage.content
+			: JSON.stringify(lastAiMessage?.content ?? '');
+	}
+
+	private extractUniqueToolNames(messages: BaseMessage[]): string[] {
+		const toolMessages = messages.filter(
+			(m: BaseMessage): m is ToolMessage => m instanceof ToolMessage,
+		);
+		return [
+			...new Set(
+				toolMessages
+					.map((m: ToolMessage) => m.name)
+					.filter((name: string | undefined): name is string => name !== undefined),
+			),
+		];
+	}
+
 	private async trackBuilderReplyTelemetry(
 		agent: WorkflowBuilderAgent,
 		workflowId: string | undefined,
@@ -357,39 +379,17 @@ export class AiWorkflowBuilderService {
 
 		const state = await agent.getState(workflowId, userId);
 		const threadId = SessionManagerService.generateThreadId(workflowId, userId);
-
-		// extract the last message that was sent to the user for telemetry
-		const lastAiMessage = state?.values?.messages?.findLast(
-			(m: BaseMessage): m is AIMessage => m instanceof AIMessage,
-		);
-		const messageAi =
-			typeof lastAiMessage?.content === 'string'
-				? lastAiMessage.content
-				: JSON.stringify(lastAiMessage?.content ?? '');
-
 		const messages = state?.values?.messages ?? [];
-		const toolMessages = messages.filter(
-			(m: BaseMessage): m is ToolMessage => m instanceof ToolMessage,
-		);
-		const toolsCalled = [
-			...new Set(
-				toolMessages
-					.map((m: ToolMessage) => m.name)
-					.filter((name: string | undefined): name is string => name !== undefined),
-			),
-		];
 
-		// Build telemetry properties
 		const properties: ITelemetryTrackProperties = {
 			user_id: userId,
 			instance_id: this.instanceId,
 			workflow_id: workflowId,
 			sequence_id: threadId,
-			message_ai: messageAi,
-			tools_called: toolsCalled,
+			message_ai: this.extractLastAiMessageContent(messages),
+			tools_called: this.extractUniqueToolNames(messages),
 			techniques_categories: state?.values?.techniqueCategories,
 			validations: state?.values?.validationHistory,
-			// Only include templates_selected when templates were actually used
 			...((state?.values?.templateIds?.length ?? 0) > 0 && {
 				templates_selected: state.values.templateIds,
 			}),
@@ -403,6 +403,7 @@ export class AiWorkflowBuilderService {
 			}),
 		};
 
+		console.log('Builder replied to user message', JSON.stringify(properties, null, 2));
 		this.onTelemetryEvent('Builder replied to user message', properties);
 	}
 
