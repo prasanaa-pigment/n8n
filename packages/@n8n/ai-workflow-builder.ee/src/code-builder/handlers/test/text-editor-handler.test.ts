@@ -6,6 +6,7 @@ import {
 	InvalidPathError,
 	FileExistsError,
 	FileNotFoundError,
+	BatchReplacementError,
 } from '../text-editor.types';
 
 describe('TextEditorHandler', () => {
@@ -416,6 +417,117 @@ describe('TextEditorHandler', () => {
 			const error = new FileNotFoundError();
 			expect(error.message).toContain('No workflow code exists');
 			expect(error.name).toBe('FileNotFoundError');
+		});
+
+		it('BatchReplacementError should include failedIndex and cause', () => {
+			const cause = new NoMatchFoundError('search');
+			const error = new BatchReplacementError(2, 5, cause);
+			expect(error.message).toContain('index 2 of 5');
+			expect(error.message).toContain('rolled back');
+			expect(error.name).toBe('BatchReplacementError');
+			expect(error.failedIndex).toBe(2);
+			expect(error.totalCount).toBe(5);
+			expect(error.cause).toBe(cause);
+		});
+	});
+
+	describe('executeBatch', () => {
+		it('should apply multiple replacements successfully', () => {
+			handler.setWorkflowCode('const x = 1;\nconst y = 2;\nconst z = 3;');
+
+			const result = handler.executeBatch([
+				{ old_str: 'const x = 1;', new_str: 'const x = 10;' },
+				{ old_str: 'const y = 2;', new_str: 'const y = 20;' },
+				{ old_str: 'const z = 3;', new_str: 'const z = 30;' },
+			]);
+
+			expect(result).toBe('All 3 replacements applied successfully.');
+			expect(handler.getWorkflowCode()).toBe('const x = 10;\nconst y = 20;\nconst z = 30;');
+		});
+
+		it('should roll back all changes on NoMatchFound', () => {
+			const originalCode = 'const a = 1;\nconst b = 2;';
+			handler.setWorkflowCode(originalCode);
+
+			expect(() =>
+				handler.executeBatch([
+					{ old_str: 'const a = 1;', new_str: 'const a = 10;' },
+					{ old_str: 'const c = 3;', new_str: 'const c = 30;' }, // doesn't exist
+				]),
+			).toThrow(BatchReplacementError);
+
+			expect(handler.getWorkflowCode()).toBe(originalCode);
+		});
+
+		it('should roll back all changes on MultipleMatches', () => {
+			const originalCode = 'const x = 1;\nconst x = 1;\nconst y = 2;';
+			handler.setWorkflowCode(originalCode);
+
+			expect(() =>
+				handler.executeBatch([
+					{ old_str: 'const y = 2;', new_str: 'const y = 20;' },
+					{ old_str: 'const x = 1;', new_str: 'const x = 10;' }, // multiple matches
+				]),
+			).toThrow(BatchReplacementError);
+
+			expect(handler.getWorkflowCode()).toBe(originalCode);
+		});
+
+		it('should handle empty replacements array', () => {
+			handler.setWorkflowCode('const x = 1;');
+
+			const result = handler.executeBatch([]);
+
+			expect(result).toBe('No replacements to apply.');
+			expect(handler.getWorkflowCode()).toBe('const x = 1;');
+		});
+
+		it('should throw FileNotFoundError when no code exists', () => {
+			expect(() => handler.executeBatch([{ old_str: 'old', new_str: 'new' }])).toThrow(
+				FileNotFoundError,
+			);
+		});
+
+		it('should handle sequential dependent replacements', () => {
+			handler.setWorkflowCode('const x = 1;');
+
+			const result = handler.executeBatch([
+				{ old_str: 'const x = 1;', new_str: 'const x = 1;\nconst y = 2;' },
+				{ old_str: 'const y = 2;', new_str: 'const y = 20;' },
+			]);
+
+			expect(result).toBe('All 2 replacements applied successfully.');
+			expect(handler.getWorkflowCode()).toBe('const x = 1;\nconst y = 20;');
+		});
+
+		it('should escape $ correctly in batch replacements', () => {
+			handler.setWorkflowCode('const price = 0;\nconst tax = 0;');
+
+			handler.executeBatch([
+				{ old_str: 'const price = 0;', new_str: "const price = '$100';" },
+				{ old_str: 'const tax = 0;', new_str: "const tax = '$10';" },
+			]);
+
+			expect(handler.getWorkflowCode()).toBe("const price = '$100';\nconst tax = '$10';");
+		});
+
+		it('should report correct failedIndex in BatchReplacementError', () => {
+			handler.setWorkflowCode('const a = 1;\nconst b = 2;\nconst c = 3;');
+
+			try {
+				handler.executeBatch([
+					{ old_str: 'const a = 1;', new_str: 'const a = 10;' },
+					{ old_str: 'const b = 2;', new_str: 'const b = 20;' },
+					{ old_str: 'const d = 4;', new_str: 'const d = 40;' }, // fails at index 2
+				]);
+				fail('Should have thrown');
+			} catch (error) {
+				expect(error).toBeInstanceOf(BatchReplacementError);
+				const batchError = error as BatchReplacementError;
+				expect(batchError.failedIndex).toBe(2);
+				expect(batchError.totalCount).toBe(3);
+				expect(batchError.cause).toBeInstanceOf(NoMatchFoundError);
+			}
 		});
 	});
 });

@@ -499,5 +499,187 @@ describe('ToolDispatchHandler', () => {
 
 			expect(result.hasUnvalidatedEdits).toBeUndefined();
 		});
+
+		it('should set hasUnvalidatedEdits to true after batch_str_replace', async () => {
+			const mockTextEditorHandler = {
+				executeBatch: jest.fn().mockReturnValue('All 2 replacements applied successfully.'),
+			} as unknown as TextEditorHandler;
+
+			const handler = new ToolDispatchHandler({
+				toolsMap: new Map(),
+				validateToolHandler: mockValidateToolHandler,
+				debugLog: mockDebugLog,
+			});
+
+			const result = await drainGenerator(
+				handler.dispatch({
+					toolCalls: [
+						{
+							id: 'call-batch-1',
+							name: 'batch_str_replace',
+							args: {
+								replacements: [
+									{ old_str: 'a', new_str: 'b' },
+									{ old_str: 'c', new_str: 'd' },
+								],
+							},
+						},
+					],
+					messages: [],
+					iteration: 1,
+					warningTracker: new WarningTracker(),
+					textEditorHandler: mockTextEditorHandler,
+				}),
+			);
+
+			expect(result.hasUnvalidatedEdits).toBe(true);
+			expect(mockTextEditorHandler.executeBatch).toHaveBeenCalledWith([
+				{ old_str: 'a', new_str: 'b' },
+				{ old_str: 'c', new_str: 'd' },
+			]);
+		});
+	});
+
+	describe('batch_str_replace', () => {
+		async function drainGenerator(
+			gen: AsyncGenerator<StreamOutput, ToolDispatchResult, unknown>,
+		): Promise<ToolDispatchResult> {
+			let result = await gen.next();
+			while (!result.done) {
+				result = await gen.next();
+			}
+			return result.value;
+		}
+
+		async function collectChunks(
+			gen: AsyncGenerator<StreamOutput, ToolDispatchResult, unknown>,
+		): Promise<{ chunks: StreamOutput[]; result: ToolDispatchResult }> {
+			const chunks: StreamOutput[] = [];
+			let genResult = await gen.next();
+			while (!genResult.done) {
+				chunks.push(genResult.value);
+				genResult = await gen.next();
+			}
+			return { chunks, result: genResult.value };
+		}
+
+		it('should route to textEditorHandler.executeBatch', async () => {
+			const mockTextEditorHandler = {
+				executeBatch: jest.fn().mockReturnValue('All 1 replacements applied successfully.'),
+			} as unknown as TextEditorHandler;
+
+			const handler = new ToolDispatchHandler({
+				toolsMap: new Map(),
+				validateToolHandler: mockValidateToolHandler,
+				debugLog: mockDebugLog,
+			});
+
+			const messages: import('@langchain/core/messages').BaseMessage[] = [];
+			await drainGenerator(
+				handler.dispatch({
+					toolCalls: [
+						{
+							id: 'call-b1',
+							name: 'batch_str_replace',
+							args: { replacements: [{ old_str: 'x', new_str: 'y' }] },
+						},
+					],
+					messages,
+					iteration: 1,
+					warningTracker: new WarningTracker(),
+					textEditorHandler: mockTextEditorHandler,
+				}),
+			);
+
+			expect(mockTextEditorHandler.executeBatch).toHaveBeenCalledWith([
+				{ old_str: 'x', new_str: 'y' },
+			]);
+			// Check that success message was pushed to messages
+			expect(messages).toHaveLength(1);
+			expect(messages[0].content).toBe('All 1 replacements applied successfully.');
+		});
+
+		it('should handle errors gracefully and push error ToolMessage', async () => {
+			const mockTextEditorHandler = {
+				executeBatch: jest.fn().mockImplementation(() => {
+					throw new Error('Batch replacement failed at index 1 of 2: No match found');
+				}),
+			} as unknown as TextEditorHandler;
+
+			const handler = new ToolDispatchHandler({
+				toolsMap: new Map(),
+				validateToolHandler: mockValidateToolHandler,
+				debugLog: mockDebugLog,
+			});
+
+			const messages: import('@langchain/core/messages').BaseMessage[] = [];
+			const { chunks } = await collectChunks(
+				handler.dispatch({
+					toolCalls: [
+						{
+							id: 'call-b2',
+							name: 'batch_str_replace',
+							args: { replacements: [{ old_str: 'a', new_str: 'b' }] },
+						},
+					],
+					messages,
+					iteration: 1,
+					warningTracker: new WarningTracker(),
+					textEditorHandler: mockTextEditorHandler,
+				}),
+			);
+
+			// Should have error message in messages
+			expect(messages).toHaveLength(1);
+			expect(String(messages[0].content)).toContain('Error:');
+
+			// Should have error status in progress chunks
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+			const errorChunk = toolChunks.find((c) => c.status === 'error');
+			expect(errorChunk).toBeDefined();
+			expect(errorChunk?.error).toContain('Batch replacement failed');
+		});
+
+		it('should yield running and completed progress chunks on success', async () => {
+			const mockTextEditorHandler = {
+				executeBatch: jest.fn().mockReturnValue('All 2 replacements applied successfully.'),
+			} as unknown as TextEditorHandler;
+
+			const handler = new ToolDispatchHandler({
+				toolsMap: new Map(),
+				validateToolHandler: mockValidateToolHandler,
+				debugLog: mockDebugLog,
+			});
+
+			const { chunks } = await collectChunks(
+				handler.dispatch({
+					toolCalls: [
+						{
+							id: 'call-b3',
+							name: 'batch_str_replace',
+							args: {
+								replacements: [
+									{ old_str: 'a', new_str: 'b' },
+									{ old_str: 'c', new_str: 'd' },
+								],
+							},
+						},
+					],
+					messages: [],
+					iteration: 1,
+					warningTracker: new WarningTracker(),
+					textEditorHandler: mockTextEditorHandler,
+				}),
+			);
+
+			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);
+			expect(toolChunks).toHaveLength(2);
+
+			expect(toolChunks[0].status).toBe('running');
+			expect(toolChunks[0].displayTitle).toBe('Editing workflow');
+
+			expect(toolChunks[1].status).toBe('completed');
+			expect(toolChunks[1].displayTitle).toBe('Editing workflow');
+		});
 	});
 });

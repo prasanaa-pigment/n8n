@@ -10,6 +10,7 @@ import { ToolMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
+import type { StrReplacement } from './text-editor.types';
 import type { TextEditorHandler } from './text-editor-handler';
 import type { TextEditorToolHandler } from './text-editor-tool-handler';
 import type { ValidateToolHandler } from './validate-tool-handler';
@@ -152,6 +153,9 @@ export class ToolDispatchHandler {
 					hasUnvalidatedEdits = true; // str_replace, insert modify code
 				}
 			}
+			if (toolCall.name === 'batch_str_replace') {
+				hasUnvalidatedEdits = true;
+			}
 			if (toolCall.name === 'validate_workflow') {
 				hasUnvalidatedEdits = false;
 			}
@@ -234,6 +238,12 @@ export class ToolDispatchHandler {
 					workflowReady: result.workflowReady,
 				};
 			}
+			return {};
+		}
+
+		// Handle batch str_replace tool calls
+		if (toolCall.name === 'batch_str_replace' && textEditorHandler) {
+			yield* this.executeBatchStrReplace({ toolCall, textEditorHandler, messages });
 			return {};
 		}
 
@@ -360,6 +370,77 @@ export class ToolDispatchHandler {
 				error: errorMessage,
 				stack: errorStack,
 			});
+
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id!,
+					content: `Error: ${errorMessage}`,
+				}),
+			);
+
+			yield {
+				messages: [
+					{
+						type: 'tool',
+						toolName: toolCall.name,
+						toolCallId: toolCall.id,
+						displayTitle,
+						status: 'error',
+						error: errorMessage,
+					} as ToolProgressChunk,
+				],
+			};
+		}
+	}
+
+	/**
+	 * Execute a batch_str_replace tool call
+	 */
+	private async *executeBatchStrReplace(params: {
+		toolCall: ToolCall;
+		textEditorHandler: TextEditorHandler;
+		messages: BaseMessage[];
+	}): AsyncGenerator<StreamOutput, void, unknown> {
+		const { toolCall, textEditorHandler, messages } = params;
+		const displayTitle = 'Editing workflow';
+
+		yield {
+			messages: [
+				{
+					type: 'tool',
+					toolName: toolCall.name,
+					toolCallId: toolCall.id,
+					displayTitle,
+					status: 'running',
+					args: toolCall.args,
+				} as ToolProgressChunk,
+			],
+		};
+
+		try {
+			const replacements = toolCall.args.replacements as StrReplacement[];
+			const result = textEditorHandler.executeBatch(replacements);
+
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id!,
+					content: result,
+				}),
+			);
+
+			yield {
+				messages: [
+					{
+						type: 'tool',
+						toolName: toolCall.name,
+						toolCallId: toolCall.id,
+						displayTitle,
+						status: 'completed',
+					} as ToolProgressChunk,
+				],
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
 
 			messages.push(
 				new ToolMessage({

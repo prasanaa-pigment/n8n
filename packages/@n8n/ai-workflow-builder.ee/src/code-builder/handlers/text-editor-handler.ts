@@ -12,6 +12,7 @@ import type {
 	CreateCommand,
 	StrReplaceCommand,
 	InsertCommand,
+	StrReplacement,
 } from './text-editor.types';
 import {
 	NoMatchFoundError,
@@ -19,6 +20,7 @@ import {
 	InvalidLineNumberError,
 	InvalidPathError,
 	FileNotFoundError,
+	BatchReplacementError,
 } from './text-editor.types';
 
 /** The only supported file path for workflow code */
@@ -268,6 +270,51 @@ export class TextEditorHandler {
 		}
 
 		return count;
+	}
+
+	/**
+	 * Apply multiple str_replace operations atomically.
+	 * Rolls back all changes if any single replacement fails.
+	 *
+	 * @param replacements - Ordered list of replacements to apply
+	 * @returns Success message
+	 * @throws FileNotFoundError if no code exists
+	 * @throws BatchReplacementError if any replacement fails (all changes rolled back)
+	 */
+	executeBatch(replacements: StrReplacement[]): string {
+		if (this.code === null) {
+			throw new FileNotFoundError();
+		}
+
+		if (replacements.length === 0) {
+			return 'No replacements to apply.';
+		}
+
+		const snapshot = this.code;
+
+		for (let i = 0; i < replacements.length; i++) {
+			const { old_str, new_str } = replacements[i];
+			const count = this.countOccurrences(this.code, old_str);
+
+			if (count === 0) {
+				this.code = snapshot;
+				throw new BatchReplacementError(i, replacements.length, new NoMatchFoundError(old_str));
+			}
+
+			if (count > 1) {
+				this.code = snapshot;
+				throw new BatchReplacementError(i, replacements.length, new MultipleMatchesError(count));
+			}
+
+			const escapedNewStr = new_str.replace(/\$/g, '$$$$');
+			this.code = this.code.replace(old_str, escapedNewStr);
+		}
+
+		this.debugLog('BATCH_REPLACE', `All ${replacements.length} replacements applied`, {
+			count: replacements.length,
+		});
+
+		return `All ${replacements.length} replacements applied successfully.`;
 	}
 
 	/**

@@ -537,7 +537,7 @@ Include discriminators for nodes that require them (shown in search results).
 
 Do NOT produce visible output — only the tool call to edit code.
 
-Edit \`/workflow.js\` using \`str_replace\` or \`insert\` (never \`create\` — file is pre-populated). Use exact parameter names and structures from the type definitions.
+Edit \`/workflow.js\` using \`str_replace\` or \`insert\` (never \`create\` — file is pre-populated). When making multiple edits, prefer \`batch_str_replace\` to apply all changes atomically in one call. Use exact parameter names and structures from the type definitions.
 
 Rules:
 - Use unique variable names — never reuse builder function names (e.g. \`node\`, \`trigger\`) as variable names
@@ -559,7 +559,7 @@ Call \`validate_workflow\` to check your code for errors before finalizing:
 validate_workflow({{ path: "/workflow.js" }})
 \`\`\`
 
-If errors are reported, fix ALL relevant issues using multiple str_replace/insert calls in a single response, then call validate_workflow again. Do not call validate_workflow after each individual fix — batch all fixes first, then validate once. Focus on warnings relevant to your changes and last user request.
+If errors are reported, fix ALL relevant issues using \`batch_str_replace\` (preferred for multiple fixes) or individual str_replace/insert calls, then call \`validate_workflow\` again. Do not call validate_workflow after each individual fix — batch all fixes first, then validate once. Focus on warnings relevant to your changes and last user request.
 
 </step_6_validate_workflow>
 
