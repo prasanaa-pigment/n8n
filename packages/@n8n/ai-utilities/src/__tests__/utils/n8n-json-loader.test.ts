@@ -3,7 +3,7 @@ import type { TextSplitter } from '@langchain/textsplitters';
 import type { IExecuteFunctions, INode, INodeExecutionData } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { N8nJsonLoader } from '../../utils/n8n-json-loader';
+import { N8nJsonLoader } from 'src/utils/n8n-json-loader';
 
 // Mock the helpers module
 jest.mock('src/utils/helpers', () => ({

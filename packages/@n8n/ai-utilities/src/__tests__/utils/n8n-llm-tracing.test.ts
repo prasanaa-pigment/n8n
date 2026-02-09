@@ -4,7 +4,7 @@ import type { LLMResult } from '@langchain/core/outputs';
 import type { INode, ISupplyDataFunctions } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { N8nLlmTracing } from '../../utils/n8n-llm-tracing';
+import { N8nLlmTracing } from 'src/utils/n8n-llm-tracing';
 
 // Mock the dependencies
 jest.mock('src/utils/log-ai-event', () => ({
