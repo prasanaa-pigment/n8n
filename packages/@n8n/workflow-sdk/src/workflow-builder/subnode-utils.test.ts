@@ -297,6 +297,84 @@ describe('addNodeWithSubnodes', () => {
 		});
 	});
 
+	describe('plain object subnodes (no top-level .name)', () => {
+		it('derives name from config.name for plain object subnodes', () => {
+			const nodes = new Map<string, GraphNode>();
+			// Plain object subnode without top-level .name, simulating inline subnode definition
+			const plainDocLoader = {
+				type: '@n8n/n8n-nodes-langchain.documentDefaultDataLoader',
+				version: '1.1',
+				config: {
+					name: 'Load My Company Data',
+					parameters: {},
+				},
+			} as unknown as NodeInstance<string, string, unknown>;
+
+			const vectorStore = createNode({
+				name: 'Store Data',
+				type: 'vectorStorePinecone',
+				config: {
+					subnodes: {
+						documentLoader: plainDocLoader,
+					},
+				} as unknown as NodeInstance<string, string, unknown>['config'],
+			});
+
+			addNodeWithSubnodes(nodes, vectorStore);
+
+			// Should NOT have an undefined key in the map
+			expect(nodes.has(undefined as unknown as string)).toBe(false);
+			// Should use config.name as the key
+			expect(nodes.has('Load My Company Data')).toBe(true);
+			// Should have the correct AI connection
+			const docConns = nodes.get('Load My Company Data')?.connections.get('ai_document');
+			expect(docConns?.get(0)).toContainEqual({
+				node: 'Store Data',
+				type: 'ai_document',
+				index: 0,
+			});
+		});
+
+		it('derives name from config.name for nested plain object subnodes', () => {
+			const nodes = new Map<string, GraphNode>();
+			// Plain object embedding nested inside a tool subnode
+			const plainEmbedding = {
+				type: '@n8n/n8n-nodes-langchain.embeddingsOpenAi',
+				version: '1.2',
+				config: {
+					name: 'OpenAI Embeddings',
+					parameters: { model: 'text-embedding-3-small' },
+				},
+			} as unknown as NodeInstance<string, string, unknown>;
+
+			const toolSubnode = createSubnode({
+				name: 'RAG Tool',
+				type: 'vectorStorePinecone',
+				config: {
+					subnodes: {
+						embedding: plainEmbedding,
+					},
+				} as unknown as NodeInstance<string, string, unknown>['config'],
+			});
+
+			const agentNode = createNode({
+				name: 'Agent',
+				config: {
+					subnodes: {
+						tools: [toolSubnode],
+					},
+				} as unknown as NodeInstance<string, string, unknown>['config'],
+			});
+
+			addNodeWithSubnodes(nodes, agentNode);
+
+			// Should NOT have an undefined key
+			expect(nodes.has(undefined as unknown as string)).toBe(false);
+			// Nested plain object embedding should use config.name
+			expect(nodes.has('OpenAI Embeddings')).toBe(true);
+		});
+	});
+
 	describe('nested subnodes', () => {
 		it('processes nested subnodes recursively', () => {
 			const nodes = new Map<string, GraphNode>();

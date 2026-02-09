@@ -7,6 +7,14 @@
 import type { GraphNode, NodeInstance, ConnectionTarget, SubnodeConfig } from '../types/base';
 
 /**
+ * Resolve a subnode's effective name. Factory-created subnodes have a top-level `.name`,
+ * but plain objects (inline subnode definitions) may only have `.config.name`.
+ */
+function resolveSubnodeName(subnode: NodeInstance<string, string, unknown>): string | undefined {
+	return subnode.name || subnode.config?.name;
+}
+
+/**
  * Generate a unique node name if the name already exists in the map.
  */
 function generateUniqueName(nodes: Map<string, GraphNode>, baseName: string): string {
@@ -36,7 +44,10 @@ function processSubnodesRecursively(
 		subnode: NodeInstance<string, string, unknown>,
 		connectionType: string,
 	) => {
-		const existingSubnode = nodes.get(subnode.name);
+		const subnodeName = resolveSubnodeName(subnode);
+		if (!subnodeName) return;
+
+		const existingSubnode = nodes.get(subnodeName);
 
 		if (existingSubnode) {
 			// Subnode already exists - merge the new AI connection
@@ -59,7 +70,7 @@ function processSubnodesRecursively(
 		const aiConnMap = new Map<number, ConnectionTarget[]>();
 		aiConnMap.set(0, [{ node: parentNode.name, type: connectionType, index: 0 }]);
 		subnodeConns.set(connectionType, aiConnMap);
-		nodes.set(subnode.name, {
+		nodes.set(subnodeName, {
 			instance: subnode,
 			connections: subnodeConns,
 		});
@@ -160,7 +171,10 @@ export function addNodeWithSubnodes(
 
 	// Helper to add a subnode with its AI connection
 	const addSubnode = (subnode: NodeInstance<string, string, unknown>, connectionType: string) => {
-		const existingSubnode = nodes.get(subnode.name);
+		const subnodeName = resolveSubnodeName(subnode);
+		if (!subnodeName) return;
+
+		const existingSubnode = nodes.get(subnodeName);
 
 		if (existingSubnode) {
 			// Subnode already exists - merge the new AI connection
@@ -183,7 +197,7 @@ export function addNodeWithSubnodes(
 		const aiConnMap = new Map<number, ConnectionTarget[]>();
 		aiConnMap.set(0, [{ node: nodeInstance.name, type: connectionType, index: 0 }]);
 		subnodeConns.set(connectionType, aiConnMap);
-		nodes.set(subnode.name, {
+		nodes.set(subnodeName, {
 			instance: subnode,
 			connections: subnodeConns,
 		});
