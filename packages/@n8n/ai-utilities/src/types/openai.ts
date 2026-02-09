@@ -108,10 +108,7 @@ export interface OpenAIModelOptions {
 	 */
 	streamUsage?: boolean;
 
-	/** Holds any additional parameters that are valid to pass to {@link
-	 * https://platform.openai.com/docs/api-reference/completions/create |
-	 * `openai.createCompletion`} that are not explicitly specified on this interface
-	 */
+	/** Additional provider-specific parameters to pass to the model. That will be supplied in body of the request. */
 	additionalParams?: Record<string, unknown>;
 	/**
 	 * List of stop words to use when generating
