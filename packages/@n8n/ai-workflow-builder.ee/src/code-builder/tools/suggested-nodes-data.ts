@@ -161,7 +161,7 @@ export const suggestedNodesData: Record<string, CategoryData> = {
 			{ name: '@n8n/n8n-nodes-langchain.agent' },
 			{
 				name: '@n8n/n8n-nodes-langchain.documentDefaultDataLoader',
-				note: 'Use Binary data source for files',
+				note: 'Loads binary files (PDF, CSV, JSON, DOCX, EPUB, text) into LangChain Documents. Auto-detects format from MIME type. Requires a preceding node that outputs binary data',
 			},
 			{
 				name: '@n8n/n8n-nodes-langchain.vectorStoreInMemory',
