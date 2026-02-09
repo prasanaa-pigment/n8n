@@ -61,6 +61,14 @@ const isSetupPanelFeatureEnabled = computed(() => {
 	return setupPanelStore.isFeatureEnabled;
 });
 
+const isButtonDisabled = computed(() => {
+	return (
+		isSetupPanelFeatureEnabled.value &&
+		focusPanelStore.focusPanelActive &&
+		focusPanelStore.selectedTab === 'setup'
+	);
+});
+
 const unsubscribe = watch(allCredentialsFilled, (newValue) => {
 	if (newValue) {
 		workflowState.addToWorkflowMetadata({
@@ -111,6 +119,7 @@ onMounted(async () => {
 	<N8nButton
 		v-if="showButton"
 		:label="i18n.baseText('nodeView.setupTemplate')"
+		:disabled="isButtonDisabled"
 		data-test-id="setup-credentials-button"
 		size="large"
 		icon="package-open"

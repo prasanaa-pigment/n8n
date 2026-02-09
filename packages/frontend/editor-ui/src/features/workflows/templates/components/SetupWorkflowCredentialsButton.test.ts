@@ -97,6 +97,77 @@ describe('SetupWorkflowCredentialsButton', () => {
 		expect(queryByTestId('setup-credentials-button')).toBeNull();
 	});
 
+	it('disables button when setup panel feature is enabled and setup sidebar is open', () => {
+		const workflowWithNodes = {
+			...EMPTY_WORKFLOW,
+			nodes: [
+				{
+					id: '1',
+					name: 'OpenAI Model',
+					type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+					typeVersion: 1,
+					position: [0, 0] as [number, number],
+					parameters: {},
+				},
+			],
+		};
+		workflowsStore.workflow = workflowWithNodes;
+		workflowsStore.getNodes.mockReturnValue(workflowWithNodes.nodes as never);
+		setupPanelStore.isFeatureEnabled = true;
+		focusPanelStore.focusPanelActive = true;
+		focusPanelStore.selectedTab = 'setup';
+
+		const { getByTestId } = renderComponent();
+		expect(getByTestId('setup-credentials-button')).toBeDisabled();
+	});
+
+	it('does not disable button when setup panel feature is enabled but sidebar is closed', () => {
+		const workflowWithNodes = {
+			...EMPTY_WORKFLOW,
+			nodes: [
+				{
+					id: '1',
+					name: 'OpenAI Model',
+					type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+					typeVersion: 1,
+					position: [0, 0] as [number, number],
+					parameters: {},
+				},
+			],
+		};
+		workflowsStore.workflow = workflowWithNodes;
+		workflowsStore.getNodes.mockReturnValue(workflowWithNodes.nodes as never);
+		setupPanelStore.isFeatureEnabled = true;
+		focusPanelStore.focusPanelActive = false;
+
+		const { getByTestId } = renderComponent();
+		expect(getByTestId('setup-credentials-button')).not.toBeDisabled();
+	});
+
+	it('does not disable button when setup panel feature is disabled even if sidebar is open', () => {
+		const workflowWithNodes = {
+			...EMPTY_WORKFLOW,
+			nodes: [
+				{
+					id: '1',
+					name: 'OpenAI Model',
+					type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+					typeVersion: 1,
+					position: [0, 0] as [number, number],
+					parameters: {},
+				},
+			],
+		};
+		workflowsStore.workflow = workflowWithNodes;
+		workflowsStore.getNodes.mockReturnValue(workflowWithNodes.nodes as never);
+		setupPanelStore.isFeatureEnabled = false;
+		focusPanelStore.focusPanelActive = true;
+		focusPanelStore.selectedTab = 'setup';
+
+		const { getByTestId } = renderComponent();
+		expect(getByTestId('setup-credentials-button')).not.toBeDisabled();
+	});
+
 	it('does not auto-open modal for ready-to-run AI workflows even when showButton would be true', () => {
 		const readyToRunWorkflow = {
 			...EMPTY_WORKFLOW,
