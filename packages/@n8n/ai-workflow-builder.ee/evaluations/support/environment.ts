@@ -179,20 +179,46 @@ export function createLangsmithClient(logger?: EvalLogger): LangsmithClientResul
  * in the eval harness where the DI container is not available.
  */
 export function resolveBuiltinNodeDefinitionDirs(): string[] {
+	// In a pnpm monorepo, n8n-nodes-base and n8n-nodes-langchain are not direct
+	// dependencies of ai-workflow-builder.ee, so bare require.resolve() fails.
+	// Resolve from packages/cli which has them as dependencies.
+	const repoRoot = findRepoRoot(__dirname);
+	const resolvePaths = repoRoot ? [path.join(repoRoot, 'packages', 'cli')] : undefined;
+
 	const dirs: string[] = [];
 	for (const packageId of ['n8n-nodes-base', '@n8n/n8n-nodes-langchain']) {
 		try {
-			const packageJsonPath = require.resolve(`${packageId}/package.json`);
+			const packageJsonPath = require.resolve(`${packageId}/package.json`, {
+				paths: resolvePaths,
+			});
 			const distDir = path.dirname(packageJsonPath);
 			const nodeDefsDir = path.join(distDir, 'dist', 'node-definitions');
 			if (fs.existsSync(nodeDefsDir)) {
+				console.log(`[NODE-DEFS] Resolved ${packageId}: ${nodeDefsDir}`);
 				dirs.push(nodeDefsDir);
+			} else {
+				console.log(`[NODE-DEFS] ${packageId}: dir not found at ${nodeDefsDir}`);
 			}
 		} catch {
-			// Package not installed, skip
+			console.log(`[NODE-DEFS] ${packageId}: not resolvable`);
 		}
 	}
+	if (dirs.length === 0) {
+		console.log('[NODE-DEFS] WARNING: No node definition dirs resolved — get_node_types will fail');
+	}
 	return dirs;
+}
+
+/** Walk up from startDir to find the monorepo root (contains pnpm-workspace.yaml). */
+function findRepoRoot(startDir: string): string | undefined {
+	let dir = startDir;
+	while (dir !== path.dirname(dir)) {
+		if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) {
+			return dir;
+		}
+		dir = path.dirname(dir);
+	}
+	return undefined;
 }
 
 /**
