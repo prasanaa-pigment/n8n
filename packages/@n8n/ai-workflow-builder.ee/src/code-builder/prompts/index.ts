@@ -780,6 +780,10 @@ export function buildCodeBuilderPrompt(
 		const formattedCode = formatCodeWithLineNumbers(codeWithImport);
 		const escapedCode = escapeCurlyBrackets(formattedCode);
 		userMessageParts.push(`<workflow_file path="/workflow.js">\n${escapedCode}\n</workflow_file>`);
+	} else {
+		userMessageParts.push(
+			'<workflow_file path="/workflow.js">\nNo file exists yet. Use the `create` command to write the initial workflow code.\n</workflow_file>',
+		);
 	}
 
 	// 4. Approved plan (when plan mode feeds into code builder)

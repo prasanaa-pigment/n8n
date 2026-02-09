@@ -91,6 +91,45 @@ return workflow('', 'Test').add(start);`;
 		});
 	});
 
+	describe('workflow file section', () => {
+		it('includes "No file exists yet" message when no workflow is provided', async () => {
+			const prompt = buildCodeBuilderPrompt();
+			const messages = await prompt.formatMessages({ userMessage: 'test' });
+			const humanMessage = messages.find((m) => m._getType() === 'human');
+			const content = humanMessage?.content as string;
+
+			expect(content).toContain('<workflow_file path="/workflow.js">');
+			expect(content).toContain('No file exists yet');
+			expect(content).toContain('create');
+			expect(content).toContain('</workflow_file>');
+		});
+
+		it('does not include "No file exists yet" when workflow is provided', async () => {
+			const workflow: WorkflowJSON = {
+				name: 'Test',
+				nodes: [
+					{
+						id: '1',
+						name: 'Start',
+						type: 'n8n-nodes-base.manualTrigger',
+						typeVersion: 1,
+						position: [0, 0],
+						parameters: {},
+					},
+				],
+				connections: {},
+			};
+
+			const prompt = buildCodeBuilderPrompt(workflow);
+			const messages = await prompt.formatMessages({ userMessage: 'test' });
+			const humanMessage = messages.find((m) => m._getType() === 'human');
+			const content = humanMessage?.content as string;
+
+			expect(content).toContain('<workflow_file path="/workflow.js">');
+			expect(content).not.toContain('No file exists yet');
+		});
+	});
+
 	describe('planOutput option', () => {
 		const mockPlan: PlanOutput = {
 			summary: 'Fetch weather and send Slack alert',
