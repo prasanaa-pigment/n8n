@@ -32,6 +32,10 @@ jest.mock('src/adapters/langchain-chat-model', () => ({
 const { ChatOpenAI } = jest.requireMock('@langchain/openai');
 const { LangchainAdapter } = jest.requireMock('src/adapters/langchain-chat-model');
 const { getProxyAgent } = jest.requireMock('src/utils/http-proxy-agent');
+const { makeN8nLlmFailedAttemptHandler } = jest.requireMock(
+	'src/utils/failed-attempt-handler/n8nLlmFailedAttemptHandler',
+);
+const { N8nLlmTracing } = jest.requireMock('src/utils/n8n-llm-tracing');
 
 describe('supplyModel', () => {
 	const mockCtx = {
@@ -62,7 +66,19 @@ describe('supplyModel', () => {
 					metadata: {},
 				}),
 			);
-			expect(ChatOpenAI).toHaveBeenCalledTimes(1);
+			expect(ChatOpenAI).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: 'gpt-4',
+					apiKey: 'test-key',
+					configuration: expect.objectContaining({
+						baseURL: 'https://api.openai.com',
+					}),
+					onFailedAttempt: expect.any(Function),
+					callbacks: [expect.any(Object)],
+				}),
+			);
+			expect(makeN8nLlmFailedAttemptHandler).toHaveBeenCalledWith(mockCtx, undefined);
+			expect(N8nLlmTracing).toHaveBeenCalledWith(mockCtx);
 			expect(LangchainAdapter).not.toHaveBeenCalled();
 		});
 
