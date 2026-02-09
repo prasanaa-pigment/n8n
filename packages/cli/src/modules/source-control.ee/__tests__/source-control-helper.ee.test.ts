@@ -2,9 +2,7 @@ import type { SourceControlledFile } from '@n8n/api-types';
 import { Container } from '@n8n/di';
 import { accessSync, constants as fsConstants } from 'fs';
 import { mock } from 'jest-mock-extended';
-import type { Credentials } from 'n8n-core';
 import { InstanceSettings } from 'n8n-core';
-import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
 import path from 'path';
 
 import type { License } from '@/license';
@@ -16,7 +14,6 @@ import type { SourceControlPreferencesService } from '@/modules/source-control.e
 import {
 	areSameCredentials,
 	generateSshKeyPair,
-	getCredentialSynchableData,
 	getRepoType,
 	getTrackingInformationFromPostPushResult,
 	getTrackingInformationFromPrePushResult,
