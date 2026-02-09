@@ -119,6 +119,7 @@ describe('CodeWorkflowBuilder Integration', () => {
 				discovery: mockLlm,
 				builder: mockLlm,
 				parameterUpdater: mockLlm,
+				planner: mockLlm,
 			},
 			logger: mockLogger,
 			checkpointer: mockCheckpointer,
