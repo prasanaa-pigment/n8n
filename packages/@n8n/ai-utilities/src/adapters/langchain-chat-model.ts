@@ -86,6 +86,12 @@ export class LangchainAdapter<
 			lcMessage.usage_metadata = usage_metadata;
 		}
 
+		lcMessage.response_metadata = {
+			...result.providerMetadata,
+			model: this.chatModel.modelId,
+			provider: this.chatModel.provider,
+		};
+
 		return {
 			generations: [
 				{
