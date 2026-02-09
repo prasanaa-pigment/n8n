@@ -1011,7 +1011,6 @@ export class SourceControlImportService {
 					// This is a safe guard, in principle remote data should already be sanitized
 					// This prevents importing invalid data that should have not been synched in the first place
 					const sanitizedData = sanitizeCredentialData(data);
-
 					newCredentialObject.setData(sanitizedData);
 				}
 
