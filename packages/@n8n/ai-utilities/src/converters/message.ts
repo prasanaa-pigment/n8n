@@ -257,7 +257,7 @@ export function fromLcMessage(msg: LangchainMessages.BaseMessage): N8nMessages.M
 	throw new Error(`Provided message is not a valid Langchain message: ${JSON.stringify(msg)}`);
 }
 
-function toLcContent(block: N8nMessages.MessageContent): LangchainMessages.ContentBlock | null {
+export function toLcContent(block: N8nMessages.MessageContent): LangchainMessages.ContentBlock {
 	if (isN8nTextBlock(block)) {
 		return { type: 'text', text: block.text };
 	}
@@ -309,7 +309,7 @@ function toLcContent(block: N8nMessages.MessageContent): LangchainMessages.Conte
 			value: block.value,
 		} as LangchainMessages.ContentBlock.NonStandard;
 	}
-	return null;
+	throw new Error(`Failed to convert to Langchain content block: ${JSON.stringify(block)}`);
 }
 
 export function toLcMessage(message: Message): LangchainMessages.BaseMessage {

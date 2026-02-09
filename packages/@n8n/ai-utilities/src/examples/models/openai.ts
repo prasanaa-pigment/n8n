@@ -1,4 +1,5 @@
 import type { JSONSchema7 } from 'json-schema';
+import type { IHttpRequestMethods } from 'n8n-workflow';
 
 import {
 	BaseChatModel,
@@ -11,6 +12,7 @@ import {
 	type ToolCall,
 	type TokenUsage,
 	type ProviderTool,
+	type MessageContent,
 } from 'src';
 import { parseSSEStream } from 'src';
 
@@ -111,68 +113,30 @@ export interface OpenAIErrorResponse {
 }
 
 async function openAIFetch(
+	fn: RequestConfig['httpRequest'],
 	url: string,
-	apiKey: string,
 	body: OpenAIResponsesRequest,
 ): Promise<OpenAIResponsesResponse> {
 	const cleanedBody = Object.fromEntries(
 		Object.entries(body).filter(([_, value]) => value !== undefined),
 	);
-
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: {
-			// eslint-disable-next-line @typescript-eslint/naming-convention
-			'Content-Type': 'application/json',
-			// eslint-disable-next-line @typescript-eslint/naming-convention
-			Authorization: `Bearer ${apiKey}`,
-		},
-		body: JSON.stringify(cleanedBody),
+	const response = await fn('POST', url, cleanedBody, {
+		'Content-Type': 'application/json',
 	});
-
-	if (!response.ok) {
-		const errorData = (await response.json().catch(() => null)) as OpenAIErrorResponse | null;
-		const errorMessage = errorData?.error?.message ?? (await response.text());
-		throw new Error(
-			`OpenAI API request failed: ${response.status} ${response.statusText}\n${errorMessage}`,
-		);
-	}
-
-	return (await response.json()) as OpenAIResponsesResponse;
+	return response.body as OpenAIResponsesResponse;
 }
 
 async function openAIFetchStream(
+	fn: RequestConfig['openStream'],
 	url: string,
-	apiKey: string,
 	body: OpenAIResponsesRequest,
 ): Promise<ReadableStream<Uint8Array>> {
 	const cleanedBody = Object.fromEntries(
 		Object.entries(body).filter(([_, value]) => value !== undefined),
 	);
-
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: {
-			// eslint-disable-next-line @typescript-eslint/naming-convention
-			'Content-Type': 'application/json',
-			// eslint-disable-next-line @typescript-eslint/naming-convention
-			Authorization: `Bearer ${apiKey}`,
-		},
-		body: JSON.stringify(cleanedBody),
+	const response = await fn('POST', url, cleanedBody, {
+		'Content-Type': 'application/json',
 	});
-
-	if (!response.ok) {
-		const errorData = (await response.json().catch(() => null)) as OpenAIErrorResponse | null;
-		const errorMessage = errorData?.error?.message ?? (await response.text());
-		throw new Error(
-			`OpenAI API request failed: ${response.status} ${response.statusText}\n${errorMessage}`,
-		);
-	}
-
-	if (!response.body) {
-		throw new Error('Response body is null');
-	}
-
 	return response.body;
 }
 
@@ -392,17 +356,30 @@ export interface OpenAIChatModelConfig extends ChatModelConfig {
 	providerTools?: ProviderTool[];
 }
 
+export interface RequestConfig {
+	httpRequest: (
+		method: IHttpRequestMethods,
+		url: string,
+		body?: object,
+		headers?: Record<string, string>,
+	) => Promise<{ body: unknown }>;
+	openStream: (
+		method: IHttpRequestMethods,
+		url: string,
+		body?: object,
+		headers?: Record<string, string>,
+	) => Promise<{ body: ReadableStream<Uint8Array> }>;
+}
+
 export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
-	private apiKey: string;
 	private baseURL: string;
 
-	constructor(modelId: string = 'gpt-4o', config?: OpenAIChatModelConfig) {
+	constructor(
+		modelId: string = 'gpt-4o',
+		private requests: RequestConfig,
+		config?: OpenAIChatModelConfig,
+	) {
 		super('openai', modelId, config);
-		const apiKey = config?.apiKey ?? process.env.OPENAI_API_KEY;
-		if (!apiKey) {
-			throw new Error('OpenAI API key is required. Set OPENAI_API_KEY or pass apiKey in config.');
-		}
-		this.apiKey = apiKey;
 		this.baseURL = config?.baseURL ?? 'https://api.openai.com/v1';
 	}
 
@@ -429,7 +406,11 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 			stream: false,
 		};
 
-		const response = await openAIFetch(`${this.baseURL}/responses`, this.apiKey, requestBody);
+		const response = await openAIFetch(
+			this.requests.httpRequest,
+			`${this.baseURL}/responses`,
+			requestBody,
+		);
 
 		const { text, toolCalls } = parseResponsesOutput(response.output as unknown[]);
 
@@ -457,18 +438,29 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 			}
 		}
 
+		const content: MessageContent[] = [];
+		if (toolCalls.length) {
+			for (const toolCall of toolCalls) {
+				content.push({
+					type: 'tool-call',
+					toolCallId: toolCall.id,
+					toolName: toolCall.name,
+					input: JSON.stringify(toolCall.arguments),
+				});
+			}
+		}
+		content.push({ type: 'text', text });
+
 		const message: Message = {
 			role: 'ai',
-			content: [{ type: 'text', text }],
+			content,
 			id: response.id,
 		};
 
 		return {
 			id: response.id,
-			text,
 			finishReason: response.status === 'completed' ? 'stop' : 'other',
 			usage,
-			toolCalls,
 			message,
 			rawResponse: response,
 			providerMetadata: responseMetadata,
@@ -495,8 +487,8 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 		};
 
 		const streamBody = await openAIFetchStream(
+			this.requests.openStream,
 			`${this.baseURL}/responses`,
-			this.apiKey,
 			requestBody,
 		);
 
@@ -508,7 +500,7 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 			if (type === 'response.output_text.delta') {
 				const delta = event.delta;
 				if (delta) {
-					yield { type: 'text-delta', textDelta: delta };
+					yield { type: 'text-delta', delta };
 				}
 			}
 
@@ -528,7 +520,7 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 						.filter(Boolean)
 						.join('');
 					if (reasoningText) {
-						yield { type: 'text-delta', textDelta: reasoningText };
+						yield { type: 'text-delta', delta: reasoningText };
 					}
 				}
 			}
@@ -536,7 +528,7 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 			if (type === 'response.reasoning_summary_text.delta') {
 				const delta = event.delta;
 				if (delta) {
-					yield { type: 'text-delta', textDelta: delta };
+					yield { type: 'text-delta', delta };
 				}
 			}
 
@@ -556,11 +548,9 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 					if (buf) {
 						yield {
 							type: 'tool-call-delta',
-							toolCallDelta: {
-								id: (item.call_id as string) ?? (item.id as string),
-								name: buf.name,
-								argumentsDelta: buf.arguments,
-							},
+							id: (item.call_id as string) ?? (item.id as string),
+							name: buf.name,
+							argumentsDelta: buf.arguments,
 						};
 					}
 				}

@@ -6,6 +6,8 @@ import {
 	type ISupplyDataFunctions,
 	type SupplyData,
 } from 'n8n-workflow';
+import type Stream from 'node:stream';
+import { Readable } from 'node:stream';
 
 import { supplyModel } from 'src/suppliers/supplyModel';
 import type { ProviderTool } from 'src/types/tool';
@@ -76,12 +78,48 @@ export class LmChatOpenAiCustom implements INodeType {
 			providerTools.push(...builtInToolsParams);
 		}
 
-		const model = new OpenAIChatModel(modelName, {
-			baseURL: credentials.url as string,
-			apiKey: credentials.apiKey as string,
-			providerTools,
-			temperature: options.temperature,
-		});
+		const model = new OpenAIChatModel(
+			modelName,
+			{
+				httpRequest: async (method, url, body, headers) => {
+					const response = await this.helpers.httpRequestWithAuthentication.call(
+						this,
+						'openAiApi',
+						{
+							url,
+							method,
+							body,
+							headers,
+						},
+					);
+					return {
+						body: response,
+					};
+				},
+				openStream: async (method, url, body, headers) => {
+					const response = (await this.helpers.httpRequestWithAuthentication.call(
+						this,
+						'openAiApi',
+						{
+							method,
+							url,
+							body,
+							headers,
+							encoding: 'stream',
+						},
+					)) as Stream.Readable;
+					return {
+						body: Readable.toWeb(response) as ReadableStream<Uint8Array<ArrayBufferLike>>,
+					};
+				},
+			},
+			{
+				baseURL: credentials.url as string,
+				apiKey: credentials.apiKey as string,
+				providerTools,
+				temperature: options.temperature,
+			},
+		);
 
 		return supplyModel(this, model);
 	}
