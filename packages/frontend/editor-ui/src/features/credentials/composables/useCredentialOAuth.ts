@@ -83,10 +83,6 @@ export function useCredentialOAuth() {
 		return requiredProperties.every((prop) => overwrittenProperties.includes(prop.name));
 	}
 
-	// ---------------------------------------------------------------------------
-	// authorize() helpers
-	// ---------------------------------------------------------------------------
-
 	async function getOAuthAuthorizationUrl(
 		credential: ICredentialsResponse,
 	): Promise<Result<string, 'api-error' | 'no-url'>> {
@@ -173,10 +169,6 @@ export function useCredentialOAuth() {
 			});
 		});
 	}
-
-	// ---------------------------------------------------------------------------
-	// Public
-	// ---------------------------------------------------------------------------
 
 	/**
 	 * Authorize OAuth credentials by opening a popup and listening for callback.
