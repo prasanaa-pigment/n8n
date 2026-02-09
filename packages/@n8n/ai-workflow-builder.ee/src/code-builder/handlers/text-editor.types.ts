@@ -112,7 +112,7 @@ export class InvalidPathError extends Error {
  */
 export class FileExistsError extends Error {
 	constructor() {
-		super('File already exists. Use str_replace to modify existing content.');
+		super('File already exists. Use text editor tools to modify existing content.');
 		this.name = 'FileExistsError';
 	}
 }

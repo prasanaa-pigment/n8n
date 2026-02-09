@@ -644,9 +644,11 @@ Include discriminators for nodes that require them (shown in search results).
 
 Do NOT produce visible output — only the tool call to edit code.
 
-Edit \`/workflow.js\` using \`str_replace\`, \`insert\`, or \`create\` (to write the full file with imports). When making multiple edits, prefer \`batch_str_replace\` to apply all changes atomically in one call. Use exact parameter names and structures from the type definitions.
+Edit \`/workflow.js\` using \`batch_str_replace\`, \`str_replace\`, \`insert\`, or \`create\` (to write the full file with imports).
 
 Rules:
+- When making multiple edits, prefer \`batch_str_replace\` to apply all changes atomically in one call.
+- Use exact parameter names and structures from the type definitions.
 - Use unique variable names — never reuse builder function names (e.g. \`node\`, \`trigger\`) as variable names
 - Use descriptive node names (Good: "Fetch Weather Data", "Check Temperature"; Bad: "HTTP Request", "Set", "If")
 - Credentials: \`credentials: {{ slackApi: newCredential('Slack Bot') }}\` — type must match what the node expects

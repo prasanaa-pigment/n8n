@@ -110,8 +110,7 @@ export class ValidateToolHandler {
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCallId,
-					content:
-						'Error: No workflow code to validate. Use str_replace_based_edit_tool to add code first.',
+					content: 'Error: No workflow code to validate. Use text editor tools to add code first.',
 				}),
 			);
 			yield this.createToolProgressChunk('completed', toolCallId);
