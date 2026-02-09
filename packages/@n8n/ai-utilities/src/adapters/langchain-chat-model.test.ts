@@ -93,7 +93,7 @@ describe('LangchainAdapter', () => {
 	});
 
 	describe('_generate', () => {
-		it('transforms messages via fromLcMessage and calls chatModel.generate', async () => {
+		it('transforms messages and calls chatModel.generate', async () => {
 			const chatModel = createMockChatModel();
 			const response: GenerateResult = {
 				message: {
@@ -108,8 +108,6 @@ describe('LangchainAdapter', () => {
 
 			const result = await adapter._generate(messages, options);
 
-			expect(fromLcMessage).toHaveBeenCalledTimes(1);
-			expect(fromLcMessage).toHaveBeenCalledWith(messages[0], 0, messages);
 			expect(chatModel.generate).toHaveBeenCalledWith(
 				[{ role: 'human', content: [{ type: 'text', text: 'hello' }] }],
 				options,
