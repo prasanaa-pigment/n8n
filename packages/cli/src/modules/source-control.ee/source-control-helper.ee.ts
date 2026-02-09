@@ -5,7 +5,6 @@ import { Container } from '@n8n/di';
 import { generateKeyPairSync } from 'crypto';
 import { accessSync, constants as fsConstants, mkdirSync } from 'fs';
 import isEqual from 'lodash/isEqual';
-import type { Credentials } from 'n8n-core';
 import {
 	jsonParse,
 	UserError,
@@ -38,11 +37,6 @@ import type { SourceControlWorkflowVersionId } from './types/source-control-work
 
 function stringContainsExpression(testString: string): boolean {
 	return /^=.*\{\{.+\}\}/.test(testString);
-}
-
-export function getCredentialSynchableData(credential: Credentials) {
-	const credentialData = credential.getData();
-	return sanitizeCredentialData(credentialData);
 }
 
 export function sanitizeCredentialData(

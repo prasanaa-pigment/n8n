@@ -69,7 +69,6 @@ import {
 	getWorkflowExportPath,
 	isValidDataTableColumnType,
 	mergeRemoteCrendetialDataIntoLocalCredentialData,
-	getCredentialSynchableData,
 	sanitizeCredentialData,
 } from './source-control-helper.ee';
 import { SourceControlScopedService } from './source-control-scoped.service';
@@ -453,7 +452,7 @@ export class SourceControlImportService {
 						local.data,
 					);
 
-					sanitizedData = getCredentialSynchableData(credentials);
+					sanitizedData = sanitizeCredentialData(credentials.getData());
 				} catch (error) {
 					this.logger.warn(
 						`Failed to decrypt credential "${local.name}" (ID: ${local.id}) for status comparison`,

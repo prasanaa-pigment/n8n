@@ -36,7 +36,6 @@ import {
 import {
 	getCredentialExportPath,
 	getDataTableExportPath,
-	getCredentialSynchableData,
 	getFoldersPath,
 	getProjectExportPath,
 	getVariablesPath,
@@ -44,6 +43,7 @@ import {
 	readFoldersFromSourceControlFile,
 	readTagAndMappingsFromSourceControlFile,
 	sourceControlFoldersExistCheck,
+	sanitizeCredentialData,
 } from './source-control-helper.ee';
 import { SourceControlScopedService } from './source-control-scoped.service';
 import type { ExportResult } from './types/export-result';
@@ -556,7 +556,7 @@ export class SourceControlExportService {
 						};
 					}
 
-					const sanitizedData = getCredentialSynchableData(credentials);
+					const sanitizedData = sanitizeCredentialData(credentials.getData());
 
 					const stub: ExportableCredential = {
 						id,
