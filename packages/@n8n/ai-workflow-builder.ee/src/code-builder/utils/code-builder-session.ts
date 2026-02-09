@@ -17,7 +17,7 @@ import type { RunnableConfig } from '@langchain/core/runnables';
 import type { MemorySaver, Checkpoint } from '@langchain/langgraph';
 
 import { conversationCompactChain } from '../../chains/conversation-compact';
-import { SessionManagerService } from '../../session-manager.service';
+import { generateThreadId } from '../../utils/thread-id';
 
 /** Maximum number of user messages to retain before compaction */
 const MAX_USER_MESSAGES = 20;
@@ -235,7 +235,7 @@ export async function saveSessionMessages(
 	versionId?: string,
 	userMessageId?: string,
 ): Promise<void> {
-	const threadId = SessionManagerService.generateThreadId(workflowId, userId, 'code-builder');
+	const threadId = generateThreadId(workflowId, userId, 'code-builder');
 
 	const config: RunnableConfig = {
 		configurable: {

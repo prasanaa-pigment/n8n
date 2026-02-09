@@ -1,5 +1,5 @@
-import type { ValidationWarning } from '../../types';
 import { WarningTracker } from '../../state/warning-tracker';
+import type { ValidationWarning } from '../../types';
 import { formatWarnings } from '../format-warnings';
 
 describe('formatWarnings', () => {

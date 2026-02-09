@@ -1,3 +1,4 @@
+import type { BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
 import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
@@ -260,6 +261,7 @@ describe('ToolDispatchHandler', () => {
 		/** Create a mock TextEditorToolHandler whose execute() yields nothing and returns empty */
 		function createMockTextEditorToolHandler(): TextEditorToolHandler {
 			return {
+				// eslint-disable-next-line require-yield
 				execute: jest.fn().mockImplementation(async function* () {
 					return undefined;
 				}),
@@ -276,6 +278,7 @@ describe('ToolDispatchHandler', () => {
 		/** Create a mock ValidateToolHandler whose execute() yields nothing and returns a result */
 		function createMockValidateToolHandler(workflowReady = false): ValidateToolHandler {
 			return {
+				// eslint-disable-next-line require-yield
 				execute: jest.fn().mockImplementation(async function* () {
 					return { workflowReady, parseDuration: 10 };
 				}),
@@ -574,7 +577,7 @@ describe('ToolDispatchHandler', () => {
 				debugLog: mockDebugLog,
 			});
 
-			const messages: import('@langchain/core/messages').BaseMessage[] = [];
+			const messages: BaseMessage[] = [];
 			await drainGenerator(
 				handler.dispatch({
 					toolCalls: [
@@ -612,7 +615,7 @@ describe('ToolDispatchHandler', () => {
 				debugLog: mockDebugLog,
 			});
 
-			const messages: import('@langchain/core/messages').BaseMessage[] = [];
+			const messages: BaseMessage[] = [];
 			const { chunks } = await collectChunks(
 				handler.dispatch({
 					toolCalls: [
@@ -631,7 +634,7 @@ describe('ToolDispatchHandler', () => {
 
 			// Should have error message in messages
 			expect(messages).toHaveLength(1);
-			expect(String(messages[0].content)).toContain('Error:');
+			expect(messages[0].content as string).toContain('Error:');
 
 			// Should have error status in progress chunks
 			const toolChunks = chunks.flatMap((c) => c.messages ?? []).filter(isToolProgressChunk);

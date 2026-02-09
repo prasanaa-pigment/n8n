@@ -361,6 +361,77 @@ function getDiscriminatorInfo(
 	return { type: 'none' };
 }
 
+function formatResourceOperationLines(
+	resources: DiscriminatorResourceInfo[],
+	nodeId: string,
+): string[] {
+	const lines: string[] = ['    resource:'];
+	for (const resource of resources) {
+		lines.push(`      - ${resource.value}:`);
+		if (resource.description) {
+			lines.push(`          ${resource.description}`);
+		}
+		if (resource.builderHint) {
+			lines.push(`          @builderHint ${resource.builderHint.message}`);
+		}
+
+		lines.push('          operations:');
+		for (const op of resource.operations) {
+			lines.push(`            - ${op.value}`);
+			if (op.description) {
+				lines.push(`              ${op.description}`);
+			}
+			if (op.builderHint) {
+				lines.push(`              @builderHint ${op.builderHint.message}`);
+			}
+		}
+	}
+
+	const firstResource = resources[0];
+	const firstOp = firstResource?.operations[0]?.value || 'get';
+	lines.push('');
+	lines.push('  Use get_node_types with discriminators:');
+	lines.push(
+		`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", resource: "${firstResource?.value}", operation: "${firstOp}" }] })`,
+	);
+	return lines;
+}
+
+function formatOperationLines(operations: DiscriminatorOperationInfo[], nodeId: string): string[] {
+	const lines: string[] = ['    operation:'];
+	for (const op of operations) {
+		lines.push(`      - ${op.value}`);
+		if (op.description) {
+			lines.push(`        ${op.description}`);
+		}
+		if (op.builderHint) {
+			lines.push(`        @builderHint ${op.builderHint.message}`);
+		}
+	}
+
+	const firstOp = operations[0]?.value ?? 'default';
+	lines.push('');
+	lines.push('  Use get_node_types with discriminators:');
+	lines.push(`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", operation: "${firstOp}" }] })`);
+	return lines;
+}
+
+function formatModeLines(modes: ModeInfo[], nodeId: string): string[] {
+	const lines: string[] = ['    mode:'];
+	const hasSubnodeModes = modes.some((m) => m.outputConnectionType);
+	for (const mode of modes) {
+		lines.push(formatModeForDisplay(mode, hasSubnodeModes));
+	}
+
+	const firstMode = modes[0];
+	lines.push('');
+	lines.push('  Use get_node_types with discriminators:');
+	lines.push(
+		`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", mode: "${firstMode.value}" }] })`,
+	);
+	return lines;
+}
+
 /**
  * Format discriminator info for display in search results
  */
@@ -372,72 +443,11 @@ function formatDiscriminatorInfo(info: DiscriminatorInfo, nodeId: string): strin
 	const lines: string[] = ['  Discriminators:'];
 
 	if (info.type === 'resource_operation' && info.resources) {
-		lines.push('    resource:');
-		for (const resource of info.resources) {
-			// Format resource line
-			lines.push(`      - ${resource.value}:`);
-			if (resource.description) {
-				lines.push(`          ${resource.description}`);
-			}
-			if (resource.builderHint) {
-				lines.push(`          @builderHint ${resource.builderHint.message}`);
-			}
-
-			// Format operations
-			lines.push('          operations:');
-			for (const op of resource.operations) {
-				lines.push(`            - ${op.value}`);
-				if (op.description) {
-					lines.push(`              ${op.description}`);
-				}
-				if (op.builderHint) {
-					lines.push(`              @builderHint ${op.builderHint.message}`);
-				}
-			}
-		}
-
-		// Add usage hint
-		const firstResource = info.resources[0];
-		const firstOp = firstResource?.operations[0]?.value || 'get';
-		lines.push('');
-		lines.push('  Use get_node_types with discriminators:');
-		lines.push(
-			`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", resource: "${firstResource?.value}", operation: "${firstOp}" }] })`,
-		);
+		lines.push(...formatResourceOperationLines(info.resources, nodeId));
 	} else if (info.type === 'operation' && info.operations) {
-		lines.push('    operation:');
-		for (const op of info.operations) {
-			lines.push(`      - ${op.value}`);
-			if (op.description) {
-				lines.push(`        ${op.description}`);
-			}
-			if (op.builderHint) {
-				lines.push(`        @builderHint ${op.builderHint.message}`);
-			}
-		}
-
-		// Add usage hint
-		const firstOp = info.operations[0]?.value ?? 'default';
-		lines.push('');
-		lines.push('  Use get_node_types with discriminators:');
-		lines.push(
-			`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", operation: "${firstOp}" }] })`,
-		);
+		lines.push(...formatOperationLines(info.operations, nodeId));
 	} else if (info.type === 'mode' && info.modes) {
-		lines.push('    mode:');
-		// Only show SDK function mapping if there's variation (some modes have outputConnectionType)
-		const hasSubnodeModes = info.modes.some((m) => m.outputConnectionType);
-		for (const mode of info.modes) {
-			lines.push(formatModeForDisplay(mode, hasSubnodeModes));
-		}
-
-		// Add usage hint with first mode value
-		const firstMode = info.modes[0];
-		lines.push('');
-		lines.push('  Use get_node_types with discriminators:');
-		lines.push(
-			`    get_node_types({ nodeIds: [{ nodeId: "${nodeId}", mode: "${firstMode.value}" }] })`,
-		);
+		lines.push(...formatModeLines(info.modes, nodeId));
 	}
 
 	return lines.join('\n');

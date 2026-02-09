@@ -18,6 +18,7 @@ jest.mock('@n8n/workflow-sdk', () => ({
 	parseWorkflowCodeToBuilder: jest.fn(),
 	validateWorkflow: jest.fn(),
 	generateWorkflowCode: jest.fn().mockReturnValue('// generated code'),
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 	workflow: { fromJSON: (...args: unknown[]) => mockFromJSON(...args) },
 }));
 
@@ -29,7 +30,10 @@ jest.mock('../prompts', () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { parseWorkflowCodeToBuilder, validateWorkflow } = require('@n8n/workflow-sdk');
+const { parseWorkflowCodeToBuilder, validateWorkflow } = require('@n8n/workflow-sdk') as {
+	parseWorkflowCodeToBuilder: jest.Mock;
+	validateWorkflow: jest.Mock;
+};
 
 const MOCK_WORKFLOW: Partial<IWorkflowBase> = {
 	id: 'test-wf-1',
@@ -172,6 +176,7 @@ describe('CodeBuilderAgent pre-validation', () => {
 		const originalToJSON = agentBuilder.toJSON;
 		agentBuilder.toJSON.mockImplementation(() => {
 			parseCallCount++;
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 			return originalToJSON();
 		});
 

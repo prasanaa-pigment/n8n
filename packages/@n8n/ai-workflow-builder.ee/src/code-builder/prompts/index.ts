@@ -623,7 +623,7 @@ export function buildCodeBuilderPrompt(
 
 	if (options?.planOutput) {
 		promptSections.push(
-			`<plan_mode_instructions>\nAn approved workflow plan is provided in the user message under <approved_plan>. Use this plan as the authoritative specification for what to build. Your Step 1 analysis should follow this plan. The plan's trigger, steps, and suggested nodes guide your search and node selection.\n</plan_mode_instructions>`,
+			"<plan_mode_instructions>\nAn approved workflow plan is provided in the user message under <approved_plan>. Use this plan as the authoritative specification for what to build. Your Step 1 analysis should follow this plan. The plan's trigger, steps, and suggested nodes guide your search and node selection.\n</plan_mode_instructions>",
 		);
 	}
 

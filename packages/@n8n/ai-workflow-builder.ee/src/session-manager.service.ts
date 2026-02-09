@@ -4,11 +4,12 @@ import { Logger } from '@n8n/backend-common';
 import { Service } from '@n8n/di';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
-import { generateCodeBuilderThreadId } from '@/code-builder';
+import { generateCodeBuilderThreadId } from '@/code-builder/utils/code-builder-session';
 import { getBuilderToolsForDisplay } from '@/tools/builder-tools';
 import type { HITLHistoryEntry, HITLInterruptValue } from '@/types/planning';
 import { isLangchainMessagesArray, LangchainMessage, Session } from '@/types/sessions';
 import { formatMessages } from '@/utils/stream-processor';
+import { generateThreadId as generateThreadIdUtil } from '@/utils/thread-id';
 
 @Service()
 export class SessionManagerService {
@@ -57,11 +58,7 @@ export class SessionManagerService {
 		userId?: string,
 		agentType?: 'code-builder',
 	): string {
-		const baseId = workflowId
-			? `workflow-${workflowId}-user-${userId ?? new Date().getTime()}`
-			: crypto.randomUUID();
-
-		return agentType === 'code-builder' ? `${baseId}-code` : baseId;
+		return generateThreadIdUtil(workflowId, userId, agentType);
 	}
 
 	/**

@@ -562,7 +562,7 @@ function getNodeTypeDefinition(
 	const anyDirExists = nodesPaths.some((p) => existsSync(p));
 	if (!anyDirExists) {
 		const errorMsg = nodeDefinitionDirs
-			? `Node types directory not found in any of the configured dirs. Types may not have been generated yet.`
+			? 'Node types directory not found in any of the configured dirs. Types may not have been generated yet.'
 			: 'Node types not found. The generated types directory does not exist. Ensure the application has started properly and types have been generated.';
 		return {
 			nodeId,

@@ -400,13 +400,12 @@ describe('TextEditorToolHandler', () => {
 			});
 
 			const chunks: unknown[] = [];
-			let result: unknown;
 			let iterResult = await generator.next();
 			while (!iterResult.done) {
 				chunks.push(iterResult.value);
 				iterResult = await generator.next();
 			}
-			result = iterResult.value;
+			const result = iterResult.value;
 
 			// All warnings repeated → treat as workflowReady
 			expect(result).toEqual(

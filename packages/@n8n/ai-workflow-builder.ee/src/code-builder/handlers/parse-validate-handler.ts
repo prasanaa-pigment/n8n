@@ -348,6 +348,7 @@ export class ParseValidateHandler {
 		if (/expr\s*\(\s*`[^`]*\$\{\{/.test(nearbyCode)) {
 			return (
 				"HINT: The '$' before '{{' inside a backtick template literal is interpreted as JS template interpolation. " +
+				// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 				"Use single quotes instead of backticks for expr(), e.g. expr('Amount: ${{ $json.amount }}'). " +
 				'Fix ALL occurrences in the file at once.'
 			);

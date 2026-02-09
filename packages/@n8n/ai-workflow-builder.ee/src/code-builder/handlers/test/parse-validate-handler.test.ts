@@ -263,11 +263,13 @@ describe('ParseValidateHandler', () => {
 			expect(context).toContain('line1');
 		});
 
+		// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 		it('should append hint when ${{ pattern is detected near the error line', () => {
 			const code = [
 				'const x = node({',
 				'  config: {',
 				'    parameters: {',
+				// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 				'      message: expr(`Amount: ${{ $json.amount }}`)',
 				'    }',
 				'  }',
@@ -277,10 +279,12 @@ describe('ParseValidateHandler', () => {
 			const context = handler.getErrorContext(code, 'Unexpected token at line 4');
 
 			expect(context).toContain('HINT:');
+			// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 			expect(context).toContain('${{');
 			expect(context).toContain('single quotes');
 		});
 
+		// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 		it('should not append hint when ${{ is not present near the error line', () => {
 			const code = [
 				'const x = node({',
@@ -297,11 +301,13 @@ describe('ParseValidateHandler', () => {
 			expect(context).not.toContain('HINT:');
 		});
 
+		// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 		it('should not false-positive on ${{ in single-quoted expr', () => {
 			const code = [
 				'const x = node({',
 				'  config: {',
 				'    parameters: {',
+				// eslint-disable-next-line n8n-local-rules/no-interpolation-in-regular-string
 				"      message: expr('Amount: ${{ $json.amount }}')",
 				'    }',
 				'  }',

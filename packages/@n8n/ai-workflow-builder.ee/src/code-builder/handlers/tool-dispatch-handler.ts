@@ -10,9 +10,9 @@ import { ToolMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type { StrReplacement } from './text-editor.types';
 import type { TextEditorHandler } from './text-editor-handler';
 import type { TextEditorToolHandler } from './text-editor-tool-handler';
+import type { StrReplacement } from './text-editor.types';
 import type { ValidateToolHandler } from './validate-tool-handler';
 import type { StreamOutput, ToolProgressChunk } from '../../types/streaming';
 import type { WarningTracker } from '../state/warning-tracker';

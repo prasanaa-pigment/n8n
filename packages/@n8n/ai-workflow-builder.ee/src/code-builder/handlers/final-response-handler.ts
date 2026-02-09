@@ -5,8 +5,7 @@
  * Extracts workflow code from the response and validates it, providing feedback for corrections.
  */
 
-import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage } from '@langchain/core/messages';
+import type { AIMessage, BaseMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import type { WarningTracker } from '../state/warning-tracker';

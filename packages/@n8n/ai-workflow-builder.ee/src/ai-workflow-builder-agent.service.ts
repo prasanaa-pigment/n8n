@@ -285,26 +285,7 @@ export class AiWorkflowBuilderService {
 		// Store HITL interactions for session replay.
 		// Command.update messages don't persist when a subgraph node interrupts multiple times.
 		if (pendingHitl && payload.resumeData) {
-			if (pendingHitl.value.type === 'questions') {
-				this.sessionManager.addHitlEntry(threadId, {
-					type: 'questions_answered',
-					afterMessageId: pendingHitl.triggeringMessageId,
-					interrupt: pendingHitl.value,
-					answers: payload.resumeData,
-				});
-			} else if (pendingHitl.value.type === 'plan') {
-				const decision = payload.resumeData as { action?: string; feedback?: string };
-				// Only store non-approve decisions; approved plans survive in the checkpoint
-				if (decision.action === 'reject' || decision.action === 'modify') {
-					this.sessionManager.addHitlEntry(threadId, {
-						type: 'plan_decided',
-						afterMessageId: pendingHitl.triggeringMessageId,
-						plan: pendingHitl.value.plan,
-						decision: decision.action,
-						feedback: decision.feedback,
-					});
-				}
-			}
+			this.storeHitlInteraction(threadId, pendingHitl, payload.resumeData);
 		}
 
 		const resumeInterrupt = pendingHitl?.value;
@@ -333,6 +314,33 @@ export class AiWorkflowBuilderService {
 				);
 			} catch (error) {
 				this.logger?.error('Failed to track builder reply telemetry', { error });
+			}
+		}
+	}
+
+	private storeHitlInteraction(
+		threadId: string,
+		pendingHitl: { value: HITLInterruptValue; triggeringMessageId?: string },
+		resumeData: unknown,
+	): void {
+		if (pendingHitl.value.type === 'questions') {
+			this.sessionManager.addHitlEntry(threadId, {
+				type: 'questions_answered',
+				afterMessageId: pendingHitl.triggeringMessageId,
+				interrupt: pendingHitl.value,
+				answers: resumeData,
+			});
+		} else if (pendingHitl.value.type === 'plan') {
+			const decision = resumeData as { action?: string; feedback?: string };
+			// Only store non-approve decisions; approved plans survive in the checkpoint
+			if (decision.action === 'reject' || decision.action === 'modify') {
+				this.sessionManager.addHitlEntry(threadId, {
+					type: 'plan_decided',
+					afterMessageId: pendingHitl.triggeringMessageId,
+					plan: pendingHitl.value.plan,
+					decision: decision.action,
+					feedback: decision.feedback,
+				});
 			}
 		}
 	}

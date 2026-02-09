@@ -2,9 +2,8 @@
  * Tests for content extractor utilities
  */
 
-import type { BaseMessage } from '@langchain/core/messages';
+import type { AIMessage as AIMessageType, BaseMessage } from '@langchain/core/messages';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
-import type { AIMessage as AIMessageType } from '@langchain/core/messages';
 
 import {
 	extractTextContent,

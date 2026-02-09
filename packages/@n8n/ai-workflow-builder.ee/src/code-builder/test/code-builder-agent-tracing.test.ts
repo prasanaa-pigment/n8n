@@ -27,7 +27,10 @@ jest.mock('../prompts', () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { parseWorkflowCodeToBuilder, validateWorkflow } = require('@n8n/workflow-sdk');
+const { parseWorkflowCodeToBuilder, validateWorkflow } = require('@n8n/workflow-sdk') as {
+	parseWorkflowCodeToBuilder: jest.Mock;
+	validateWorkflow: jest.Mock;
+};
 
 const MOCK_WORKFLOW: WorkflowJSON = {
 	id: 'test-wf-1',
@@ -80,7 +83,7 @@ function createMockBuilder() {
 class ChainEndTracker extends BaseCallbackHandler {
 	name = 'chain-end-tracker';
 
-	chainEndOutputs: Record<string, unknown>[] = [];
+	chainEndOutputs: Array<Record<string, unknown>> = [];
 
 	async handleChainEnd(outputs: Record<string, unknown>): Promise<void> {
 		this.chainEndOutputs.push(outputs);
