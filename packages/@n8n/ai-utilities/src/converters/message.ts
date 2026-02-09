@@ -331,11 +331,14 @@ export function toLcMessage(message: Message): LangchainMessages.BaseMessage {
 				name: message.name,
 			});
 		case 'ai': {
-			const toolCalls = message.content.filter(isN8nToolCallBlock).map((c) => ({
-				id: c.toolCallId,
-				name: c.toolName,
-				args: jsonParse<Record<string, unknown>>(c.input, { fallbackValue: {} }),
-			}));
+			const toolCalls: LangchainMessages.ToolCall[] = message.content
+				.filter(isN8nToolCallBlock)
+				.map((c) => ({
+					type: 'tool_call',
+					id: c.toolCallId,
+					name: c.toolName,
+					args: jsonParse<Record<string, unknown>>(c.input, { fallbackValue: {} }),
+				}));
 			const nonToolContent = lcContent.filter((c) => c.type !== 'tool_call');
 			return new LangchainMessages.AIMessage({
 				content: nonToolContent,

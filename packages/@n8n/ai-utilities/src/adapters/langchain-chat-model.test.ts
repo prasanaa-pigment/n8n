@@ -2,14 +2,9 @@ import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager
 import { HumanMessage } from '@langchain/core/messages';
 import type { ISupplyDataFunctions } from 'n8n-workflow';
 
-import { LangchainAdapter } from './langchain-chat-model';
+import type { GenerateResult, StreamChunk } from 'src/types/output';
 
-jest.mock('../converters/message', () => ({
-	fromLcMessage: jest.fn().mockImplementation((msg: { content?: string }) => ({
-		role: 'human' as const,
-		content: typeof msg?.content === 'string' ? [{ type: 'text' as const, text: msg.content }] : [],
-	})),
-}));
+import { LangchainAdapter } from './langchain-chat-model';
 
 jest.mock('../converters/tool', () => ({
 	fromLcTool: jest.fn().mockImplementation((t: { name?: string }) => ({
@@ -100,7 +95,13 @@ describe('LangchainAdapter', () => {
 	describe('_generate', () => {
 		it('transforms messages via fromLcMessage and calls chatModel.generate', async () => {
 			const chatModel = createMockChatModel();
-			chatModel.generate.mockResolvedValue({ text: 'Hi there' });
+			const response: GenerateResult = {
+				message: {
+					role: 'ai',
+					content: [{ type: 'text', text: 'Hi there' }],
+				},
+			};
+			chatModel.generate.mockResolvedValue(response);
 			const adapter = new LangchainAdapter(chatModel);
 			const messages = [new HumanMessage('hello')];
 			const options = { temperature: 0.5 };
@@ -120,8 +121,11 @@ describe('LangchainAdapter', () => {
 
 		it('builds usage_metadata from result.usage', async () => {
 			const chatModel = createMockChatModel();
-			chatModel.generate.mockResolvedValue({
-				text: 'ok',
+			const response: GenerateResult = {
+				message: {
+					role: 'ai',
+					content: [{ type: 'text', text: 'ok' }],
+				},
 				usage: {
 					promptTokens: 10,
 					completionTokens: 20,
@@ -129,7 +133,8 @@ describe('LangchainAdapter', () => {
 					inputTokenDetails: { cacheRead: 5 },
 					outputTokenDetails: { reasoning: 15 },
 				},
-			});
+			};
+			chatModel.generate.mockResolvedValue(response);
 			const adapter = new LangchainAdapter(chatModel);
 
 			const result = await adapter._generate([new HumanMessage('x')], {});
@@ -147,19 +152,30 @@ describe('LangchainAdapter', () => {
 
 		it('maps result.toolCalls to message tool_calls and sets provider metadata', async () => {
 			const chatModel = createMockChatModel();
-			chatModel.generate.mockResolvedValue({
-				text: '',
+			const response: GenerateResult = {
+				message: {
+					role: 'ai',
+					content: [
+						{
+							type: 'tool-call',
+							toolCallId: 'tc-1',
+							toolName: 'get_weather',
+							input: JSON.stringify({ location: 'Berlin' }),
+						},
+						{ type: 'text', text: 'Hello, world!' },
+					],
+				},
 				id: 'gen-1',
-				toolCalls: [{ id: 'tc-1', name: 'get_weather', arguments: { location: 'Berlin' } }],
 				providerMetadata: { finish_reason: 'tool_calls' },
-			});
+			};
+			chatModel.generate.mockResolvedValue(response);
 			const adapter = new LangchainAdapter(chatModel);
 
 			const result = await adapter._generate([new HumanMessage('hi')], {});
 
 			const msg = result.generations[0].message as any;
 			expect(msg.tool_calls).toEqual([
-				{ id: 'tc-1', name: 'get_weather', args: { location: 'Berlin' }, type: 'tool_call' },
+				{ type: 'tool_call', id: 'tc-1', name: 'get_weather', args: { location: 'Berlin' } },
 			]);
 			expect(msg.response_metadata).toEqual(
 				expect.objectContaining({
@@ -175,8 +191,16 @@ describe('LangchainAdapter', () => {
 	describe('_streamResponseChunks', () => {
 		it('yields ChatGenerationChunk for text-delta chunks and calls runManager.handleLLMNewToken', async () => {
 			async function* stream() {
-				yield { type: 'text-delta' as const, textDelta: 'Hello ' };
-				yield { type: 'text-delta' as const, textDelta: 'world' };
+				const response: StreamChunk = {
+					type: 'text-delta',
+					delta: 'Hello ',
+				};
+				const response2: StreamChunk = {
+					type: 'text-delta',
+					delta: 'world',
+				};
+				yield response;
+				yield response2;
 			}
 			const chatModel = createMockChatModel({
 				stream: jest.fn().mockImplementation(() => stream()),
@@ -214,10 +238,13 @@ describe('LangchainAdapter', () => {
 
 		it('yields ChatGenerationChunk for tool-call-delta chunks', async () => {
 			async function* stream() {
-				yield {
-					type: 'tool-call-delta' as const,
-					toolCallDelta: { id: 'tc-1', name: 'search', argumentsDelta: '{"q":"x"}' },
+				const response: StreamChunk = {
+					type: 'tool-call-delta',
+					id: 'tc-1',
+					name: 'search',
+					argumentsDelta: '{"q":"x"}',
 				};
+				yield response;
 			}
 			const chatModel = createMockChatModel({
 				stream: jest.fn().mockImplementation(() => stream()),
