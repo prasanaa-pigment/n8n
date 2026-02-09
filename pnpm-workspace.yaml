@@ -140,3 +140,5 @@ minimumReleaseAgeExclude:
   - node-forge
   - vm2
   - tar
+  # Renovate security update: langsmith@0.4.6
+  - langsmith@0.4.6
