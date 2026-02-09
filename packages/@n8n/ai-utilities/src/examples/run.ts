@@ -1,3 +1,8 @@
+/**
+ * Can be used to test chat models outside of n8n nodes.
+ * Example: npx tsx run.ts --generate "What is the weather in Tokyo?"
+ */
+
 import dotenv from 'dotenv';
 import { createAgent, HumanMessage, tool } from 'langchain';
 import z from 'zod';
