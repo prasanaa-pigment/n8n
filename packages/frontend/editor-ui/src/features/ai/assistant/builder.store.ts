@@ -41,7 +41,6 @@ import { useWorkflowSaving } from '@/app/composables/useWorkflowSaving';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
 import { useBrowserNotifications } from '@/app/composables/useBrowserNotifications';
-import { usePostHog } from '@/app/stores/posthog.store';
 import { AI_BUILDER_PLAN_MODE_EXPERIMENT } from '@/app/constants/experiments';
 import type { PlanMode } from '@/features/ai/assistant/assistant.types';
 import {
