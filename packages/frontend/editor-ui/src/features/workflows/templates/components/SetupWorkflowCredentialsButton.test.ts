@@ -5,7 +5,9 @@ import { createTestingPinia } from '@pinia/testing';
 import { mockedStore } from '@/__tests__/utils';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useUIStore } from '@/app/stores/ui.store';
+import { useFocusPanelStore } from '@/app/stores/focusPanel.store';
 import { useReadyToRunStore } from '@/features/workflows/readyToRun/stores/readyToRun.store';
+import { useSetupPanelStore } from '@/features/setupPanel/setupPanel.store';
 import { SETUP_CREDENTIALS_MODAL_KEY, TEMPLATE_SETUP_EXPERIENCE } from '@/app/constants';
 
 const mockDoesNodeHaveAllCredentialsFilled = vi.fn();
@@ -42,7 +44,9 @@ vi.mock('vue-router', async () => {
 
 let workflowsStore: ReturnType<typeof mockedStore<typeof useWorkflowsStore>>;
 let uiStore: ReturnType<typeof mockedStore<typeof useUIStore>>;
+let focusPanelStore: ReturnType<typeof mockedStore<typeof useFocusPanelStore>>;
 let readyToRunStore: ReturnType<typeof mockedStore<typeof useReadyToRunStore>>;
+let setupPanelStore: ReturnType<typeof mockedStore<typeof useSetupPanelStore>>;
 
 const mockGetVariant = vi.fn();
 
@@ -75,16 +79,20 @@ describe('SetupWorkflowCredentialsButton', () => {
 		createTestingPinia();
 		workflowsStore = mockedStore(useWorkflowsStore);
 		uiStore = mockedStore(useUIStore);
+		focusPanelStore = mockedStore(useFocusPanelStore);
 		readyToRunStore = mockedStore(useReadyToRunStore);
+		setupPanelStore = mockedStore(useSetupPanelStore);
 	});
 
 	it('renders', () => {
 		workflowsStore.workflow = EMPTY_WORKFLOW;
+		workflowsStore.getNodes.mockReturnValue([]);
 		expect(() => renderComponent()).not.toThrow();
 	});
 
 	it('does not render the button if there are no nodes', () => {
 		workflowsStore.workflow = EMPTY_WORKFLOW;
+		workflowsStore.getNodes.mockReturnValue([]);
 		const { queryByTestId } = renderComponent();
 		expect(queryByTestId('setup-credentials-button')).toBeNull();
 	});
@@ -153,18 +161,36 @@ describe('SetupWorkflowCredentialsButton', () => {
 			],
 		};
 
-		it('opens modal when all conditions are met', async () => {
+		it('opens modal when all conditions are met and setup panel is disabled', async () => {
 			workflowsStore.workflow = workflowWithUnfilledCredentials;
 			workflowsStore.getNodes.mockReturnValue(workflowWithUnfilledCredentials.nodes as never);
 			mockDoesNodeHaveAllCredentialsFilled.mockReturnValue(false);
 			mockGetVariant.mockReturnValue(TEMPLATE_SETUP_EXPERIENCE.variant);
 			readyToRunStore.isReadyToRunTemplateId.mockReturnValue(false);
+			setupPanelStore.isFeatureEnabled = false;
 			mockRouteQuery.mockReturnValue({ templateId: '123' });
 
 			renderComponent();
 			await flushPromises();
 
 			expect(uiStore.openModal).toHaveBeenCalledWith(SETUP_CREDENTIALS_MODAL_KEY);
+		});
+
+		it('opens setup panel when all conditions are met and setup panel is enabled', async () => {
+			workflowsStore.workflow = workflowWithUnfilledCredentials;
+			workflowsStore.getNodes.mockReturnValue(workflowWithUnfilledCredentials.nodes as never);
+			mockDoesNodeHaveAllCredentialsFilled.mockReturnValue(false);
+			mockGetVariant.mockReturnValue(TEMPLATE_SETUP_EXPERIENCE.variant);
+			readyToRunStore.isReadyToRunTemplateId.mockReturnValue(false);
+			setupPanelStore.isFeatureEnabled = true;
+			mockRouteQuery.mockReturnValue({ templateId: '123' });
+
+			renderComponent();
+			await flushPromises();
+
+			expect(focusPanelStore.setSelectedTab).toHaveBeenCalledWith('setup');
+			expect(focusPanelStore.openFocusPanel).toHaveBeenCalled();
+			expect(uiStore.openModal).not.toHaveBeenCalled();
 		});
 
 		it('does not open modal when not on template import route (no templateId in query)', () => {

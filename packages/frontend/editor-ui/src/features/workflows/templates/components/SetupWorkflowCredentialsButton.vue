@@ -48,7 +48,7 @@ const allCredentialsFilled = computed(() => {
 });
 
 const showButton = computed(() => {
-	return !!workflowsStore.workflow?.meta?.templateId;
+	return !!workflowsStore.workflow?.meta?.templateId && workflowsStore.getNodes().length > 0;
 });
 
 const isNewTemplatesSetupEnabled = computed(() => {
