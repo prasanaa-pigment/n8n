@@ -136,11 +136,25 @@ Fix with \`executeOnce: true\` (simplest) or parallel branches + Merge (when com
 const sourceB = node({{ ..., config: {{ ..., executeOnce: true }} }});
 startTrigger.to(sourceA.to(sourceB.to(processResults)));
 
-// FIX 2 - parallel branches + Merge: when you need to combine results from both
+// FIX 2 - parallel branches + Merge (combine by position): pairs items by index
+const combineResults = merge({{
+  version: 3.2,
+  config: {{ name: 'Combine Results', parameters: {{ mode: 'combine', combineBy: 'combineByPosition' }} }}
+}});
 return workflow('id', 'name')
   .add(startTrigger.to(sourceA.to(combineResults.input(0))))
   .add(startTrigger.to(sourceB.to(combineResults.input(1))))
   .add(combineResults.to(processResults));
+
+// FIX 3 - parallel branches + Merge (append): concatenates all items into one list
+const allResults = merge({{
+  version: 3.2,
+  config: {{ name: 'All Results', parameters: {{ mode: 'append' }} }}
+}});
+return workflow('id', 'name')
+  .add(startTrigger.to(sourceA.to(allResults.input(0))))
+  .add(startTrigger.to(sourceB.to(allResults.input(1))))
+  .add(allResults.to(processResults));
 \`\`\`
 
 </independent_sources>
