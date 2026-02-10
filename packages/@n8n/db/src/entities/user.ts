@@ -76,6 +76,9 @@ export class User extends WithTimestamps implements IUser, AuthPrincipal {
 	@OneToMany('ProjectRelation', 'user')
 	projectRelations: ProjectRelation[];
 
+	@Column({ type: String, default: 'human' })
+	type: 'human' | 'agent';
+
 	@Column({ type: Boolean, default: false })
 	disabled: boolean;
 
@@ -118,7 +121,8 @@ export class User extends WithTimestamps implements IUser, AuthPrincipal {
 		this.isPending =
 			this.password === null &&
 			!hasExternalAuthIdentity &&
-			this.role?.slug !== GLOBAL_OWNER_ROLE.slug;
+			this.role?.slug !== GLOBAL_OWNER_ROLE.slug &&
+			this.type !== 'agent';
 	}
 
 	toJSON() {

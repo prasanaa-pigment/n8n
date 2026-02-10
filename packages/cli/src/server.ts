@@ -66,6 +66,7 @@ import '@/webhooks/webhooks.controller';
 import { ChatServer } from './chat/chat-server';
 import { MfaService } from './mfa/mfa.service';
 import { PubSubRegistry } from './scaling/pubsub/pubsub.registry';
+import { AgentSeederService } from './services/agent-seeder.service';
 
 @Service()
 export class Server extends AbstractServer {
@@ -105,6 +106,8 @@ export class Server extends AbstractServer {
 		if (inDevelopment && process.env.N8N_DEV_RELOAD === 'true') {
 			void this.loadNodesAndCredentials.setupHotReload();
 		}
+
+		await Container.get(AgentSeederService).seed();
 
 		this.eventService.emit('server-started');
 	}
