@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { N8nText, N8nLink } from '@n8n/design-system';
+import { ref } from 'vue';
+import { N8nText, N8nLink, N8nButton, N8nIcon } from '@n8n/design-system';
+import { useI18n } from '@n8n/i18n';
+import type { BaseTextKey } from '@n8n/i18n';
 import type { SecurityFinding } from '../scanner/types';
 import SecuritySeverityTag from './SecuritySeverityTag.vue';
 
@@ -7,14 +10,23 @@ defineOptions({ name: 'SecurityFindingCard' });
 
 const props = defineProps<{
 	finding: SecurityFinding;
+	isAiAvailable: boolean;
 }>();
 
 const emit = defineEmits<{
 	navigate: [nodeName: string];
+	fixWithAi: [finding: SecurityFinding];
 }>();
+
+const i18n = useI18n();
+const isRemediationOpen = ref(false);
 
 function onNavigate() {
 	emit('navigate', props.finding.nodeName);
+}
+
+function onFixWithAi() {
+	emit('fixWithAi', props.finding);
 }
 </script>
 
@@ -56,6 +68,40 @@ function onNavigate() {
 			:class="$style.matchedValue"
 		>
 			{{ finding.matchedValue }}
+		</N8nText>
+
+		<div :class="$style.actions">
+			<button
+				:class="$style.remediationToggle"
+				data-test-id="security-finding-remediation-toggle"
+				@click="isRemediationOpen = !isRemediationOpen"
+			>
+				<N8nIcon :icon="isRemediationOpen ? 'chevron-down' : 'chevron-right'" size="small" />
+				<N8nText tag="span" size="small" bold>
+					{{ i18n.baseText('securityScanner.finding.howToFix' as BaseTextKey) }}
+				</N8nText>
+			</button>
+			<N8nButton
+				v-if="isAiAvailable"
+				type="tertiary"
+				size="mini"
+				icon="wand-sparkles"
+				data-test-id="security-finding-fix-ai"
+				@click="onFixWithAi"
+			>
+				{{ i18n.baseText('securityScanner.finding.fixWithAi' as BaseTextKey) }}
+			</N8nButton>
+		</div>
+
+		<N8nText
+			v-if="isRemediationOpen"
+			tag="p"
+			size="small"
+			color="text-light"
+			:class="$style.remediation"
+			data-test-id="security-finding-remediation"
+		>
+			{{ finding.remediation }}
 		</N8nText>
 	</div>
 </template>
@@ -122,5 +168,37 @@ function onNavigate() {
 	font-family: monospace;
 	font-size: var(--font-size--2xs);
 	word-break: break-all;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--spacing--2xs);
+	margin-top: var(--spacing--4xs);
+}
+
+.remediationToggle {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing--4xs);
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+	color: var(--color--text--tint-1);
+}
+
+.remediationToggle:hover {
+	color: var(--color--text);
+}
+
+.remediation {
+	margin: 0;
+	padding: var(--spacing--2xs) var(--spacing--xs);
+	background-color: var(--color--foreground--tint-2);
+	border-radius: var(--radius);
+	line-height: var(--line-height--xl);
+	white-space: pre-line;
 }
 </style>

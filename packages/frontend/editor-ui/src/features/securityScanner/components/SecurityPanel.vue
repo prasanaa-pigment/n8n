@@ -13,6 +13,7 @@ import {
 	MAX_PANEL_WIDTH,
 	type SecurityTab,
 } from '../securityScanner.constants';
+import type { SecurityFinding } from '../scanner/types';
 import SecuritySummaryBar from './SecuritySummaryBar.vue';
 import SecurityFindingCard from './SecurityFindingCard.vue';
 
@@ -67,6 +68,10 @@ function onAnalyzeWithAi() {
 
 function onNavigateToNode(nodeName: string) {
 	securityStore.navigateToNode(nodeName);
+}
+
+function onFixFindingWithAi(finding: SecurityFinding) {
+	void securityStore.fixFindingWithAi(finding);
 }
 </script>
 
@@ -144,7 +149,9 @@ function onNavigateToNode(nodeName: string) {
 							v-else
 							:key="finding.id"
 							:finding="finding"
+							:is-ai-available="isAiAvailable"
 							@navigate="onNavigateToNode"
+							@fix-with-ai="onFixFindingWithAi"
 						/>
 					</div>
 				</template>
