@@ -6,6 +6,7 @@ import type { RunnableConfig } from '@langchain/core/runnables';
 import type { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 import type { MemorySaver, StateSnapshot } from '@langchain/langgraph';
 import { Command, GraphRecursionError } from '@langchain/langgraph';
+import type { SelectedNodeContext } from '@n8n/api-types';
 import type { Logger } from '@n8n/backend-common';
 import {
 	ApplicationError,
@@ -106,6 +107,12 @@ export interface ChatPayload {
 		valuesExcluded?: boolean;
 		/** Node names whose output schema was derived from pin data */
 		pinnedNodes?: string[];
+		/**
+		 * Nodes explicitly selected/focused by the user for AI context.
+		 * When present, the AI should prioritize responses around these nodes,
+		 * resolving deictic references ("this node", "it") to these nodes.
+		 */
+		selectedNodes?: SelectedNodeContext[];
 	};
 	featureFlags?: BuilderFeatureFlags;
 	/** Version ID to store in message metadata for restore functionality */

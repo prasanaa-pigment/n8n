@@ -47,6 +47,7 @@ import {
 	isPlanModePlanMessage,
 	isPlanModeQuestionsMessage,
 } from '@/features/ai/assistant/assistant.types';
+import { useFocusedNodesStore } from '@/features/ai/assistant/focusedNodes.store';
 
 const INFINITE_CREDITS = -1;
 export const ENABLED_VIEWS = BUILDER_ENABLED_VIEWS;
@@ -162,6 +163,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	const router = useRouter();
 	const workflowSaver = useWorkflowSaving({ router });
 	const posthogStore = usePostHog();
+	const focusedNodesStore = useFocusedNodesStore();
 
 	// Composables
 	const {
@@ -505,13 +507,12 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	function prepareForStreaming(
 		userMessage: string,
 		messageId: string,
-		revertVersion?: { id: string; createdAt: string },
+		focusedNodeNames?: string[],
 		planAnswers?: PlanMode.QuestionResponse[],
 	) {
-		// If we have plan answers, create a custom user answers message instead of text
 		const userMsg = planAnswers
 			? createUserAnswersMessage(planAnswers, messageId)
-			: createUserMessage(userMessage, messageId, revertVersion);
+			: createUserMessage(userMessage, messageId, undefined, focusedNodeNames ?? []);
 		chatMessages.value = clearRatingLogic([...chatMessages.value, userMsg]);
 		addLoadingAssistantMessage(locale.baseText('aiAssistant.thinkingSteps.thinking'));
 		streaming.value = true;
@@ -597,6 +598,17 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		}
 
 		telemetry.track('User submitted builder message', trackingPayload);
+
+		const focusedCount = focusedNodesStore.confirmedNodes.length;
+		if (focusedCount > 0) {
+			const deicticPatterns = /\b(this node|this|it|these nodes|these|that node|that)\b/i;
+			const hasDeicticRef = deicticPatterns.test(text);
+
+			telemetry.track('ai.focusedNodes.chatSent', {
+				focused_count: focusedCount,
+				has_deictic_ref: hasDeicticRef,
+			});
+		}
 	}
 
 	/**
@@ -656,6 +668,8 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		if (streaming.value) {
 			return;
 		}
+
+		const focusedNodeNames = focusedNodesStore.confirmedNodes.map((n) => n.nodeName);
 
 		// If there's a pending plan and user is sending a chat message (not a resumeData action),
 		// automatically treat it as a plan modification request.
@@ -721,7 +735,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 
 		resetManualExecutionStats();
 
-		prepareForStreaming(text, userMessageId, undefined, options.planAnswers);
+		prepareForStreaming(text, userMessageId, focusedNodeNames, options.planAnswers);
 
 		const executionResult = workflowsStore.workflowExecutionData?.data?.resultData;
 		const modeForPayload =
@@ -769,7 +783,10 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 						builderThinkingMessage.value = result.thinkingMessage;
 					}
 				},
-				() => stopStreaming(),
+				() => {
+					stopStreaming();
+					focusedNodesStore.clearAll();
+				},
 				(e) => handleServiceError(e, userMessageId, retry),
 				revertVersion?.id,
 				streamingAbortController.value?.signal,
