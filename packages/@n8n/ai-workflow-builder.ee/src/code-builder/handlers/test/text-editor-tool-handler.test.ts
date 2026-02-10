@@ -4,6 +4,7 @@
 
 import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage } from '@langchain/core/messages';
+import { jsonParse } from 'n8n-workflow';
 
 import type {
 	StreamOutput,
@@ -458,7 +459,7 @@ describe('TextEditorToolHandler', () => {
 
 			const workflowChunks = chunks.flatMap((c) => c.messages ?? []).filter(isWorkflowUpdateChunk);
 			expect(workflowChunks).toHaveLength(1);
-			expect(JSON.parse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
+			expect(jsonParse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
 
 			// Tool message should NOT contain parse error
 			expect(messages).toHaveLength(1);
@@ -493,7 +494,7 @@ describe('TextEditorToolHandler', () => {
 
 			const workflowChunks = chunks.flatMap((c) => c.messages ?? []).filter(isWorkflowUpdateChunk);
 			expect(workflowChunks).toHaveLength(1);
-			expect(JSON.parse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
+			expect(jsonParse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
 		});
 
 		it('should append parse error to tool message when parse fails after str_replace', async () => {
@@ -564,7 +565,7 @@ describe('TextEditorToolHandler', () => {
 
 			const workflowChunks = (result.chunk?.messages ?? []).filter(isWorkflowUpdateChunk);
 			expect(workflowChunks).toHaveLength(1);
-			expect(JSON.parse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
+			expect(jsonParse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
 		});
 
 		it('should return parseError on parse failure', async () => {

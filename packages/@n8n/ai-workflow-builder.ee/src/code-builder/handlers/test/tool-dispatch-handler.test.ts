@@ -1,5 +1,6 @@
 import type { BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import { jsonParse } from 'n8n-workflow';
 
 import type {
 	StreamOutput,
@@ -8,8 +9,7 @@ import type {
 } from '../../../types/streaming';
 import { WarningTracker } from '../../state/warning-tracker';
 import type { TextEditorHandler } from '../text-editor-handler';
-import type { TextEditorToolHandler } from '../text-editor-tool-handler';
-import type { PreviewParseResult } from '../text-editor-tool-handler';
+import type { TextEditorToolHandler, PreviewParseResult } from '../text-editor-tool-handler';
 import {
 	ToolDispatchHandler,
 	parseReplacements,
@@ -755,7 +755,7 @@ describe('ToolDispatchHandler', () => {
 
 			const workflowChunks = chunks.flatMap((c) => c.messages ?? []).filter(isWorkflowUpdateChunk);
 			expect(workflowChunks).toHaveLength(1);
-			expect(JSON.parse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
+			expect(jsonParse(workflowChunks[0].codeSnippet)).toEqual(mockWorkflow);
 		});
 
 		it('should append parse error to tool message when parse fails after batch_str_replace', async () => {
