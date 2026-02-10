@@ -9,6 +9,7 @@ import {
 	addBranchTargetNodes,
 	processBranchForComposite,
 	processBranchForBuilder,
+	fixupBranchConnectionTargets,
 } from './branch-handler-utils';
 import type {
 	IfElseComposite,
@@ -76,11 +77,14 @@ export const ifElseHandler: CompositeHandlerPlugin<IfElseInput> = {
 			// This ensures that when merge handlers run, they can detect existing IF→Merge connections
 			// and skip creating duplicates at the wrong output index
 
+			// Collect target node IDs alongside names for post-dedup fixup
+			const targetNodeIds = new Map<number, string[]>();
+
 			// Connect IF to true branch (output 0)
-			processBranchForBuilder(builder.trueBranch, 0, ifMainConns);
+			processBranchForBuilder(builder.trueBranch, 0, ifMainConns, targetNodeIds);
 
 			// Connect IF to false branch (output 1)
-			processBranchForBuilder(builder.falseBranch, 1, ifMainConns);
+			processBranchForBuilder(builder.falseBranch, 1, ifMainConns, targetNodeIds);
 
 			// Add the IF node with connections to branches
 			// If the node already exists (e.g., added by merge handler via addBranchToGraph),
@@ -118,6 +122,11 @@ export const ifElseHandler: CompositeHandlerPlugin<IfElseInput> = {
 			// so that merge handlers can detect existing IF→Merge connections and skip duplicates
 			addBranchTargetNodes(builder.trueBranch, ctx);
 			addBranchTargetNodes(builder.falseBranch, ctx);
+
+			// Fix stale connection targets after dedup renames
+			if (ctx.nameMapping) {
+				fixupBranchConnectionTargets(ifMainConns, targetNodeIds, ctx.nameMapping);
+			}
 
 			return builder.ifNode.name;
 		}

@@ -26,6 +26,45 @@ import {
 import type { MutablePluginContext } from '../types';
 
 /**
+ * Get the head node ID from a target (which could be a node, chain, or composite).
+ * Mirrors getTargetNodeName but returns .id instead of .name.
+ */
+export function getTargetNodeId(target: unknown): string | undefined {
+	if (target === null || target === undefined) return undefined;
+
+	if (isNodeChain(target)) {
+		return target.head.id;
+	}
+
+	if (isIfElseComposite(target)) {
+		return (target as IfElseComposite).ifNode.id;
+	}
+
+	if (isSwitchCaseComposite(target)) {
+		return (target as SwitchCaseComposite).switchNode.id;
+	}
+
+	if (isIfElseBuilder(target)) {
+		return target.ifNode.id;
+	}
+
+	if (isSwitchCaseBuilder(target)) {
+		return target.switchNode.id;
+	}
+
+	if (isSplitInBatchesBuilder(target)) {
+		const builder = extractSplitInBatchesBuilder(target);
+		return builder.sibNode.id;
+	}
+
+	if (typeof (target as NodeInstance<string, string, unknown>).id === 'string') {
+		return (target as NodeInstance<string, string, unknown>).id;
+	}
+
+	return undefined;
+}
+
+/**
  * Get the head node name from a target (which could be a node, chain, or composite).
  * This is used to compute connection target names BEFORE adding nodes.
  */
@@ -144,11 +183,15 @@ export function processBranchForComposite(
 /**
  * Process a branch for Builder patterns - compute target names BEFORE adding nodes.
  * Used by IfElseBuilder and SwitchCaseBuilder.
+ *
+ * @param targetNodeIds Optional map to collect node IDs for each output index,
+ *   used later by fixupBranchConnectionTargets to correct stale names after dedup.
  */
 export function processBranchForBuilder(
 	branch: unknown,
 	outputIndex: number,
 	mainConns: Map<number, ConnectionTarget[]>,
+	targetNodeIds?: Map<number, string[]>,
 ): void {
 	if (branch === null || branch === undefined) {
 		return;
@@ -156,19 +199,57 @@ export function processBranchForBuilder(
 
 	if (Array.isArray(branch)) {
 		const targets: ConnectionTarget[] = [];
+		const ids: string[] = [];
 		for (const t of branch) {
 			const targetName = getTargetNodeName(t);
 			if (targetName) {
 				targets.push({ node: targetName, type: 'main', index: 0 });
+				const id = getTargetNodeId(t);
+				if (id) ids.push(id);
 			}
 		}
 		if (targets.length > 0) {
 			mainConns.set(outputIndex, targets);
+			if (targetNodeIds && ids.length > 0) {
+				targetNodeIds.set(outputIndex, ids);
+			}
 		}
 	} else {
 		const targetName = getTargetNodeName(branch);
 		if (targetName) {
 			mainConns.set(outputIndex, [{ node: targetName, type: 'main', index: 0 }]);
+			const id = getTargetNodeId(branch);
+			if (targetNodeIds && id) {
+				targetNodeIds.set(outputIndex, [id]);
+			}
+		}
+	}
+}
+
+/**
+ * Fix stale connection targets after dedup renames.
+ *
+ * When processBranchForBuilder() runs, it captures target names BEFORE nodes are
+ * added to the graph. If a node gets renamed during dedup (e.g. "Process" → "Process 1"),
+ * the connection targets still point to the original name. This function updates them
+ * using the nameMapping (nodeId → actualMapKey).
+ */
+export function fixupBranchConnectionTargets(
+	mainConns: Map<number, ConnectionTarget[]>,
+	targetNodeIds: Map<number, string[]>,
+	nameMapping: Map<string, string>,
+): void {
+	if (nameMapping.size === 0) return;
+
+	for (const [outputIndex, ids] of targetNodeIds) {
+		const targets = mainConns.get(outputIndex);
+		if (!targets) continue;
+
+		for (let i = 0; i < ids.length && i < targets.length; i++) {
+			const actualName = nameMapping.get(ids[i]);
+			if (actualName && actualName !== targets[i].node) {
+				targets[i].node = actualName;
+			}
 		}
 	}
 }

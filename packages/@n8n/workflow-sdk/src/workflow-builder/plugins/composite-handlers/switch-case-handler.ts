@@ -9,6 +9,7 @@ import {
 	addBranchTargetNodes,
 	processBranchForComposite,
 	processBranchForBuilder,
+	fixupBranchConnectionTargets,
 } from './branch-handler-utils';
 import type {
 	SwitchCaseComposite,
@@ -87,9 +88,12 @@ export const switchCaseHandler: CompositeHandlerPlugin<SwitchCaseInput> = {
 			// This ensures that when merge handlers run, they can detect existing Switch→Merge connections
 			// and skip creating duplicates at the wrong output index
 
+			// Collect target node IDs alongside names for post-dedup fixup
+			const targetNodeIds = new Map<number, string[]>();
+
 			// Connect switch to each case at the correct output index
 			for (const [caseIndex, target] of builder.caseMapping) {
-				processBranchForBuilder(target, caseIndex, switchMainConns);
+				processBranchForBuilder(target, caseIndex, switchMainConns, targetNodeIds);
 			}
 
 			// Add the Switch node with connections to cases
@@ -128,6 +132,11 @@ export const switchCaseHandler: CompositeHandlerPlugin<SwitchCaseInput> = {
 			// so that merge handlers can detect existing Switch→Merge connections and skip duplicates
 			for (const [, target] of builder.caseMapping) {
 				addBranchTargetNodes(target, ctx);
+			}
+
+			// Fix stale connection targets after dedup renames
+			if (ctx.nameMapping) {
+				fixupBranchConnectionTargets(switchMainConns, targetNodeIds, ctx.nameMapping);
 			}
 
 			return builder.switchNode.name;

@@ -305,5 +305,97 @@ describe('IF Else fluent API', () => {
 			expect(nodeAConns).toBeDefined();
 			expect(nodeAConns.main[0]![0].node).toBe('Node B');
 		});
+
+		it('should handle duplicate node names in true/false branches', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const ifNode = node({
+				type: 'n8n-nodes-base.if',
+				version: 2.2,
+				config: { name: 'My IF' },
+			}) as IfNode;
+			const trueBranch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process' },
+			});
+			const falseBranch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process' },
+			});
+
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(ifNode.onTrue!(trueBranch).onFalse(falseBranch));
+
+			const json = wf.toJSON();
+
+			// Should have: trigger, if, Process, Process 1
+			expect(json.nodes).toHaveLength(4);
+
+			const ifConns = json.connections['My IF'];
+			expect(ifConns).toBeDefined();
+
+			// true branch at output 0 — one should be "Process"
+			const trueTarget = ifConns.main[0]![0].node;
+			// false branch at output 1 — the other should be "Process 1" (deduped)
+			const falseTarget = ifConns.main[1]![0].node;
+
+			// Both must be connected (not pointing to the same name)
+			expect(new Set([trueTarget, falseTarget]).size).toBe(2);
+			expect([trueTarget, falseTarget].sort()).toEqual(['Process', 'Process 1']);
+		});
+
+		it('should handle duplicate-named chains in true/false branches', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const ifNode = node({
+				type: 'n8n-nodes-base.if',
+				version: 2.2,
+				config: { name: 'My IF' },
+			}) as IfNode;
+
+			const trueHead = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Fetch' },
+			});
+			const trueTail = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Save' },
+			});
+			const trueChain = trueHead.to(trueTail);
+
+			const falseHead = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Fetch' },
+			});
+			const falseTail = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Save' },
+			});
+			const falseChain = falseHead.to(falseTail);
+
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(ifNode.onTrue!(trueChain).onFalse(falseChain));
+
+			const json = wf.toJSON();
+
+			// Should have: trigger, if, Fetch, Save, Fetch 1, Save 1
+			expect(json.nodes).toHaveLength(6);
+
+			const ifConns = json.connections['My IF'];
+			expect(ifConns).toBeDefined();
+
+			const trueTarget = ifConns.main[0]![0].node;
+			const falseTarget = ifConns.main[1]![0].node;
+
+			// Both branches should point to different nodes
+			expect(trueTarget).not.toBe(falseTarget);
+			expect([trueTarget, falseTarget].sort()).toEqual(['Fetch', 'Fetch 1']);
+		});
 	});
 });
