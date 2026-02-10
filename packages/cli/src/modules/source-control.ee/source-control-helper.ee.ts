@@ -6,6 +6,7 @@ import { generateKeyPairSync } from 'crypto';
 import { accessSync, constants as fsConstants, mkdirSync } from 'fs';
 import isEqual from 'lodash/isEqual';
 import {
+	deepCopy,
 	jsonParse,
 	UserError,
 	type DataTableColumnType,
@@ -42,9 +43,7 @@ function stringContainsExpression(testString: string): boolean {
 export function sanitizeCredentialData(
 	data: ICredentialDataDecryptedObject,
 ): ICredentialDataDecryptedObject {
-	const result: ICredentialDataDecryptedObject = {
-		...data,
-	};
+	const result: ICredentialDataDecryptedObject = deepCopy(data);
 
 	for (const [key, value] of Object.entries(data)) {
 		if (value === null || key === 'oauthTokenData') {
@@ -76,7 +75,7 @@ export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 	local: ICredentialDataDecryptedObject;
 	remote: ICredentialDataDecryptedObject;
 }): ICredentialDataDecryptedObject {
-	const merged = { ...local };
+	const merged = deepCopy(local);
 
 	// This is a safe guard, in principle remote data should already be sanitized
 	// This prevents importing invalid data that should have not been synched in the first place
