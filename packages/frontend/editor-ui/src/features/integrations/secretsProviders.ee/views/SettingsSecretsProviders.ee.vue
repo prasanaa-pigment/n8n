@@ -24,7 +24,7 @@ import {
 	DELETE_SECRETS_PROVIDER_MODAL_KEY,
 } from '@/app/constants/modals';
 import { I18nT } from 'vue-i18n';
-import { SecretProviderConnection } from '@n8n/api-types';
+import type { SecretProviderConnection } from '@n8n/api-types';
 
 const i18n = useI18n();
 const secretsProviders = useSecretsProvidersList();
@@ -66,6 +66,10 @@ function openConnectionModal(
 			},
 		},
 	});
+}
+
+function handleCardClick(providerKey: string) {
+	openConnectionModal(providerKey, 'connection');
 }
 
 function handleEdit(providerKey: string) {
@@ -176,6 +180,7 @@ function goToUpgrade() {
 					:provider-type-info="getProviderTypeInfo(provider.type)"
 					:project="getProjectForProvider(provider)"
 					:can-update="secretsProviders.canUpdate.value"
+					@click="handleCardClick(provider.name)"
 					@edit="handleEdit"
 					@share="handleShare"
 					@delete="handleDelete"
