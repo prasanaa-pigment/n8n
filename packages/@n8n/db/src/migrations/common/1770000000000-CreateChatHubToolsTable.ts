@@ -35,6 +35,7 @@ export class CreateChatHubToolsTable1770000000000 implements ReversibleMigration
 	async up({
 		schemaBuilder: { createTable, column, dropColumns },
 		escape,
+		isPostgres,
 		runQuery,
 		parseJson,
 		logger,
@@ -97,6 +98,7 @@ export class CreateChatHubToolsTable1770000000000 implements ReversibleMigration
 		const toolsTable = escape.tableName(table.tools);
 		const sessionToolsTable = escape.tableName(table.sessionTools);
 		const agentToolsTable = escape.tableName(table.agentTools);
+		const toolsFilter = isPostgres ? `"tools"::text != '[]'` : `"tools" != '[]'`;
 
 		// Helper to ensure a tool exists in chat_hub_tools and return its ID
 		async function ensureTool(ownerId: string, def: ToolDefinition): Promise<string> {
@@ -148,7 +150,7 @@ export class CreateChatHubToolsTable1770000000000 implements ReversibleMigration
 
 		// Migrate chat hub sessions
 		const sessions = await runQuery<SessionRow[]>(
-			`SELECT "id", "ownerId", "tools" FROM ${sessionsTable} WHERE "tools" != '[]'`,
+			`SELECT "id", "ownerId", "tools" FROM ${sessionsTable} WHERE ${toolsFilter}`,
 		);
 		for (const session of sessions) {
 			const tools = safeParseTools(session.tools, session.id, 'session');
@@ -170,7 +172,7 @@ export class CreateChatHubToolsTable1770000000000 implements ReversibleMigration
 
 		// Migrate chat hub agents
 		const agents = await runQuery<AgentRow[]>(
-			`SELECT "id", "ownerId", "tools" FROM ${agentsTable} WHERE "tools" != '[]'`,
+			`SELECT "id", "ownerId", "tools" FROM ${agentsTable} WHERE ${toolsFilter}`,
 		);
 		for (const agent of agents) {
 			const tools = safeParseTools(agent.tools, agent.id, 'agent');
