@@ -53,7 +53,8 @@ export function filterMethodsFromPath(fieldPath: string[]): string[] {
 /**
  * Parse version string to number
  */
-export function parseVersion(version: string | undefined): number {
+export function parseVersion(version: string | number | undefined): number {
+	if (typeof version === 'number') return version;
 	if (!version) return 1;
 	const match = version.match(/v?(\d+(?:\.\d+)?)/);
 	return match ? parseFloat(match[1]) : 1;

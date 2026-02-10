@@ -41,7 +41,7 @@ export const maxNodesValidator: ValidatorPlugin = {
 
 			const firstNode = [...ctx.nodes.values()].find((n) => n.instance.type === type);
 			const versionRaw = firstNode?.instance.version;
-			const version = typeof versionRaw === 'number' ? versionRaw : parseVersion(versionRaw);
+			const version = parseVersion(versionRaw);
 
 			const nodeType = provider.getByNameAndVersion(type, version);
 			const maxNodes = nodeType?.description?.maxNodes;

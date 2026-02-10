@@ -79,6 +79,11 @@ describe('workflow-builder/string-utils', () => {
 		it('parses version with v prefix and decimal', () => {
 			expect(parseVersion('v2.1')).toBe(2.1);
 		});
+
+		it('returns number directly when given a number', () => {
+			expect(parseVersion(1.3)).toBe(1.3);
+			expect(parseVersion(2)).toBe(2);
+		});
 	});
 
 	describe('isPlaceholderValue', () => {
