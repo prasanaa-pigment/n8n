@@ -126,9 +126,7 @@ export class ParseValidateHandler {
 		try {
 			// Parse the TypeScript code to WorkflowBuilder
 			this.logger?.debug('Parsing WorkflowCode', { codeLength: codeToParse.length });
-			const parseStartTime = Date.now();
 			const builder = parseWorkflowCodeToBuilder(codeToParse);
-			const parseDuration = Date.now() - parseStartTime;
 
 			// Regenerate node IDs deterministically to ensure stable IDs across re-parses
 			builder.regenerateNodeIds();
@@ -137,9 +135,7 @@ export class ParseValidateHandler {
 			const allWarnings: ValidationWarning[] = [];
 
 			// Validate the graph structure BEFORE converting to JSON
-			const graphValidateStartTime = Date.now();
 			const graphValidation = builder.validate();
-			const graphValidateDuration = Date.now() - graphValidateStartTime;
 
 			// Collect graph validation errors as warnings for agent self-correction
 			this.collectValidationIssues(
@@ -161,9 +157,7 @@ export class ParseValidateHandler {
 			const json = builder.toJSON();
 
 			// Run JSON-based validation for additional checks
-			const validateStartTime = Date.now();
 			const validationResult = validateWorkflow(json);
-			const validateDuration = Date.now() - validateStartTime;
 
 			// Collect JSON validation errors as warnings for agent self-correction
 			this.collectValidationIssues(

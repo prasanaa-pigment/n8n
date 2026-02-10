@@ -85,7 +85,7 @@ export class ValidateToolHandler {
 	async *execute(
 		params: ValidateToolParams,
 	): AsyncGenerator<StreamOutput, ValidateToolResult, unknown> {
-		const { toolCallId, code, currentWorkflow, iteration, messages, warningTracker } = params;
+		const { toolCallId, code, currentWorkflow, messages, warningTracker } = params;
 
 		// Stream tool progress - running
 		yield this.createToolProgressChunk('running', toolCallId);

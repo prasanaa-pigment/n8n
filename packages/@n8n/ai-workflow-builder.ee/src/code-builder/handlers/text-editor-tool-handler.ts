@@ -164,7 +164,6 @@ export class TextEditorToolHandler {
 			return undefined;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			const errorStack = error instanceof Error ? error.stack : undefined;
 
 			// Add error message to messages
 			messages.push(
@@ -238,7 +237,6 @@ export class TextEditorToolHandler {
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			const errorStack = error instanceof Error ? error.stack : undefined;
 			const errorContext = this.getErrorContext(code, errorMessage);
 
 			// Combine create result + parse error into single ToolMessage

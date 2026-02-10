@@ -299,7 +299,7 @@ export class CodeBuilderAgent {
 				previousMessages: historyContext?.userMessages ?? [],
 			});
 
-			const { workflow, parseDuration, sourceCode } = loopResult;
+			const { workflow } = loopResult;
 			iteration = loopResult.iteration;
 
 			if (!workflow) {
