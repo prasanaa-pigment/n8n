@@ -3003,7 +3003,7 @@
 	"settings.sourceControl.modals.push.commitMessage.placeholder": "e.g. My commit",
 	"settings.sourceControl.modals.push.buttons.cancel": "Cancel",
 	"settings.sourceControl.modals.push.buttons.save": "Commit and push",
-	"settings.sourceControl.modals.push.modifiedCredentialsNotice": "Modified credentials will update expressions, numbers, and boolean values. Secret values are preserved locally.",
+	"settings.sourceControl.modals.push.modifiedCredentialsNotice": "Modified credentials will push only expressions, numbers, and boolean values. Secret values remain local.",
 	"settings.sourceControl.modals.push.success.title": "Pushed successfully",
 	"settings.sourceControl.modals.push.success.description": "was committed and pushed to your remote repository | were committed and pushed to your remote repository",
 	"settings.sourceControl.modals.push.projectAdmin.callout": "If you want to push workflows from your personal space, move them to a project first.",
