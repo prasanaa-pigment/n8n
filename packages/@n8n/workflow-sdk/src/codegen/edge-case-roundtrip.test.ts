@@ -770,6 +770,69 @@ describe('Edge Case Roundtrip Tests', () => {
 		});
 	});
 
+	describe('Edge Case: Apostrophes in single-quoted output strings', () => {
+		it('should handle English contractions in single-quoted strings', () => {
+			const code = `const t = trigger({
+  type: 'n8n-nodes-base.manualTrigger',
+  version: 1,
+  config: { name: 'Start', position: [0, 0] },
+  output: [{}]
+});
+
+const n = node({
+  type: 'n8n-nodes-base.set',
+  version: 3.4,
+  config: { name: 'Process', parameters: {}, position: [200, 0] },
+  output: [{ text: 'I\\'ve arrived and it\\'s great' }]
+});
+
+export default workflow('test', 'Test').add(t.to(n));`;
+			const result = parseWorkflowCode(code);
+			expect(result.nodes).toHaveLength(2);
+		});
+
+		it('should escape unescaped contractions in single-quoted output strings', () => {
+			// This simulates AI-generated code with unescaped contractions
+			const code = `const t = trigger({
+  type: 'n8n-nodes-base.manualTrigger',
+  version: 1,
+  config: { name: 'Start', position: [0, 0] },
+  output: [{}]
+});
+
+const n = node({
+  type: 'n8n-nodes-base.set',
+  version: 3.4,
+  config: { name: 'Process', parameters: {}, position: [200, 0] },
+  output: [{ text: 'I've arrived and it's great' }]
+});
+
+export default workflow('test', 'Test').add(t.to(n));`;
+			const result = parseWorkflowCode(code);
+			expect(result.nodes).toHaveLength(2);
+		});
+
+		it('should handle multiple contractions in one string', () => {
+			const code = `const t = trigger({
+  type: 'n8n-nodes-base.manualTrigger',
+  version: 1,
+  config: { name: 'Start', position: [0, 0] },
+  output: [{}]
+});
+
+const n = node({
+  type: 'n8n-nodes-base.set',
+  version: 3.4,
+  config: { name: 'Process', parameters: {}, position: [200, 0] },
+  output: [{ text: 'They don't know what they're doing' }]
+});
+
+export default workflow('test', 'Test').add(t.to(n));`;
+			const result = parseWorkflowCode(code);
+			expect(result.nodes).toHaveLength(2);
+		});
+	});
+
 	describe('Edge Case 14: Duplicate Node Names', () => {
 		it('should roundtrip workflow preserving unique node names', () => {
 			// Note: Workflows should already have unique names when loaded

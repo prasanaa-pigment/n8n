@@ -656,6 +656,8 @@ Rules:
   - e.g. \`expr('Hello {{{{ $json.name }}}}')\` or \`expr("{{{{ $('Node').item.json.field }}}}")\`
 	- For multiline expressions, use string concatenation: \`expr('Line 1\\n' + 'Line 2 {{{{ $json.value }}}}')\`
 - Every node MUST have an \`output\` property with sample data — following nodes depend on it for expressions
+- String quoting: When a string value contains an apostrophe, use double quotes for that string.
+  Example: \`output: [{{ text: "I've arrived" }}]\`
 - Do NOT add or edit comments. Comments are ignored and not shared with user. Use sticky(...) to provide guidance.
 
 </step_5_create_or_edit_workflow>

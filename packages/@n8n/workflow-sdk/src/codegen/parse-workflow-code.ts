@@ -255,8 +255,18 @@ function readAndFixSingleQuotedString(code: string, start: number): [string, num
 			continue;
 		}
 
-		// Closing quote (that's not part of $('...'))
+		// Check for likely English contraction (e.g., I've, don't, it's)
+		// Heuristic: letter + ' + lowercase letter = contraction, not end of string
 		if (code[i] === "'") {
+			const prevChar = result.length > 1 ? result[result.length - 1] : '';
+			const nextChar = i + 1 < code.length ? code[i + 1] : '';
+			if (/[a-zA-Z]/.test(prevChar) && /[a-z]/.test(nextChar)) {
+				// Likely a contraction — escape the apostrophe
+				result += "\\'";
+				i++;
+				continue;
+			}
+			// Closing quote
 			result += "'";
 			i++;
 			break;
