@@ -720,7 +720,7 @@ describe('useWorkflowSaving', () => {
 			workflowsListStore.workflowsById = { [workflow.id]: workflow };
 			workflowsStore.workflowId = workflow.id;
 
-			const uiStore = useUIStore();
+			const autosaveStore = useWorkflowAutosaveStore();
 
 			const mockWorkflowState: Partial<WorkflowState> = {
 				setWorkflowName: vi.fn(),
@@ -732,8 +732,9 @@ describe('useWorkflowSaving', () => {
 				workflowState: mockWorkflowState as WorkflowState,
 			});
 
-			// Simulate a save already in progress by setting the action
-			uiStore.addActiveAction('workflowSaving');
+			// Simulate a save already in progress
+			const pendingPromise = new Promise<void>(() => {});
+			autosaveStore.setPendingAutoSave(pendingPromise);
 
 			// Try to run autosave (autosaved=true) while another save is in progress
 			const result = await saveCurrentWorkflow({ id: workflow.id }, true, false, true);
