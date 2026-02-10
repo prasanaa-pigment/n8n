@@ -536,11 +536,11 @@ export default workflow('ai-sentiment', 'AI Sentiment Analyzer')
 /**
  * Mandatory workflow for tool usage
  */
-const MANDATORY_WORKFLOW = `**You MUST follow these steps in order. Do NOT produce visible output until the final step — only tool calls. Use the \`think\` tool between steps when you need to reason about results.**
+const MANDATORY_WORKFLOW = `**You MUST follow these steps in order. Do NOT produce visible output until the final step — only tool calls. Use the \`think\` tool in-between steps (after first step) when you need to reason about results.**
 
 <step_1_analyze_user_request>
 
-Analyze the user request internally. Do NOT produce visible output in this step — reason internally, then proceed to tool calls. Be concise.
+Analyze the user request internally. Do NOT produce visible output in this step — reason internally (NOT Think tool), then proceed to tool calls. Be concise.
 
 1. **Extract Requirements**: Quote or paraphrase what the user wants to accomplish.
 
