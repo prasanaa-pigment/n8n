@@ -59,11 +59,10 @@ describe('Split In Batches', () => {
 				config: { name: 'Finalize' },
 			});
 
-			const wf = workflow('test-id', 'Test').add(
-				t
-					.to(generateItems)
-					.to(splitInBatches(sibNode).onDone(finalizeNode).onEachBatch(processNode.to(sibNode))),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(generateItems)
+				.to(splitInBatches(sibNode).onDone(finalizeNode).onEachBatch(processNode.to(sibNode)));
 
 			const json = wf.toJSON();
 
@@ -125,14 +124,14 @@ describe('Split In Batches', () => {
 
 			// Fan-out pattern with plain array: .onDone([branch1, branch2])
 			// This mimics: SplitInBatches -> [Fetch Schufa, Fetch Salary] -> Generate Cover Letter
-			const wf = workflow('test-id', 'Test').add(
-				t.to(
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(
 					splitInBatches(sibNode).onDone([
 						fetchSchufaNode.to(generateLetterNode),
 						fetchSalaryNode.to(generateLetterNode),
 					]),
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -185,9 +184,9 @@ describe('Split In Batches', () => {
 				config: { name: 'Branch 2' },
 			});
 
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onEachBatch([branch1Node, branch2Node])),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onEachBatch([branch1Node, branch2Node]));
 
 			const json = wf.toJSON();
 
@@ -294,9 +293,9 @@ describe('Split In Batches', () => {
 			});
 
 			// Fluent API syntax
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onEachBatch(processNode.to(sibNode)).onDone(finalizeNode)),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onEachBatch(processNode.to(sibNode)).onDone(finalizeNode));
 
 			const json = wf.toJSON();
 
@@ -338,9 +337,9 @@ describe('Split In Batches', () => {
 			});
 
 			// Order: onDone first, then onEachBatch
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onDone(finalizeNode).onEachBatch(processNode.to(sibNode))),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onDone(finalizeNode).onEachBatch(processNode.to(sibNode)));
 
 			const json = wf.toJSON();
 
@@ -369,9 +368,9 @@ describe('Split In Batches', () => {
 			});
 
 			// Only onEachBatch, no onDone
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onEachBatch(processNode.to(sibNode))),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onEachBatch(processNode.to(sibNode)));
 
 			const json = wf.toJSON();
 
@@ -403,9 +402,9 @@ describe('Split In Batches', () => {
 			});
 
 			// Only onDone, no onEachBatch
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onDone(finalizeNode)),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onDone(finalizeNode));
 
 			const json = wf.toJSON();
 
@@ -442,9 +441,9 @@ describe('Split In Batches', () => {
 			});
 
 			// Fan-out from each branch with plain array
-			const wf = workflow('test-id', 'Test').add(
-				t.to(splitInBatches(sibNode).onEachBatch([branch1, branch2])),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onEachBatch([branch1, branch2]));
 
 			const json = wf.toJSON();
 
@@ -479,14 +478,14 @@ describe('Split In Batches', () => {
 			});
 
 			// Named object syntax
-			const wf = workflow('test-id', 'Test').add(
-				t.to(
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(
 					splitInBatches(sibNode, {
 						done: finalizeNode,
 						each: processNode.to(sibNode), // loop back to SIB
 					}),
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -518,14 +517,14 @@ describe('Split In Batches', () => {
 			}) as SibNode;
 
 			// Self-loop on each only
-			const wf = workflow('test-id', 'Test').add(
-				t.to(
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(
 					splitInBatches(sibNode, {
 						done: null,
 						each: sibNode, // self-loop
 					}),
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -563,14 +562,14 @@ describe('Split In Batches', () => {
 			});
 
 			// Fan-out from done branch with plain array
-			const wf = workflow('test-id', 'Test').add(
-				t.to(
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(
 					splitInBatches(sibNode, {
 						done: [branch1, branch2],
 						each: sibNode,
 					}),
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -700,11 +699,10 @@ const finalizeNode = node({
 });
 
 export default workflow('test-id', 'Test')
-	.add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
-		.to(splitInBatches(sibNode)
-			.onDone(finalizeNode)
-			.onEachBatch(processNode.to(uploadNode).to(sibNode))
-		)
+	.add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
+	.to(splitInBatches(sibNode)
+		.onDone(finalizeNode)
+		.onEachBatch(processNode.to(uploadNode).to(sibNode))
 	);
 `;
 
@@ -905,12 +903,11 @@ const splitVideos = splitInBatches({
 
 // Compose workflow with loop
 export default workflow('eval-1769451317134-scv1mk1th', 'YouTube Shorts Auto-Publisher')
-  .add(scheduleTrigger
-    .to(createBatchItems)
-    .to(splitVideos
-      .onDone(allVideosComplete)
-      .onEachBatch(generateStory.to(generateVideo).to(uploadToYouTube).to(splitVideos))
-    )
+  .add(scheduleTrigger)
+  .to(createBatchItems)
+  .to(splitVideos
+    .onDone(allVideosComplete)
+    .onEachBatch(generateStory.to(generateVideo).to(uploadToYouTube).to(splitVideos))
   );`;
 
 			// This should NOT throw "Maximum call stack size exceeded"
@@ -967,9 +964,9 @@ export default workflow('eval-1769451317134-scv1mk1th', 'YouTube Shorts Auto-Pub
 			});
 
 			// Use nextBatch(sibBuilder) - should NOT cause infinite recursion
-			const wf = workflow('test-id', 'Test').add(
-				t.to(sibBuilder.onEachBatch(processNode.to(nextBatch(sibBuilder))).onDone(doneNode)),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(sibBuilder.onEachBatch(processNode.to(nextBatch(sibBuilder))).onDone(doneNode));
 
 			const json = wf.toJSON();
 

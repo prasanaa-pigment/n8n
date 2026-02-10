@@ -1173,7 +1173,7 @@ describe('parseWorkflowCode with template literals in jsCode', () => {
       },
       position: [240, 300]
     }
-  })
+  }))
   .to(node({
     type: 'n8n-nodes-base.gmail',
     version: 2.2,
@@ -1294,7 +1294,7 @@ return [{
       },
       position: [1440, 300]
     }
-  })))`;
+  }))`;
 
 		// This should NOT throw a parsing error
 		const workflow = parseWorkflowCode(code);
@@ -1323,7 +1323,7 @@ return [{
 		// When jsCode is defined as a template literal with unescaped ${$today},
 		// the parser now auto-escapes it to prevent "$today is not defined" errors
 		const codeWithUnescapedVars = `export default workflow('test', 'Test')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } }))
   .to(node({
     type: 'n8n-nodes-base.code',
     version: 2,
@@ -1333,7 +1333,7 @@ return [{
       },
       position: [200, 0]
     }
-  })))`;
+  }))`;
 
 		// Should now work - variables are auto-escaped
 		const workflow = parseWorkflowCode(codeWithUnescapedVars);
@@ -1347,7 +1347,7 @@ return [{
 	it('should parse jsCode with properly escaped n8n runtime variables', () => {
 		// To preserve ${$today} as a literal string in jsCode, escape it as \${$today}
 		const codeWithEscapedVars = `export default workflow('test', 'Test')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } }))
   .to(node({
     type: 'n8n-nodes-base.code',
     version: 2,
@@ -1357,7 +1357,7 @@ return [{
       },
       position: [200, 0]
     }
-  })))`;
+  }))`;
 
 		// This should work - the escaped expressions become literal strings
 		const workflow = parseWorkflowCode(codeWithEscapedVars);
@@ -1611,13 +1611,13 @@ describe('parseWorkflowCode with splitInBatches', () => {
 		// This is the type of code the LLM might generate using splitInBatches new API
 		const code = `const loop = node({ type: 'n8n-nodes-base.splitInBatches', version: 3, config: { parameters: { batchSize: 2 }, position: [400, 100], name: 'Loop' } });
 export default workflow('test-sib', 'Split In Batches Test')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: { position: [0, 0] } }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: { parameters: { assignments: { assignments: [{ name: 'items', type: 'array', value: '[1,2,3,4,5]' }] } }, position: [200, 0], name: 'Generate Items' } }))
   .to(
     splitInBatches(loop)
       .onDone(node({ type: 'n8n-nodes-base.noOp', version: 1, config: { position: [600, 0], name: 'Done Processing' } }))
       .onEachBatch(node({ type: 'n8n-nodes-base.noOp', version: 1, config: { position: [600, 200], name: 'Process Batch' } }).to(loop))
-  ))`;
+  )`;
 
 		// This should NOT throw "splitInBatches is not defined"
 		const workflow = parseWorkflowCode(code);
@@ -1659,7 +1659,7 @@ export default workflow('IH8D5PUFd8JhwyZP8Ng0g', 'My workflow 15')
       },
       position: [240, 300]
     }
-  })
+  }))
   .to(node({
     type: 'n8n-nodes-base.httpRequest',
     version: 4.3,
@@ -1715,7 +1715,7 @@ export default workflow('IH8D5PUFd8JhwyZP8Ng0g', 'My workflow 15')
         }
       }))
     )
-  ))`;
+  )`;
 
 		// This should NOT throw any errors
 		const workflow = parseWorkflowCode(code);
@@ -1956,7 +1956,7 @@ describe('cycle detection and variable generation', () => {
 
 		// Should have proper structure
 		expect(code).toContain('export default wf');
-		expect(code).toContain('.add(trigger_node.to(node_1).to(node_2))');
+		expect(code).toContain('.add(trigger_node)');
 		expect(code).toContain('.to(node_1)');
 		expect(code).toContain('.to(node_2)');
 	});

@@ -14,7 +14,7 @@ describe('Validation', () => {
 				version: 4.2,
 				config: { parameters: { url: 'https://example.com' } },
 			});
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(n));
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(n);
 
 			const result = validateWorkflow(wf);
 			expect(result.valid).toBe(true);
@@ -47,7 +47,7 @@ describe('Validation', () => {
 			});
 
 			// Add disconnected without .to() - it won't be connected
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(connected)).add(disconnected);
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(connected).add(disconnected);
 
 			const result = validateWorkflow(wf);
 			expect(result.warnings.some((w) => w.message.includes('Disconnected'))).toBe(true);
@@ -61,7 +61,7 @@ describe('Validation', () => {
 				version: 4.2,
 				config: { parameters: {} }, // Missing url
 			});
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(n));
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(n);
 
 			const result = validateWorkflow(wf, { strictMode: true });
 			// In strict mode, may report issues
@@ -86,7 +86,7 @@ describe('Validation', () => {
 			const stickyNote = sticky('## Note', { position: [100, 100] });
 
 			// Add sticky note to the workflow (sticky notes never have incoming connections)
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(n)).add(stickyNote);
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(n).add(stickyNote);
 
 			const result = validateWorkflow(wf);
 			const disconnectedWarnings = result.warnings.filter((w) => w.code === 'DISCONNECTED_NODE');
@@ -121,7 +121,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(agent));
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(agent);
 
 			const result = validateWorkflow(wf);
 			const disconnectedWarnings = result.warnings.filter((w) => w.code === 'DISCONNECTED_NODE');
@@ -191,7 +191,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 			const result = wf.validate();
 
 			// Should NOT have MISSING_EXPRESSION_PREFIX - the string starts with '='
@@ -217,7 +217,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 			const result = wf.validate();
 
 			// Should have MISSING_EXPRESSION_PREFIX - the string doesn't start with '='
@@ -244,7 +244,7 @@ describe('Validation', () => {
 			});
 
 			// Use wf.validate() for builder-specific checks (AGENT_STATIC_PROMPT, MISSING_EXPRESSION_PREFIX)
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 			const result = wf.validate();
 
 			// Should have MISSING_EXPRESSION_PREFIX (correct detection)
@@ -268,7 +268,7 @@ describe('Validation', () => {
 			});
 
 			// Use wf.validate() for builder-specific checks
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 			const result = wf.validate();
 
 			// Should NOT have MISSING_EXPRESSION_PREFIX (no malformed expressions)
@@ -291,7 +291,7 @@ describe('Validation', () => {
 			});
 
 			// Use wf.validate() for builder-specific checks
-			const wf = workflow('test', 'Test').add(t.to(chainLlm));
+			const wf = workflow('test', 'Test').add(t).to(chainLlm);
 			const result = wf.validate();
 
 			// Should have MISSING_EXPRESSION_PREFIX (correct detection)
@@ -334,13 +334,13 @@ describe('Validation', () => {
 			});
 
 			// Nested ifElse: outer.onTrue(inner.onTrue(A).onFalse(B)).onFalse(C)
-			const wf = workflow('test', 'Test').add(
-				t.to(
+			const wf = workflow('test', 'Test')
+				.add(t)
+				.to(
 					outerIF.onTrue!(innerIF.onTrue!(innerTrueNode).onFalse(innerFalseNode)).onFalse(
 						outerFalseNode,
 					),
-				),
-			);
+				);
 
 			// Test builder's validate() - this is what the user's script uses
 			const builderResult = wf.validate();
@@ -389,14 +389,14 @@ describe('Validation', () => {
 			});
 
 			// Nested switch: outer.onCase(0, inner.onCase(0, A).onCase(1, B)).onCase(1, C)
-			const wf = workflow('test', 'Test').add(
-				t.to(
+			const wf = workflow('test', 'Test')
+				.add(t)
+				.to(
 					outerSwitch.onCase!(0, innerSwitch.onCase!(0, innerCase0).onCase(1, innerCase1)).onCase(
 						1,
 						outerCase1,
 					),
-				),
-			);
+				);
 
 			const builderResult = wf.validate();
 			const disconnectedWarnings = builderResult.warnings.filter(
@@ -421,7 +421,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 
 			// Should not throw "value.includes is not a function"
 			expect(() => wf.validate()).not.toThrow();
@@ -441,7 +441,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 
 			// Should not throw
 			expect(() => wf.validate()).not.toThrow();
@@ -461,7 +461,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 
 			// Should not throw
 			expect(() => wf.validate()).not.toThrow();
@@ -484,7 +484,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(setNode));
+			const wf = workflow('test-id', 'Test').add(t).to(setNode);
 			const result = validateWorkflow(wf);
 
 			expect(result.warnings.some((w) => w.code === 'INVALID_PARAMETER')).toBe(true);
@@ -501,7 +501,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(setNode));
+			const wf = workflow('test-id', 'Test').add(t).to(setNode);
 			const result = validateWorkflow(wf, { validateSchema: false });
 
 			expect(result.warnings.some((w) => w.code === 'INVALID_PARAMETER')).toBe(false);
@@ -518,7 +518,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(setNode));
+			const wf = workflow('test-id', 'Test').add(t).to(setNode);
 			const result = validateWorkflow(wf);
 
 			expect(result.warnings.some((w) => w.code === 'INVALID_PARAMETER')).toBe(false);
@@ -536,7 +536,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(customNode));
+			const wf = workflow('test-id', 'Test').add(t).to(customNode);
 			const result = validateWorkflow(wf);
 
 			// Should not throw and should not have INVALID_PARAMETER errors for unknown nodes
@@ -555,7 +555,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(setNode));
+			const wf = workflow('test-id', 'Test').add(t).to(setNode);
 			const result = validateWorkflow(wf);
 
 			expect(result.warnings.some((w) => w.code === 'INVALID_PARAMETER')).toBe(false);
@@ -572,7 +572,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(t.to(setNode));
+			const wf = workflow('test-id', 'Test').add(t).to(setNode);
 			const result = validateWorkflow(wf);
 
 			const invalidParamWarning = result.warnings.find((w) => w.code === 'INVALID_PARAMETER');
@@ -776,7 +776,7 @@ describe('Validation', () => {
 
 			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
 
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 			const result = wf.validate();
 
 			// Filter out expected warnings (like missing trigger - not applicable with manualTrigger)
@@ -824,7 +824,7 @@ describe('Validation', () => {
 			});
 
 			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
-			const wf = workflow('test', 'Test').add(t.to(agent));
+			const wf = workflow('test', 'Test').add(t).to(agent);
 
 			// Get the JSON output
 			const json = wf.toJSON();
@@ -874,7 +874,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(slackApproval).to(emailNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(slackApproval).to(emailNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -907,7 +907,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -947,7 +947,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(processNode).to(emailNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(processNode).to(emailNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -977,7 +977,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1068,7 +1068,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1102,7 +1102,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1136,7 +1136,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1169,7 +1169,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1202,7 +1202,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1235,7 +1235,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1272,7 +1272,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1308,7 +1308,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarnings = result.warnings.filter(
@@ -1340,7 +1340,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
@@ -1375,7 +1375,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
@@ -1405,7 +1405,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(webhookTrigger.to(setNode));
+			const wf = workflow('test', 'Test').add(webhookTrigger).to(setNode);
 
 			const result = wf.validate();
 			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
@@ -1429,7 +1429,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
@@ -1451,7 +1451,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
@@ -1476,7 +1476,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
@@ -1497,7 +1497,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
@@ -1517,7 +1517,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarnings = result.warnings.filter((w) => w.code === 'INVALID_DATE_METHOD');
@@ -1538,7 +1538,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			// new Date().toISOString() is valid JS, only Luxon misuse should be flagged
@@ -1559,7 +1559,7 @@ describe('Validation', () => {
 				},
 			});
 
-			const wf = workflow('test', 'Test').add(t.to(setNode));
+			const wf = workflow('test', 'Test').add(t).to(setNode);
 			const result = wf.validate();
 
 			const dateMethodWarning = result.warnings.find((w) => w.code === 'INVALID_DATE_METHOD');

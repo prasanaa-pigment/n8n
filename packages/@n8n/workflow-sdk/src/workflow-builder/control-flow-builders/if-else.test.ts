@@ -32,8 +32,8 @@ describe('parseWorkflowCode with ifElse', () => {
 	it('parseWorkflowCode recognizes ifElse()', () => {
 		const code = `
 export default workflow('test', 'Test')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
-    .to(ifElse({ version: 2.2, config: { name: 'Check' } }).onTrue(node({ type: 'n8n-nodes-base.noOp', version: 1, config: {} })).onFalse(null)));
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
+  .to(ifElse({ version: 2.2, config: { name: 'Check' } }).onTrue(node({ type: 'n8n-nodes-base.noOp', version: 1, config: {} })).onFalse(null));
 `;
 		expect(() => parseWorkflowCode(code)).not.toThrow();
 	});
@@ -147,9 +147,10 @@ describe('IF Else fluent API', () => {
 			});
 
 			// Fluent syntax in workflow
-			const wf = workflow('test-id', 'Test').add(
-				t.to(ifNode.onTrue!(trueBranch).onFalse(falseBranch)).to(downstream),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(ifNode.onTrue!(trueBranch).onFalse(falseBranch))
+				.to(downstream);
 
 			const json = wf.toJSON();
 
@@ -180,7 +181,7 @@ describe('IF Else fluent API', () => {
 			});
 
 			// Fluent syntax with only true branch (no false)
-			const wf = workflow('test-id', 'Test').add(t.to(ifNode.onTrue!(trueBranch)));
+			const wf = workflow('test-id', 'Test').add(t).to(ifNode.onTrue!(trueBranch));
 
 			const json = wf.toJSON();
 
@@ -221,9 +222,9 @@ describe('IF Else fluent API', () => {
 			});
 
 			// Fluent syntax with plain array for fan-out
-			const wf = workflow('test-id', 'Test').add(
-				t.to(ifNode.onTrue!([targetA, targetB]).onFalse(targetC)),
-			);
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(ifNode.onTrue!([targetA, targetB]).onFalse(targetC));
 
 			const json = wf.toJSON();
 
@@ -287,7 +288,7 @@ describe('IF Else fluent API', () => {
 			const chain = nodeA.to(nodeB);
 
 			// Fluent syntax with chain in onTrue
-			const wf = workflow('test-id', 'Test').add(t.to(ifNode.onTrue!(chain)));
+			const wf = workflow('test-id', 'Test').add(t).to(ifNode.onTrue!(chain));
 
 			const json = wf.toJSON();
 

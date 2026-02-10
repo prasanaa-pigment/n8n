@@ -41,6 +41,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	readonly name: string;
 	private _settings: WorkflowSettings;
 	private _nodes: Map<string, GraphNode>;
+	private _currentNode: string | null;
+	private _currentOutput: number;
 	private _pinData?: Record<string, IDataObject[]>;
 	private _meta?: { templateId?: string; instanceId?: string; [key: string]: unknown };
 	private _registry?: PluginRegistry;
@@ -51,6 +53,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		name: string,
 		settings: WorkflowSettings = {},
 		nodes?: Map<string, GraphNode>,
+		currentNode?: string | null,
 		pinData?: Record<string, IDataObject[]>,
 		meta?: { templateId?: string; instanceId?: string; [key: string]: unknown },
 		registry?: PluginRegistry,
@@ -59,6 +62,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		this.name = name;
 		this._settings = { ...settings };
 		this._nodes = nodes ? new Map<string, GraphNode>(nodes) : new Map<string, GraphNode>();
+		this._currentNode = currentNode ?? null;
+		this._currentOutput = 0;
 		this._pinData = pinData;
 		this._meta = meta;
 		this._registry = registry;
@@ -198,17 +203,38 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		const addHandler = addRegistry.findCompositeHandler(node);
 		if (addHandler) {
 			const ctx = this.createMutablePluginContext(this._nodes);
-			addHandler.addNodes(node, ctx);
+			const headName = addHandler.addNodes(node, ctx);
+			this._currentNode = headName;
+			this._currentOutput = 0;
 			return this;
 		}
 
 		// Check if this is a NodeChain
 		if (isNodeChain(node)) {
-			// addBranchToGraph handles: adding all nodes, plugin dispatch for composites,
-			// name mapping, and resolving chain connections into graph edges
-			this.addBranchToGraph(this._nodes, node);
+			// Track node ID -> actual map key for renamed nodes
+			const nameMapping = new Map<string, string>();
+
+			// Add all nodes from the chain, handling composites that may have been chained
+			for (const chainNode of node.allNodes) {
+				// Try plugin dispatch for composites - nameMapping is propagated through context
+				const pluginResult = this.tryPluginDispatch(this._nodes, chainNode, nameMapping);
+				if (pluginResult === undefined) {
+					// Not a composite - add as regular node
+					const actualKey = this.addNodeWithSubnodes(this._nodes, chainNode);
+					// Track the actual key if it was renamed
+					if (actualKey && actualKey !== chainNode.name) {
+						nameMapping.set(chainNode.id, actualKey);
+					}
+				}
+			}
+			// Also add nodes from connections that aren't in allNodes (e.g., onError handlers)
+			this.addConnectionTargetNodes(this._nodes, node, nameMapping);
 			// Collect pinData from all nodes in the chain
 			this._pinData = this.collectPinDataFromChain(node);
+			// Set currentNode to the tail (last node in the chain)
+			// Use nameMapping to get the actual key if the tail was renamed
+			this._currentNode = nameMapping.get(node.tail.id) ?? node.tail.name;
+			this._currentOutput = 0;
 			return this;
 		}
 
@@ -226,14 +252,110 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 		// Collect pinData from the node if present
 		this._pinData = this.collectPinData(regularNode);
+		this._currentNode = regularNode.name;
+		this._currentOutput = 0;
 
 		return this;
 	}
 
-	to(): never {
-		throw new Error(
-			'WorkflowBuilder.to() is not supported. Use node-level .to() instead: workflow(...).add(nodeA.to(nodeB))',
-		);
+	to(nodeOrComposite: unknown): WorkflowBuilder {
+		// Handle array of nodes (fan-out pattern)
+		if (Array.isArray(nodeOrComposite)) {
+			return this.handleFanOut(nodeOrComposite);
+		}
+
+		// Handle NodeChain (e.g., node().to().to())
+		// This must come before composite checks since chains have composite-like properties
+		if (isNodeChain(nodeOrComposite)) {
+			return this.handleNodeChain(nodeOrComposite);
+		}
+
+		// Check for plugin composite handlers
+		// This allows registered handlers to intercept composites before built-in handling
+		// Always use global pluginRegistry as fallback (like we do for validators)
+		const thenRegistry = this._registry ?? pluginRegistry;
+		const thenHandler = thenRegistry.findCompositeHandler(nodeOrComposite);
+		if (thenHandler) {
+			const ctx = this.createMutablePluginContext(this._nodes);
+			const headName = thenHandler.addNodes(nodeOrComposite, ctx);
+
+			// Connect current node to head of composite
+			if (this._currentNode) {
+				const currentGraphNode = this._nodes.get(this._currentNode);
+				if (currentGraphNode) {
+					const mainConns =
+						currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+					const outputConns: ConnectionTarget[] = mainConns.get(this._currentOutput) ?? [];
+					outputConns.push({ node: headName, type: 'main', index: 0 });
+					mainConns.set(this._currentOutput, outputConns);
+					currentGraphNode.connections.set('main', mainConns);
+				}
+			}
+
+			this._currentNode = headName;
+			this._currentOutput = 0;
+			return this;
+		}
+
+		// At this point, plugin dispatch handled all composite types (IfElse, SwitchCase, Merge, SplitInBatches).
+		// Remaining type is a regular NodeInstance.
+		const node = nodeOrComposite as NodeInstance<string, string, unknown>;
+
+		// Check if node already exists in the workflow (cycle connection)
+		const existingNode = this._nodes.has(node.name);
+
+		if (existingNode) {
+			// Node already exists - just add the connection, don't re-add the node
+			if (this._currentNode) {
+				const currentGraphNode = this._nodes.get(this._currentNode);
+				if (currentGraphNode) {
+					const mainConns =
+						currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+					const outputConnections: ConnectionTarget[] = mainConns.get(this._currentOutput) ?? [];
+					// Check for duplicate connections
+					const alreadyConnected = outputConnections.some((c) => c.node === node.name);
+					if (!alreadyConnected) {
+						mainConns.set(this._currentOutput, [
+							...outputConnections,
+							{ node: node.name, type: 'main', index: 0 },
+						]);
+						currentGraphNode.connections.set('main', mainConns);
+					}
+				}
+			}
+
+			this._currentNode = node.name;
+			this._currentOutput = 0;
+			return this;
+		}
+
+		// Add the new node and its subnodes
+		this.addNodeWithSubnodes(this._nodes, node);
+
+		// Add connection target nodes (e.g., onError handlers)
+		this.addSingleNodeConnectionTargets(this._nodes, node);
+
+		// Connect from current node if exists
+		if (this._currentNode) {
+			const currentGraphNode = this._nodes.get(this._currentNode);
+			if (currentGraphNode) {
+				const mainConns =
+					currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+				const outputConnections: ConnectionTarget[] = mainConns.get(this._currentOutput) ?? [];
+				mainConns.set(this._currentOutput, [
+					...outputConnections,
+					{ node: node.name, type: 'main', index: 0 },
+				]);
+				currentGraphNode.connections.set('main', mainConns);
+			}
+		}
+
+		// Collect pinData from the node if present
+		this._pinData = this.collectPinData(node);
+		this._currentNode = node.name;
+		this._currentOutput = 0;
+
+		return this;
 	}
 
 	settings(settings: WorkflowSettings): WorkflowBuilder {
@@ -674,6 +796,96 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	/**
+	 * Handle fan-out pattern - connects current node to multiple target nodes
+	 * Supports NodeChain targets (e.g., workflow.to([x1, fb, linkedin.to(sheets)]))
+	 *
+	 * Each array element maps to a different output index (branching).
+	 * Use null to skip an output index.
+	 */
+	private handleFanOut(nodes: unknown[]): WorkflowBuilder {
+		if (nodes.length === 0) {
+			return this;
+		}
+
+		const currentGraphNode = this._currentNode ? this._nodes.get(this._currentNode) : undefined;
+
+		// Add all target nodes and connect them to the current node
+		nodes.forEach((node, index) => {
+			// Skip null values (empty branches) but preserve the index for correct output mapping
+			if (node === null) {
+				return;
+			}
+
+			// Use addBranchToGraph to handle NodeChains properly
+			// This returns the head node name for connection
+			const headNodeName = this.addBranchToGraph(
+				this._nodes,
+				node as NodeInstance<string, string, unknown>,
+			);
+
+			// Connect from current node to the head of this target
+			// Array syntax always uses incrementing output indices (branching behavior)
+			if (this._currentNode && currentGraphNode) {
+				const mainConns =
+					currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+				const outputConnections: ConnectionTarget[] = mainConns.get(index) ?? [];
+				mainConns.set(index, [
+					...outputConnections,
+					{ node: headNodeName, type: 'main', index: 0 },
+				]);
+				currentGraphNode.connections.set('main', mainConns);
+			}
+		});
+
+		// Set the last non-null node in the array as the current node (for continued chaining)
+		// For NodeChains, use the tail node name (if tail is not null)
+		const nonNullNodes = nodes.filter((n): n is NonNullable<unknown> => n !== null);
+		const lastNode = nonNullNodes[nonNullNodes.length - 1];
+		this._currentNode = lastNode
+			? isNodeChain(lastNode)
+				? (lastNode.tail?.name ?? this._currentNode)
+				: (lastNode as NodeInstance<string, string, unknown>).name
+			: this._currentNode;
+		this._currentOutput = 0;
+
+		return this;
+	}
+
+	/**
+	 * Handle a NodeChain passed to workflow.to()
+	 * This is used when chained node calls are passed directly, e.g., workflow.to(node().to().to())
+	 */
+	private handleNodeChain(chain: NodeChain): WorkflowBuilder {
+		// Add the head node and connect from current workflow position
+		const headNodeName = this.addBranchToGraph(this._nodes, chain);
+
+		// Connect from current workflow node to the head of the chain
+		if (this._currentNode) {
+			const currentGraphNode = this._nodes.get(this._currentNode);
+			if (currentGraphNode) {
+				const mainConns =
+					currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+				const outputConnections: ConnectionTarget[] = mainConns.get(this._currentOutput) ?? [];
+
+				// Standard behavior: connect to chain head
+				outputConnections.push({ node: headNodeName, type: 'main', index: 0 });
+
+				mainConns.set(this._currentOutput, outputConnections);
+				currentGraphNode.connections.set('main', mainConns);
+			}
+		}
+
+		// Collect pinData from the chain
+		this._pinData = this.collectPinDataFromChain(chain);
+
+		// Set current node to the tail of the chain
+		this._currentNode = chain.tail?.name ?? headNodeName;
+		this._currentOutput = 0;
+
+		return this;
+	}
+
+	/**
 	 * Add a branch to the graph, handling both single nodes and NodeChains.
 	 * Returns the name of the first node in the branch (for connection from IF).
 	 * @param nameMapping - Optional map from node ID to actual map key (used when nodes are renamed)
@@ -856,6 +1068,7 @@ function createWorkflow(
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 			options.registry,
 		);
 	}
@@ -872,6 +1085,7 @@ function fromJSON(json: WorkflowJSON): WorkflowBuilder {
 		parsed.name,
 		parsed.settings,
 		parsed.nodes,
+		parsed.lastNode,
 		parsed.pinData,
 		parsed.meta,
 	);

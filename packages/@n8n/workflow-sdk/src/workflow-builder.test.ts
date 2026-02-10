@@ -98,7 +98,8 @@ describe('Workflow Builder', () => {
 			const sticky4 = sticky('## Editing Agent Note', { color: 4, name: 'Editing Note' });
 
 			const wf = workflow('test-id', 'Test Workflow')
-				.add(t.to(agentNode))
+				.add(t)
+				.to(agentNode)
 				.add(sticky1)
 				.add(sticky2)
 				.add(sticky3)
@@ -270,7 +271,7 @@ describe('Workflow Builder', () => {
 			const n1 = node({ type: 'n8n-nodes-base.httpRequest', version: 4.2, config: {} });
 			const n2 = node({ type: 'n8n-nodes-base.set', version: 3, config: {} });
 
-			const wf = workflow('test-id', 'Test Workflow').add(t.to(n1).to(n2));
+			const wf = workflow('test-id', 'Test Workflow').add(t).to(n1).to(n2);
 
 			const json = wf.toJSON();
 			expect(json.nodes).toHaveLength(3);
@@ -385,7 +386,7 @@ describe('Workflow Builder', () => {
 			// This chained syntax: .to(node.onError(handler))
 			// Should result in: trigger -> slack -> (error) -> telegram
 			// NOT: trigger -> telegram (which happens if onError returns handler)
-			const wf = workflow('test-id', 'Test').add(t.to(slackNode.onError(telegramNode)));
+			const wf = workflow('test-id', 'Test').add(t).to(slackNode.onError(telegramNode));
 
 			const json = wf.toJSON();
 
@@ -450,7 +451,9 @@ describe('Workflow Builder', () => {
 			});
 			const wf = workflow('test-id', 'Test Workflow', {
 				timezone: 'UTC',
-			}).add(t.to(n));
+			})
+				.add(t)
+				.to(n);
 
 			const json = wf.toJSON();
 
@@ -475,7 +478,7 @@ describe('Workflow Builder', () => {
 		it('should auto-position nodes when position not specified', () => {
 			const t = trigger({ type: 'n8n-nodes-base.webhookTrigger', version: 1, config: {} });
 			const n = node({ type: 'n8n-nodes-base.httpRequest', version: 4.2, config: {} });
-			const wf = workflow('test-id', 'Test').add(t.to(n));
+			const wf = workflow('test-id', 'Test').add(t).to(n);
 			const json = wf.toJSON();
 			// Both nodes should have positions assigned
 			expect(json.nodes[0].position).toBeDefined();
@@ -545,7 +548,7 @@ describe('Workflow Builder', () => {
 
 			// Add another node
 			const newNode = node({ type: 'n8n-nodes-base.set', version: 3, config: {} });
-			const updatedWf = wf.add(newNode);
+			const updatedWf = wf.to(newNode);
 			const exported = updatedWf.toJSON();
 			expect(exported.nodes).toHaveLength(2);
 		});
@@ -655,7 +658,7 @@ describe('Workflow Builder', () => {
 				config: {},
 			});
 
-			const wf = workflow('ai-test', 'AI Agent Test').add(triggerNode.to(agentNode));
+			const wf = workflow('ai-test', 'AI Agent Test').add(triggerNode).to(agentNode);
 
 			const json = wf.toJSON();
 
@@ -695,7 +698,7 @@ describe('Workflow Builder', () => {
 				config: {},
 			});
 
-			const wf = workflow('ai-test', 'AI Agent Test').add(triggerNode.to(agentNode));
+			const wf = workflow('ai-test', 'AI Agent Test').add(triggerNode).to(agentNode);
 
 			const json = wf.toJSON();
 
@@ -952,9 +955,9 @@ describe('Workflow Builder', () => {
 				config: { name: 'False Path' },
 			});
 
-			const wf = workflow('test', 'Test').add(
-				triggerNode.to(ifNode.onTrue!(trueNode).onFalse(falseNode)),
-			);
+			const wf = workflow('test', 'Test')
+				.add(triggerNode)
+				.to(ifNode.onTrue!(trueNode).onFalse(falseNode));
 
 			const json = wf.toJSON();
 
@@ -989,7 +992,7 @@ describe('Workflow Builder', () => {
 				config: { name: 'False' },
 			});
 
-			const wf = workflow('test', 'Test').add(ifNode.onTrue!(trueNode).onFalse(falseNode));
+			const wf = workflow('test', 'Test').to(ifNode.onTrue!(trueNode).onFalse(falseNode));
 
 			const json = wf.toJSON();
 
@@ -999,11 +1002,6 @@ describe('Workflow Builder', () => {
 		});
 
 		it('should chain after IF node', () => {
-			const t = trigger({
-				type: 'n8n-nodes-base.manualTrigger',
-				version: 1,
-				config: { name: 'Start' },
-			});
 			const ifNode = node({
 				type: 'n8n-nodes-base.if',
 				version: 2.3,
@@ -1025,9 +1023,9 @@ describe('Workflow Builder', () => {
 				config: { name: 'After' },
 			});
 
-			const wf = workflow('test', 'Test').add(
-				t.to(ifNode.onTrue!(trueNode).onFalse(falseNode)).to(afterNode),
-			);
+			const wf = workflow('test', 'Test')
+				.to(ifNode.onTrue!(trueNode).onFalse(falseNode))
+				.to(afterNode);
 
 			const json = wf.toJSON();
 
@@ -1069,7 +1067,7 @@ describe('Workflow Builder', () => {
 			});
 
 			// Only false branch is connected using onFalse()
-			const wf = workflow('test', 'Test').add(triggerNode.to(ifNode.onFalse!(falseNode)));
+			const wf = workflow('test', 'Test').add(triggerNode).to(ifNode.onFalse!(falseNode));
 
 			const json = wf.toJSON();
 
@@ -1114,7 +1112,7 @@ describe('Workflow Builder', () => {
 			});
 
 			// Only true branch is connected using onTrue()
-			const wf = workflow('test', 'Test').add(triggerNode.to(ifNode.onTrue!(trueNode)));
+			const wf = workflow('test', 'Test').add(triggerNode).to(ifNode.onTrue!(trueNode));
 
 			const json = wf.toJSON();
 
@@ -1165,7 +1163,7 @@ describe('Workflow Builder', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test Workflow').add(triggerNode.to(boxNode));
+			const wf = workflow('test-id', 'Test Workflow').add(triggerNode).to(boxNode);
 			const json = wf.toJSON();
 
 			// pinData should be in the workflow JSON at the top level, keyed by node name
@@ -1195,7 +1193,7 @@ describe('Workflow Builder', () => {
 				},
 			});
 
-			const wf = workflow('test-id', 'Test').add(node1.to(node2));
+			const wf = workflow('test-id', 'Test').add(node1).to(node2);
 			const json = wf.toJSON();
 
 			expect(json.pinData).toBeDefined();
@@ -1265,11 +1263,9 @@ describe('Workflow Builder', () => {
 			});
 
 			// Using fluent syntax
-			const wf = workflow('test', 'Test').add(
-				t
-					.to(linearNode.onError(errorHandler))
-					.to(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2)),
-			);
+			const wf = workflow('test', 'Test')
+				.add(t.to(linearNode.onError(errorHandler)))
+				.to(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2));
 
 			const json = wf.toJSON();
 
@@ -1375,9 +1371,9 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 2' },
 			});
 
-			const wf = workflow('test', 'Test').add(
-				triggerNode.to(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2)),
-			);
+			const wf = workflow('test', 'Test')
+				.add(triggerNode)
+				.to(switchNode.onCase!(0, case0).onCase(1, case1).onCase(2, case2));
 
 			const json = wf.toJSON();
 
@@ -1410,7 +1406,7 @@ describe('Workflow Builder', () => {
 				config: { name: 'Fallback' },
 			});
 
-			const wf = workflow('test', 'Test').add(switchNode.onCase!(0, case0).onCase(1, fallback));
+			const wf = workflow('test', 'Test').to(switchNode.onCase!(0, case0).onCase(1, fallback));
 
 			const json = wf.toJSON();
 
@@ -1437,7 +1433,7 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 0' },
 			});
 
-			const wf = workflow('test', 'Test').add(switchNode.onCase!(0, case0));
+			const wf = workflow('test', 'Test').to(switchNode.onCase!(0, case0));
 
 			const json = wf.toJSON();
 
@@ -1462,7 +1458,7 @@ describe('Workflow Builder', () => {
 				config: { name: 'Case 0' },
 			});
 
-			const wf = workflow('test', 'Test').add(triggerNode.to(switchNode.onCase!(0, case0)));
+			const wf = workflow('test', 'Test').add(triggerNode).to(switchNode.onCase!(0, case0));
 
 			const json = wf.toJSON();
 

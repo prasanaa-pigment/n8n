@@ -178,11 +178,11 @@ describe('New SDK API', () => {
 			const ifNode = createIfNode('IF');
 			const t = createTrigger('Start');
 
-			const wf = workflow('test', 'Test').add(
-				t.to(
+			const wf = workflow('test', 'Test')
+				.add(t)
+				.to(
 					ifNode.onTrue!([nodeA, nodeB]), // IF output 0 (true) -> both A and B
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -203,9 +203,9 @@ describe('New SDK API', () => {
 			const switchNode = createSwitchNode('Router');
 			const t = createTrigger('Start');
 
-			const wf = workflow('test', 'Test').add(
-				t.to(switchNode.onCase!(0, [nodeA, nodeB]).onCase(1, nodeC)),
-			);
+			const wf = workflow('test', 'Test')
+				.add(t)
+				.to(switchNode.onCase!(0, [nodeA, nodeB]).onCase(1, nodeC));
 
 			const json = wf.toJSON();
 
@@ -232,7 +232,7 @@ describe('New SDK API', () => {
 			const t = createTrigger('Start');
 
 			// trigger -> IF -> (true: A, false: B)
-			const wf = workflow('test', 'Test').add(t.to(ifNode.onTrue!(nodeA).onFalse(nodeB)));
+			const wf = workflow('test', 'Test').add(t).to(ifNode.onTrue!(nodeA).onFalse(nodeB));
 
 			const json = wf.toJSON();
 
@@ -257,11 +257,11 @@ describe('New SDK API', () => {
 			const t = createTrigger('Start');
 
 			// Both branches converge to the same node instance
-			const wf = workflow('test', 'Test').add(
-				t.to(
+			const wf = workflow('test', 'Test')
+				.add(t)
+				.to(
 					ifNode.onTrue!(nodeA.to(convergence)).onFalse(nodeB.to(convergence)), // Same instance
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -296,11 +296,11 @@ describe('New SDK API', () => {
 
 			// Start -> Check -> Done? -> (true: Result, false: Wait -> Check)
 			// Use workflow.to() with fluent builder
-			const wf = workflow('test', 'Test').add(
-				t.to(checkStatus).to(
+			const wf = workflow('test', 'Test')
+				.add(t.to(checkStatus))
+				.to(
 					jobComplete.onTrue!(getResult).onFalse(wait.to(checkStatus)), // Loop back
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -318,10 +318,8 @@ describe('New SDK API', () => {
 			const t = createTrigger('Start');
 
 			// Only case0 and case3, skip 1 and 2
-			const wf = workflow('test', 'Test').add(
-				t.to(
-					switchNode.onCase!(0, nodeA).onCase(3, nodeB), // Skip 1, 2
-				),
+			const wf = workflow('test', 'Test').add(t).to(
+				switchNode.onCase!(0, nodeA).onCase(3, nodeB), // Skip 1, 2
 			);
 
 			const json = wf.toJSON();
@@ -348,7 +346,7 @@ describe('New SDK API', () => {
 			const ifNode = createIfNode('IF');
 			const t = createTrigger('Start');
 
-			const wf = workflow('test', 'Test').add(t.to(ifNode.onTrue!(nodeA)));
+			const wf = workflow('test', 'Test').add(t).to(ifNode.onTrue!(nodeA));
 
 			const json = wf.toJSON();
 
@@ -363,7 +361,7 @@ describe('New SDK API', () => {
 			const ifNode = createIfNode('IF');
 			const t = createTrigger('Start');
 
-			const wf = workflow('test', 'Test').add(t.to(ifNode.onFalse!(nodeB)));
+			const wf = workflow('test', 'Test').add(t).to(ifNode.onFalse!(nodeB));
 
 			const json = wf.toJSON();
 
@@ -437,13 +435,12 @@ describe('New SDK API', () => {
 
 			// Using named object syntax with explicit connections
 			const wf = workflow('test', 'Test')
-				.add(
-					t.to(
-						splitInBatches(sibNode, {
-							done: summaryNode, // Done output (0) -> Summary
-							each: processNode, // Each output (1) -> Process
-						}),
-					),
+				.add(t)
+				.to(
+					splitInBatches(sibNode, {
+						done: summaryNode, // Done output (0) -> Summary
+						each: processNode, // Each output (1) -> Process
+					}),
 				)
 				// Connect summary to merge input 0
 				.add(summaryNode)
@@ -674,7 +671,7 @@ describe('New SDK API', () => {
 				each: processItem.to(nextBatch(sibNode)), // Use nextBatch for explicit loop-back
 			});
 
-			const wf = workflow('test', 'Batch Processing').add(t.to(sibBuilder));
+			const wf = workflow('test', 'Batch Processing').add(t).to(sibBuilder);
 
 			const json = wf.toJSON();
 
@@ -694,11 +691,11 @@ describe('New SDK API', () => {
 			const falseHandler = createNode('Handle False');
 			const finalNode = createNode('Finalize');
 
-			const wf = workflow('test', 'Branching Workflow').add(
-				t.to(
+			const wf = workflow('test', 'Branching Workflow')
+				.add(t)
+				.to(
 					ifNode.onTrue!(trueHandler.to(finalNode)).onFalse(falseHandler.to(finalNode)), // Converge
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 
@@ -725,14 +722,14 @@ describe('New SDK API', () => {
 			const processItem = createNode('Process Item');
 			const summarize = createNode('Summarize');
 
-			const wf = workflow('test', 'Batch Processing').add(
-				t.to(fetchData).to(
+			const wf = workflow('test', 'Batch Processing')
+				.add(t.to(fetchData))
+				.to(
 					splitInBatches(sibNode, {
 						done: summarize,
 						each: processItem.to(sibNode), // Loop back
 					}),
-				),
-			);
+				);
 
 			const json = wf.toJSON();
 

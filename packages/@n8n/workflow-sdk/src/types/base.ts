@@ -893,11 +893,14 @@ export interface WorkflowBuilder {
 			| SwitchCaseBuilder<unknown>,
 	>(node: N): WorkflowBuilder;
 
-	/**
-	 * @deprecated WorkflowBuilder.to() is not supported. Use node-level .to() instead:
-	 * `workflow(...).add(nodeA.to(nodeB))` instead of `workflow(...).add(nodeA).to(nodeB)`
-	 */
-	to(...args: unknown[]): never;
+	to<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
+	to(ifElse: IfElseComposite): WorkflowBuilder;
+	to(switchCase: SwitchCaseComposite): WorkflowBuilder;
+	to<T>(splitInBatches: SplitInBatchesBuilder<T>): WorkflowBuilder;
+	to<T>(ifElseBuilder: IfElseBuilder<T>): WorkflowBuilder;
+	to<T>(switchCaseBuilder: SwitchCaseBuilder<T>): WorkflowBuilder;
+	/** Connect to multiple outputs (branching). Each array element connects to incrementing output index. Use null to skip an output. */
+	to(nodes: Array<NodeInstance<string, string, unknown> | NodeChain | null>): WorkflowBuilder;
 
 	settings(settings: WorkflowSettings): WorkflowBuilder;
 

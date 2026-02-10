@@ -123,7 +123,9 @@ const processData = node({{
 
 // 2. Compose workflow
 export default workflow('id', 'name')
-  .add(startTrigger.to(fetchData.to(processData)));
+  .add(startTrigger)
+  .to(fetchData)
+  .to(processData);
 \`\`\`
 
 </linear_chain>
@@ -181,9 +183,10 @@ export default workflow('id', 'name')
 const checkValid = ifElse({{ version: 2.2, config: {{ name: 'Check Valid', parameters: {{...}} }} }});
 
 export default workflow('id', 'name')
-  .add(startTrigger.to(checkValid
+  .add(startTrigger)
+  .to(checkValid
     .onTrue(formatData.to(enrichData.to(saveToDb)))  // Chain 3 nodes on true branch
-    .onFalse(logError)));
+    .onFalse(logError));
 \`\`\`
 
 </conditional_branching>
@@ -195,10 +198,11 @@ export default workflow('id', 'name')
 const routeByPriority = switchCase({{ version: 3.2, config: {{ name: 'Route by Priority', parameters: {{...}} }} }});
 
 export default workflow('id', 'name')
-  .add(startTrigger.to(routeByPriority
+  .add(startTrigger)
+  .to(routeByPriority
     .onCase(0, processUrgent.to(notifyTeam.to(escalate)))  // Chain of 3 nodes
     .onCase(1, processNormal)
-    .onCase(2, archive)));
+    .onCase(2, archive));
 \`\`\`
 
 </multi_way_routing>
@@ -262,10 +266,12 @@ const processRecord = node({{
 const sibNode = splitInBatches({{ version: 3, config: {{ name: 'Batch Process', parameters: {{ batchSize: 10 }}, position: [840, 300] }} }});
 
 export default workflow('id', 'name')
-  .add(startTrigger.to(fetchRecords.to(sibNode
+  .add(startTrigger)
+  .to(fetchRecords)
+  .to(sibNode
     .onDone(finalizeResults)
     .onEachBatch(processRecord.to(nextBatch(sibNode)))
-  )));
+  );
 \`\`\`
 
 </batch_processing>
@@ -301,8 +307,10 @@ const processSchedule = node({{
 }});
 
 export default workflow('id', 'name')
-  .add(webhookTrigger.to(processWebhook))
-  .add(scheduleTrigger.to(processSchedule));
+  .add(webhookTrigger)
+  .to(processWebhook)
+  .add(scheduleTrigger)
+  .to(processSchedule);
 \`\`\`
 
 </multiple_triggers>
@@ -377,7 +385,8 @@ const aiAgent = node({{
 }});
 
 export default workflow('ai-assistant', 'AI Assistant')
-  .add(startTrigger.to(aiAgent));
+  .add(startTrigger)
+  .to(aiAgent);
 \`\`\`
 
 </ai_agent_basic>
@@ -421,7 +430,8 @@ const aiAgent = node({{
 }});
 
 export default workflow('ai-calculator', 'AI Calculator')
-  .add(startTrigger.to(aiAgent));
+  .add(startTrigger)
+  .to(aiAgent);
 \`\`\`
 
 </ai_agent_with_tools>
@@ -474,7 +484,8 @@ const aiAgent = node({{
 }});
 
 export default workflow('ai-email', 'AI Email Sender')
-  .add(startTrigger.to(aiAgent));
+  .add(startTrigger)
+  .to(aiAgent);
 \`\`\`
 </ai_agent_with_from_ai>
 
@@ -506,7 +517,8 @@ const aiAgent = node({{
 }});
 
 export default workflow('ai-sentiment', 'AI Sentiment Analyzer')
-  .add(startTrigger.to(aiAgent));
+  .add(startTrigger)
+  .to(aiAgent);
 \`\`\`
 </ai_agent_with_structured_output>`;
 

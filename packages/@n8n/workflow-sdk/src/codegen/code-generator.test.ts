@@ -136,8 +136,10 @@ describe('code-generator', () => {
 				expect(code).toContain('const trigger_node = trigger({');
 				expect(code).toContain('const process_node = node({');
 				expect(code).toContain('const final = node({');
-				// Workflow should chain node-level .to() inside .add()
-				expect(code).toContain('.add(trigger_node.to(process_node).to(final))');
+				// Workflow should chain variable references
+				expect(code).toMatch(/\.add\(trigger_node\)/);
+				expect(code).toMatch(/\.to\(process_node\)/);
+				expect(code).toMatch(/\.to\(final\)/);
 			});
 		});
 

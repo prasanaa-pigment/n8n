@@ -62,18 +62,19 @@ describe('generatePinData', () => {
 						type: 'n8n-nodes-base.manualTrigger',
 						version: 1,
 						config: { name: 'Start' },
-					}).to(
-						node({
-							type: 'n8n-nodes-base.slack',
-							version: 2,
-							config: {
-								name: 'Slack',
-								parameters: { resource: 'channel', operation: 'get' },
-								credentials: { slackApi: newCredential('My Slack') },
-							},
-							output: outputData,
-						}),
-					),
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.slack',
+						version: 2,
+						config: {
+							name: 'Slack',
+							parameters: { resource: 'channel', operation: 'get' },
+							credentials: { slackApi: newCredential('My Slack') },
+						},
+						output: outputData,
+					}),
 				)
 				.generatePinData();
 
@@ -212,17 +213,18 @@ describe('generatePinData', () => {
 							credentials: { slackApi: newCredential('New Slack') },
 						},
 						output: [{ id: 'existing' }],
-					}).to(
-						node({
-							type: 'n8n-nodes-base.slack',
-							version: 2,
-							config: {
-								name: 'New Node',
-								credentials: { slackApi: newCredential('Another Slack') },
-							},
-							output: [{ id: 'new' }],
-						}),
-					),
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.slack',
+						version: 2,
+						config: {
+							name: 'New Node',
+							credentials: { slackApi: newCredential('Another Slack') },
+						},
+						output: [{ id: 'new' }],
+					}),
 				)
 				.generatePinData({ beforeWorkflow });
 
@@ -285,45 +287,45 @@ describe('generatePinData', () => {
 							credentials: { slackApi: newCredential('My Slack') },
 						},
 						output: [{ id: 'old' }],
-					})
-						.to(
-							node({
-								type: 'n8n-nodes-base.slack',
-								version: 2,
-								config: {
-									name: 'New With Existing Creds',
-									credentials: { slackApi: { id: '1', name: 'Slack' } },
-								},
-								output: [{ id: 'existing-creds' }],
-							}),
-						)
-						.to(
-							node({
-								type: 'n8n-nodes-base.slack',
-								version: 2,
-								config: {
-									name: 'New With NewCredential',
-									credentials: { slackApi: newCredential('Fresh Slack') },
-								},
-								output: [{ id: 'new-creds' }],
-							}),
-						)
-						.to(
-							node({
-								type: 'n8n-nodes-base.httpRequest',
-								version: 4,
-								config: { name: 'HTTP Request' },
-								output: [{ id: 'http' }],
-							}),
-						)
-						.to(
-							node({
-								type: 'n8n-nodes-base.code',
-								version: 2,
-								config: { name: 'Code Node' },
-								output: [{ id: 'code' }],
-							}),
-						),
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.slack',
+						version: 2,
+						config: {
+							name: 'New With Existing Creds',
+							credentials: { slackApi: { id: '1', name: 'Slack' } },
+						},
+						output: [{ id: 'existing-creds' }],
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.slack',
+						version: 2,
+						config: {
+							name: 'New With NewCredential',
+							credentials: { slackApi: newCredential('Fresh Slack') },
+						},
+						output: [{ id: 'new-creds' }],
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.httpRequest',
+						version: 4,
+						config: { name: 'HTTP Request' },
+						output: [{ id: 'http' }],
+					}),
+				)
+				.to(
+					node({
+						type: 'n8n-nodes-base.code',
+						version: 2,
+						config: { name: 'Code Node' },
+						output: [{ id: 'code' }],
+					}),
 				)
 				.generatePinData({ beforeWorkflow });
 

@@ -431,7 +431,7 @@ describe('WorkflowBuilder plugin integration', () => {
 				null,
 			).onFalse(null);
 
-			workflow('test', 'Test', { registry: testRegistry }).add(startTrigger.to(composite));
+			workflow('test', 'Test', { registry: testRegistry }).add(startTrigger).to(composite);
 
 			expect(mockAddNodes).toHaveBeenCalled();
 		});
@@ -487,7 +487,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			}).onTrue!(null).onFalse(null);
 
 			// Create workflow without registry option and use then()
-			workflow('test', 'Test').add(startTrigger.to(composite));
+			workflow('test', 'Test').add(startTrigger).to(composite);
 
 			expect(findCompositeHandlerSpy).toHaveBeenCalled();
 			findCompositeHandlerSpy.mockRestore();
@@ -1556,18 +1556,18 @@ describe('WorkflowBuilder plugin integration', () => {
 				config: { name: 'Handle Sales', parameters: {} },
 			});
 
-			// Using explicit .output(n).to(target) for multi-output branching
+			// Using array syntax should treat textClassifier as a branching node
+			// Each element should connect to a different output index
 			const wf = workflow('test', 'Text Classifier Branching')
 				.add(
 					trigger({
 						type: 'n8n-nodes-base.manualTrigger',
 						version: 1,
 						config: { name: 'Start' },
-					}).to(textClassifier),
+					}),
 				)
-				.add(textClassifier.output(0).to(billingHandler))
-				.add(textClassifier.output(1).to(supportHandler))
-				.add(textClassifier.output(2).to(salesHandler));
+				.to(textClassifier)
+				.to([billingHandler, supportHandler, salesHandler]);
 
 			const json = wf.toJSON();
 

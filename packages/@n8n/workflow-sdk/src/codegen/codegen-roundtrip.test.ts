@@ -824,7 +824,7 @@ describe('parseWorkflowCode', () => {
 			// The parser should automatically escape them
 			const codeWithUnescapedQuotes = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
     parameters: {
       mode: 'manual',
@@ -839,7 +839,7 @@ export default workflow('test-id', 'Test Workflow')
         ]
       }
     }
-  } })))
+  } }))
 `;
 			// This should not throw a syntax error
 			const parsedJson = parseWorkflowCode(codeWithUnescapedQuotes);
@@ -860,13 +860,13 @@ export default workflow('test-id', 'Test Workflow')
 		it('should handle multiple node references in the same string', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
     parameters: {
       mode: 'raw',
       jsonOutput: '={{ $('Node A').item.json.a + $('Node B').item.json.b }}'
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
@@ -879,13 +879,13 @@ export default workflow('test-id', 'Test Workflow')
 			// Code with already-escaped quotes should not be double-escaped
 			const codeWithEscapedQuotes = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
     parameters: {
       mode: 'raw',
       jsonOutput: '={{ $(\\'Properly Escaped\\').item.json.data }}'
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(codeWithEscapedQuotes);
 			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
@@ -898,13 +898,13 @@ export default workflow('test-id', 'Test Workflow')
 			// Node references in double-quoted strings don't need escaping
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
     parameters: {
       mode: 'raw',
       jsonOutput: "={{ $('Node Name').item.json.data }}"
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
@@ -916,13 +916,13 @@ export default workflow('test-id', 'Test Workflow')
 		it('should handle node names with spaces and special characters', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.set', version: 3.4, config: {
     parameters: {
       mode: 'raw',
       jsonOutput: '={{ $('Lead Generation Form').item.json.fullName }}'
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const setNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.set');
@@ -974,11 +974,11 @@ export default workflow('test-id', 'Test Workflow')
 		it('should parse code with placeholder() in parameters', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.slack', version: 2.2, config: {
     name: 'Send Slack Message',
     parameters: { channel: placeholder('Enter Slack Channel') }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			expect(parsedJson.id).toBe('test-id');
@@ -1044,12 +1044,12 @@ export default workflow('test-id', 'Test Workflow')
 		it('should parse code with newCredential() in credentials', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.slack', version: 2.2, config: {
     name: 'Send Slack Message',
     parameters: { channel: '#general', text: 'Hello!' },
     credentials: { slackApi: newCredential('My Slack Bot') }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			expect(parsedJson.id).toBe('test-id');
@@ -1064,7 +1064,7 @@ export default workflow('test-id', 'Test Workflow')
 		it('should parse code with multiple newCredential() calls', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.httpRequest', version: 4.2, config: {
     name: 'HTTP Request',
     parameters: { url: 'https://api.example.com' },
@@ -1072,7 +1072,7 @@ export default workflow('test-id', 'Test Workflow')
       httpBasicAuth: newCredential('Basic Auth'),
       httpHeaderAuth: newCredential('API Key Header')
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const httpNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.httpRequest');
@@ -1083,7 +1083,7 @@ export default workflow('test-id', 'Test Workflow')
 		it('should parse code with newCredential() mixed with regular credentials', () => {
 			const code = `
 export default workflow('test-id', 'Test Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({ type: 'n8n-nodes-base.httpRequest', version: 4.2, config: {
     name: 'HTTP Request',
     parameters: { url: 'https://api.example.com' },
@@ -1091,7 +1091,7 @@ export default workflow('test-id', 'Test Workflow')
       httpBasicAuth: { id: 'existing-123', name: 'Existing Auth' },
       httpHeaderAuth: newCredential('New API Key')
     }
-  } })))
+  } }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const httpNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.httpRequest');
@@ -1104,7 +1104,7 @@ export default workflow('test-id', 'Test Workflow')
 		it('should parse AI agent with newCredential() on subnode', () => {
 			const code = `
 export default workflow('test-id', 'AI Agent')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({
     type: '@n8n/n8n-nodes-langchain.agent',
     version: 3.1,
@@ -1122,7 +1122,7 @@ export default workflow('test-id', 'AI Agent')
         })
       }
     }
-  })))
+  }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const openAiNode = parsedJson.nodes.find(
@@ -1515,7 +1515,12 @@ const editingSticky = sticky(
 
 // Build the workflow
 export default workflow('test-multi-sticky', 'Multi-Agent Research Workflow')
-  .add(startTrigger.to(setTopic).to(researchAgent).to(factCheckAgent).to(writingAgent).to(editingAgent))
+  .add(startTrigger)
+  .to(setTopic)
+  .to(researchAgent)
+  .to(factCheckAgent)
+  .to(writingAgent)
+  .to(editingAgent)
   .add(researchSticky)
   .add(factCheckSticky)
   .add(writingSticky)
@@ -1774,7 +1779,7 @@ export default workflow('test-simple-multi-sticky', 'Simple Multi-Sticky Workflo
 			// When template literals are properly escaped with \$, they should work
 			const code = `
 export default workflow('test-id', 'Code Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({
     type: 'n8n-nodes-base.code',
     version: 2,
@@ -1787,7 +1792,7 @@ const message = \\\`Processing item: \\\${data.name}\\\`;
 return { json: { message } };\`
       }
     }
-  })))
+  }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const codeNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.code');
@@ -1804,7 +1809,7 @@ return { json: { message } };\`
 			// The ${invoiceData.currency} should be escaped to \${invoiceData.currency}
 			const code = `
 export default workflow('test-id', 'Validation Workflow')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({
     type: 'n8n-nodes-base.code',
     version: 2,
@@ -1820,7 +1825,7 @@ if (!invoiceData.currency) {
 return { json: { errors } };\`
       }
     }
-  })))
+  }))
 `;
 			// This should NOT throw "invoiceData is not defined" - it should escape and parse
 			const parsedJson = parseWorkflowCode(code);
@@ -1834,7 +1839,7 @@ return { json: { errors } };\`
 			// More complex case with multiple user-defined variables in template expressions
 			const code = `
 export default workflow('test-id', 'Complex Code')
-  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} })
+  .add(trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} }))
   .to(node({
     type: 'n8n-nodes-base.code',
     version: 2,
@@ -1846,7 +1851,7 @@ const result = \\\`Name: \${item.name}, Amount: \${item.amount}, Date: \${item.d
 return { json: { result } };\`
       }
     }
-  })))
+  }))
 `;
 			const parsedJson = parseWorkflowCode(code);
 			const codeNode = parsedJson.nodes.find((n) => n.type === 'n8n-nodes-base.code');
