@@ -157,7 +157,7 @@ describe('ProjectCardBadge', () => {
 			expect(queryByTestId('credential-global-badge')).not.toBeInTheDocument();
 		});
 
-		it('should show both project badge and global badge together', () => {
+		it('should show both project badge and global badge together when homeProject has a name', () => {
 			const { getByTestId, getByText } = renderComponent({
 				props: {
 					resource: {
@@ -180,6 +180,33 @@ describe('ProjectCardBadge', () => {
 			expect(getByText('Test Project')).toBeVisible();
 
 			// Global badge should also be visible
+			const globalBadge = getByTestId('credential-global-badge');
+			expect(globalBadge).toBeVisible();
+			expect(globalBadge).toHaveTextContent('Global');
+		});
+
+		it('should only show global badge when global is true and homeProject has no name', () => {
+			const { queryByTestId, getByTestId } = renderComponent({
+				props: {
+					resource: {
+						homeProject: {
+							id: '__global__',
+							name: '',
+						},
+					} as WorkflowResource,
+					resourceType: ResourceType.Credential,
+					resourceTypeLabel: 'credential',
+					personalProject: {
+						id: '2',
+					} as Project,
+					global: true,
+				},
+			});
+
+			// Project badge should NOT be visible
+			expect(queryByTestId('card-badge')).not.toBeInTheDocument();
+
+			// Global badge should be visible
 			const globalBadge = getByTestId('credential-global-badge');
 			expect(globalBadge).toBeVisible();
 			expect(globalBadge).toHaveTextContent('Global');

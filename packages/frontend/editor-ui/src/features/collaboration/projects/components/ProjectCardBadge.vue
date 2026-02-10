@@ -67,7 +67,15 @@ const numberOfMembersInHomeTeamProject = computed(() =>
 	'sharedWithProjects' in props.resource ? (props.resource.sharedWithProjects?.length ?? 0) : 0,
 );
 
+const shouldHideProjectBadge = computed(() => {
+	// Hide project badge when resource is global and has no meaningful home project
+	return props.global && !props.resource.homeProject;
+});
+
 const badgeText = computed(() => {
+	if (shouldHideProjectBadge.value) {
+		return '';
+	}
 	if (
 		projectState.value === ProjectState.Owned ||
 		projectState.value === ProjectState.SharedOwned
@@ -156,7 +164,7 @@ const projectLocation = computed(() => {
 <template>
 	<div :class="{ [$style.wrapper]: true, [$style['no-border']]: showBadgeBorder }" v-bind="$attrs">
 		<N8nTooltip
-			v-if="badgeText"
+			v-if="badgeText && !shouldHideProjectBadge"
 			:disabled="!badgeTooltip || numberOfMembersInHomeTeamProject !== 0"
 			placement="top"
 		>
@@ -180,7 +188,10 @@ const projectLocation = computed(() => {
 
 		<N8nTooltip v-if="global" placement="top">
 			<div
-				:class="$style['global-badge']"
+				:class="{
+					[$style['global-badge']]: true,
+					[$style['no-left-border']]: shouldHideProjectBadge,
+				}"
 				data-test-id="credential-global-badge"
 				theme="tertiary"
 				bold
@@ -259,6 +270,10 @@ const projectLocation = computed(() => {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--3xs);
+}
+
+.no-left-border {
+	border-left: none;
 }
 
 .nowrap {

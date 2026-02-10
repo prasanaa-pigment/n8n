@@ -2933,6 +2933,7 @@
 	"settings.externalSecrets.docs": "https://docs.n8n.io/external-secrets/",
 	"settings.externalSecrets.docs.use": "https://docs.n8n.io/external-secrets/#use-secrets-in-n8n-credentials",
 	"settings.secretsProviderConnections.title": "External Secrets",
+	"settings.secretsProviderConnections.resourceType": "External secrets provider",
 	"settings.secretsProviderConnections.emptyState.heading": "Add an external secrets store",
 	"settings.secretsProviderConnections.emptyState.description": "Manage credentials across multiple environments by adding an external secrets store. Keep sensitive credential information in your vault for added security.",
 	"settings.secretsProviderConnections.buttons.addSecretsStore": "Add secrets store",

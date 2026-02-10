@@ -7,9 +7,14 @@ import { DateTime } from 'luxon';
 import { isDateObject } from '@/app/utils/typeGuards';
 import { useI18n } from '@n8n/i18n';
 import { useRBACStore } from '@/app/stores/rbac.store';
+import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
+import ProjectCardBadge from '@/features/collaboration/projects/components/ProjectCardBadge.vue';
+import { ResourceType } from '@/features/collaboration/projects/projects.utils';
+import { ProjectTypes } from '@/features/collaboration/projects/projects.types';
 
 const i18n = useI18n();
 const rbacStore = useRBACStore();
+const projectsStore = useProjectsStore();
 
 const props = defineProps<{
 	provider: SecretProviderConnection;
@@ -39,6 +44,25 @@ const showDisconnectedBadge = computed(() => {
 });
 
 const canDelete = computed(() => rbacStore.hasScope('externalSecretsProvider:delete'));
+
+const resourceTypeLabel = computed(() =>
+	i18n.baseText('settings.secretsProviderConnections.resourceType').toLowerCase(),
+);
+
+// Adapt provider data structure for ProjectCardBadge
+const adaptedProviderData = computed(() => ({
+	id: provider.value.id,
+	name: provider.value.name,
+	type: provider.value.type,
+	homeProject: provider.value.projects[0]
+		? { ...provider.value.projects[0], type: ProjectTypes.Team }
+		: null,
+	sharedWithProjects: provider.value.projects
+		.slice(1)
+		.map((p) => ({ ...p, type: ProjectTypes.Team })),
+	scopes: provider.value.projects.length > 0 ? [] : ['global'],
+	isGlobal: provider.value.projects.length === 0,
+}));
 
 const actionDropdownOptions = computed(() => {
 	if (!props.canUpdate) return [];
@@ -134,6 +158,15 @@ function onAction(action: string) {
 			</N8nText>
 		</template>
 		<template #append>
+			<ProjectCardBadge
+				:class="$style.cardBadge"
+				:resource="adaptedProviderData"
+				:resource-type="ResourceType.ExternalSecretsProvider"
+				:resource-type-label="resourceTypeLabel"
+				:personal-project="projectsStore.personalProject"
+				:show-badge-border="false"
+				:global="adaptedProviderData.isGlobal"
+			/>
 			<N8nActionToggle
 				:actions="actionDropdownOptions"
 				data-test-id="secrets-provider-action-toggle"
@@ -158,5 +191,9 @@ function onAction(action: string) {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--3xs);
+}
+
+.cardBadge {
+	margin-right: var(--spacing--3xs);
 }
 </style>
