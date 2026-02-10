@@ -2,7 +2,7 @@
 import NodeIcon from '@/app/components/NodeIcon.vue';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
-import { N8nButton, N8nDropdownMenu, N8nIconButton } from '@n8n/design-system';
+import { N8nButton, N8nDropdownMenu, N8nIcon, N8nIconButton } from '@n8n/design-system';
 import type { DropdownMenuItemProps } from '@n8n/design-system';
 import type { INode, INodeTypeDescription } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
@@ -159,6 +159,10 @@ onMounted(async () => {
 					</span>
 					{{ toolsLabel }}
 				</N8nButton>
+			</template>
+
+			<template #search-prefix>
+				<N8nIcon icon="search" />
 			</template>
 
 			<template #search-suffix>

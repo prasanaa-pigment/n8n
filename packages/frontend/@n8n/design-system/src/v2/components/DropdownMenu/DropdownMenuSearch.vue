@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, useCssModule } from 'vue';
 
-import Icon from '@n8n/design-system/components/N8nIcon/Icon.vue';
-
 defineOptions({ name: 'N8nDropdownMenuSearch' });
 
 withDefaults(
@@ -82,7 +80,6 @@ defineExpose({ focus, inputRef });
 		<span v-if="slots['search-prefix']" :class="$style['search-prefix']">
 			<slot name="search-prefix" />
 		</span>
-		<Icon v-else icon="search" :class="$style['search-prefix']" />
 		<input
 			ref="inputRef"
 			type="text"
