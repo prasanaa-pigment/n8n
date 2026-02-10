@@ -9,7 +9,6 @@ import { getAllCredentials } from '@/features/credentials/credentials.api';
 import { deleteSecretProviderConnection } from '@n8n/rest-api-client';
 import Modal from '@/app/components/Modal.vue';
 import { N8nButton, N8nInput, N8nLink, N8nInputLabel, N8nText } from '@n8n/design-system';
-import { useRouter } from 'vue-router';
 import { SECRETS_PROVIDER_CONNECTION_MODAL_KEY, VIEWS } from '@/app/constants';
 
 interface Props {
