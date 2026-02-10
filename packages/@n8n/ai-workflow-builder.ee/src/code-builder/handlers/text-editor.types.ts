@@ -71,8 +71,11 @@ export interface TextEditorResult {
  * Error thrown when no match is found for str_replace
  */
 export class NoMatchFoundError extends Error {
-	constructor(_searchStr: string) {
-		super('No match found for replacement. The exact string was not found in the file.');
+	constructor(_searchStr: string, nearMatchContext?: string) {
+		const base =
+			'No exact match found for str_replace. The old_str content was not found in the file.';
+		const message = nearMatchContext ? `${base}\n${nearMatchContext}` : base;
+		super(message);
 		this.name = 'NoMatchFoundError';
 	}
 }

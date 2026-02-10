@@ -1,4 +1,4 @@
-import { TextEditorHandler } from '../text-editor-handler';
+import { TextEditorHandler, findDivergenceContext } from '../text-editor-handler';
 import {
 	NoMatchFoundError,
 	MultipleMatchesError,
@@ -432,10 +432,53 @@ describe('TextEditorHandler', () => {
 		});
 	});
 
+	describe('trailing newline auto-correction', () => {
+		it('should auto-correct when old_str is missing trailing newline', () => {
+			handler.setWorkflowCode('const x = 1;\nconst y = 2;\n');
+
+			const result = handler.execute({
+				command: 'str_replace',
+				path: '/workflow.js',
+				old_str: 'const y = 2;', // missing trailing \n
+				new_str: 'const y = 3;',
+			});
+
+			expect(result).toBe('Edit applied successfully.');
+			expect(handler.getWorkflowCode()).toBe('const x = 1;\nconst y = 3;\n');
+		});
+
+		it('should auto-correct when old_str has extra trailing newline', () => {
+			handler.setWorkflowCode('const x = 1;\nconst y = 2;');
+
+			const result = handler.execute({
+				command: 'str_replace',
+				path: '/workflow.js',
+				old_str: 'const y = 2;\n', // extra trailing \n
+				new_str: 'const y = 3;',
+			});
+
+			expect(result).toBe('Edit applied successfully.');
+			expect(handler.getWorkflowCode()).toBe('const x = 1;\nconst y = 3;');
+		});
+
+		it('should not auto-correct when there are other differences beyond trailing newline', () => {
+			handler.setWorkflowCode('const x = 1;\nconst y = 2;');
+
+			expect(() =>
+				handler.execute({
+					command: 'str_replace',
+					path: '/workflow.js',
+					old_str: 'const z = 999;', // completely wrong
+					new_str: 'const z = 0;',
+				}),
+			).toThrow(NoMatchFoundError);
+		});
+	});
+
 	describe('error messages', () => {
 		it('NoMatchFoundError should have descriptive message', () => {
 			const error = new NoMatchFoundError('search string');
-			expect(error.message).toContain('No match found');
+			expect(error.message).toContain('No exact match found');
 			expect(error.name).toBe('NoMatchFoundError');
 		});
 
@@ -522,7 +565,7 @@ describe('TextEditorHandler', () => {
 					index: 1,
 					old_str: 'const c = 3;',
 					status: 'failed',
-					error: expect.stringContaining('No match found'),
+					error: expect.stringContaining('No exact match found'),
 				},
 			]);
 			expect(handler.getWorkflowCode()).toBe(originalCode);
@@ -606,7 +649,7 @@ describe('TextEditorHandler', () => {
 					index: 1,
 					old_str: 'const d = 4;',
 					status: 'failed',
-					error: expect.stringContaining('No match found'),
+					error: expect.stringContaining('No exact match found'),
 				},
 				{ index: 2, old_str: 'const c = 3;', status: 'not_attempted' },
 			]);
@@ -634,6 +677,83 @@ describe('TextEditorHandler', () => {
 			const statuses = result as BatchReplaceResult[];
 			expect(statuses[0].old_str.length).toBeLessThanOrEqual(83); // 80 + '...'
 			expect(statuses[0].old_str).toMatch(/\.\.\.$/);
+		});
+	});
+
+	describe('findDivergenceContext', () => {
+		it('should show divergence point with file lines when prefix matches', () => {
+			const code = 'line1\nline2\nline3\nline4\nline5';
+			const searchStr = 'line1\nline2\nline3_WRONG';
+
+			const result = findDivergenceContext(code, searchStr);
+
+			expect(result).toBeDefined();
+			expect(result).toContain('line 3');
+			// Should show the actual file line
+			expect(result).toContain('line3');
+		});
+
+		it('should return undefined when prefix match is too short', () => {
+			const code = 'abcdefghij\nklmnop';
+			const searchStr = 'xyz_completely_different';
+
+			const result = findDivergenceContext(code, searchStr);
+
+			expect(result).toBeUndefined();
+		});
+
+		it('should escape whitespace characters in old_str context', () => {
+			const code = 'hello world\nfoo bar\n';
+			const searchStr = 'hello world\nfoo baz\t';
+
+			const result = findDivergenceContext(code, searchStr);
+
+			expect(result).toBeDefined();
+			// Should show escaped \t in the old_str portion
+			expect(result).toContain('\\t');
+		});
+
+		it('should include match percentage', () => {
+			const code = 'abcdefghijklmnopqrstuvwxyz';
+			const searchStr = 'abcdefghijklmnopqrstZZZZZ';
+
+			const result = findDivergenceContext(code, searchStr);
+
+			expect(result).toBeDefined();
+			expect(result).toMatch(/\d+%/);
+		});
+
+		it('should show full file lines around divergence point', () => {
+			const code = '  function foo() {\n    return 1;\n  }\n  function bar() {\n    return 2;\n  }';
+			const searchStr =
+				'  function foo() {\n    return 1;\n  }\n  function bar() {\n    return WRONG;\n  }';
+
+			const result = findDivergenceContext(code, searchStr);
+
+			expect(result).toBeDefined();
+			// Should contain the full file line with line number
+			expect(result).toContain('return 2;');
+		});
+	});
+
+	describe('str_replace divergence diagnostics', () => {
+		it('should include divergence context in NoMatchFoundError when prefix matches', () => {
+			handler.setWorkflowCode('const x = 1;\nconst y = 2;\nconst z = 3;');
+
+			try {
+				handler.execute({
+					command: 'str_replace',
+					path: '/workflow.js',
+					old_str: 'const x = 1;\nconst y = 2;\nconst z = WRONG;',
+					new_str: 'replacement',
+				});
+				fail('Expected NoMatchFoundError');
+			} catch (error) {
+				expect(error).toBeInstanceOf(NoMatchFoundError);
+				expect((error as NoMatchFoundError).message).toContain('No exact match found');
+				// Should include divergence context with actual file line
+				expect((error as NoMatchFoundError).message).toContain('const z = 3;');
+			}
 		});
 	});
 });

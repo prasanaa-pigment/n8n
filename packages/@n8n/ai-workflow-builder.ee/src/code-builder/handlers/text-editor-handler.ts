@@ -46,6 +46,69 @@ export function formatCodeWithLineNumbers(code: string): string {
 	return lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
 }
 
+/** Min prefix length to consider a near-match useful */
+const MIN_PREFIX_LENGTH = 10;
+
+/** Number of file lines to show around divergence point */
+const CONTEXT_LINES = 3;
+
+/** Max chars of old_str to show around divergence */
+const OLD_STR_CONTEXT_LENGTH = 40;
+
+function escapeWhitespace(str: string): string {
+	return str.replace(/\n/g, '\\n').replace(/\t/g, '\\t').replace(/\r/g, '\\r');
+}
+
+/**
+ * Find where old_str diverges from the code and return diagnostic context.
+ * Uses binary search for the longest prefix of searchStr that exists in code,
+ * then shows the divergence point with actual file lines.
+ */
+export function findDivergenceContext(code: string, searchStr: string): string | undefined {
+	// Binary search for longest matching prefix
+	let lo = 0;
+	let hi = searchStr.length;
+
+	while (lo < hi) {
+		const mid = Math.ceil((lo + hi) / 2);
+		if (code.includes(searchStr.substring(0, mid))) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
+	}
+
+	const matchLength = lo;
+	if (matchLength < MIN_PREFIX_LENGTH) return undefined;
+
+	const matchPos = code.indexOf(searchStr.substring(0, matchLength));
+	const divergePos = matchPos + matchLength;
+	const percentage = Math.round((matchLength / searchStr.length) * 100);
+
+	// Compute divergence line number (1-indexed)
+	const codeUpToDiverge = code.substring(0, divergePos);
+	const divergeLine = codeUpToDiverge.split('\n').length;
+
+	// Extract old_str context around divergence
+	const oldStrRemainder = searchStr.substring(matchLength, matchLength + OLD_STR_CONTEXT_LENGTH);
+	const oldStrPrefix = searchStr.substring(Math.max(0, matchLength - 20), matchLength);
+
+	// Extract full file lines around divergence
+	const codeLines = code.split('\n');
+	const startLine = Math.max(0, divergeLine - CONTEXT_LINES);
+	const endLine = Math.min(codeLines.length, divergeLine + 1);
+	const fileContext = codeLines
+		.slice(startLine, endLine)
+		.map((line, i) => `    ${startLine + i + 1}: ${line}`)
+		.join('\n');
+
+	return (
+		`Closest match (${percentage}% of old_str matched, diverges at line ${divergeLine}):\n` +
+		`  old_str: ...${escapeWhitespace(oldStrPrefix)}>>> ${escapeWhitespace(oldStrRemainder)}\n` +
+		`  file:\n${fileContext}`
+	);
+}
+
 /** Debug log callback type */
 type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
 
@@ -209,8 +272,19 @@ export class TextEditorHandler {
 		this.debugLog('STR_REPLACE', 'Occurrence count', { count });
 
 		if (count === 0) {
+			// Try toggling trailing newline — common LLM mistake
+			const normalized = old_str.endsWith('\n') ? old_str.slice(0, -1) : old_str + '\n';
+			const normalizedCount = this.countOccurrences(this.code, normalized);
+			if (normalizedCount === 1) {
+				this.debugLog('STR_REPLACE', 'Auto-corrected trailing newline mismatch');
+				const escapedNew = new_str.replace(/\$/g, '$$$$');
+				this.code = this.code.replace(normalized, escapedNew);
+				return 'Edit applied successfully.';
+			}
+
 			this.debugLog('STR_REPLACE', 'No match found for replacement');
-			throw new NoMatchFoundError(old_str);
+			const context = findDivergenceContext(this.code, old_str);
+			throw new NoMatchFoundError(old_str, context);
 		}
 
 		if (count > 1) {
