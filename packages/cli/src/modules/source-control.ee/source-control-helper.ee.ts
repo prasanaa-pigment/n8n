@@ -87,10 +87,16 @@ export function mergeRemoteCrendetialDataIntoLocalCredentialData({
 		} else if (typeof remoteValue === 'number' || typeof remoteValue === 'boolean') {
 			merged[key] = remoteValue;
 		} else if (typeof remoteValue === 'object' && remoteValue !== null) {
-			merged[key] = mergeRemoteCrendetialDataIntoLocalCredentialData({
-				local: local[key] as ICredentialDataDecryptedObject,
-				remote: remoteValue as ICredentialDataDecryptedObject,
-			});
+			const localValue = local[key];
+			// If local doesn't have this key, or it's not an object, just use the remote value
+			if (!localValue || typeof localValue !== 'object') {
+				merged[key] = remoteValue;
+			} else {
+				merged[key] = mergeRemoteCrendetialDataIntoLocalCredentialData({
+					local: localValue as ICredentialDataDecryptedObject,
+					remote: remoteValue as ICredentialDataDecryptedObject,
+				});
+			}
 		}
 	}
 

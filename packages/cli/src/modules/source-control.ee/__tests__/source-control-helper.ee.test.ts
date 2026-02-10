@@ -910,6 +910,45 @@ describe('Source Control Helper', () => {
 			expect(result.notExpr2).toBe('');
 			expect(result.notExpr3).toBe('');
 		});
+
+		it('should preserve arrays as arrays and not convert them to objects with string indexes', () => {
+			const data = {
+				headers: {
+					values: [
+						{ name: 'header1', value: '={{ $json.val1 }}' },
+						{ name: 'header2', value: '={{ $json.val2 }}' },
+						{ name: 'header3', value: '={{ $json.val3 }}' },
+					],
+				},
+				ports: [8080, 9090, 3000],
+				tags: ['tag1', 'tag2', 'tag3'],
+			} as any;
+
+			const result = sanitizeCredentialData(data);
+
+			// Arrays should remain as arrays, not be converted to objects with string indexes
+			// This is the key fix: deepCopy preserves arrays, while object spread converts them to objects
+			expect(Array.isArray(result.headers?.values)).toBe(true);
+			expect(Array.isArray(result.ports)).toBe(true);
+			expect(Array.isArray(result.tags)).toBe(true);
+
+			// Verify array structure is preserved
+			expect((result.headers?.values as any).length).toBe(3);
+			expect((result.ports as any).length).toBe(3);
+			expect((result.tags as any).length).toBe(3);
+
+			// Verify nested object in array: plain strings become empty, expressions preserved, numbers preserved
+			expect((result.headers?.values as any)[0].name).toBe(''); // Plain string sanitized
+			expect((result.headers?.values as any)[0].value).toBe('={{ $json.val1 }}'); // Expression preserved
+			expect((result.ports as any)[0]).toBe(8080); // Numbers preserved
+			expect((result.ports as any)[1]).toBe(9090);
+			expect((result.ports as any)[2]).toBe(3000);
+
+			// String values in arrays should be converted to empty strings (secrets)
+			expect((result.tags as any)[0]).toBe('');
+			expect((result.tags as any)[1]).toBe('');
+			expect((result.tags as any)[2]).toBe('');
+		});
 	});
 
 	describe('mergeCredentialData', () => {
