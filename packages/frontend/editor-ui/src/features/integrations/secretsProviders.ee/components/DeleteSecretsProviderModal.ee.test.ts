@@ -159,8 +159,13 @@ describe('DeleteSecretsProviderModal', () => {
 			},
 		});
 
-		expect(credentialsApi.getAllCredentials).toHaveBeenCalledWith(expect.anything(), {
-			externalSecretsStore: 'aws-prod',
-		});
+		expect(credentialsApi.getAllCredentials).toHaveBeenCalledWith(
+			expect.anything(),
+			undefined,
+			undefined,
+			undefined,
+			true,
+			'aws-prod',
+		);
 	});
 });
