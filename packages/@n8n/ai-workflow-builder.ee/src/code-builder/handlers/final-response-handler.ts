@@ -15,11 +15,6 @@ import { extractWorkflowCode } from '../utils/extract-code';
 import { formatWarnings } from '../utils/format-warnings';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Parse and validate function type
  */
 type ParseAndValidateFn = (

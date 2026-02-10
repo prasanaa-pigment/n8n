@@ -8,11 +8,9 @@ import { AgentIterationHandler } from '../agent-iteration-handler';
 
 describe('AgentIterationHandler', () => {
 	let handler: AgentIterationHandler;
-	let mockDebugLog: jest.Mock;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		mockDebugLog = jest.fn();
 	});
 
 	describe('invokeLlm', () => {
@@ -21,7 +19,6 @@ describe('AgentIterationHandler', () => {
 				const onTokenUsage = jest.fn();
 
 				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
 					onTokenUsage,
 				});
 
@@ -64,7 +61,6 @@ describe('AgentIterationHandler', () => {
 				const onTokenUsage = jest.fn();
 
 				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
 					onTokenUsage,
 				});
 
@@ -98,7 +94,6 @@ describe('AgentIterationHandler', () => {
 				const onTokenUsage = jest.fn();
 
 				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
 					onTokenUsage,
 				});
 
@@ -127,9 +122,7 @@ describe('AgentIterationHandler', () => {
 			});
 
 			it('should work without onTokenUsage callback', async () => {
-				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
-				});
+				handler = new AgentIterationHandler({});
 
 				const mockResponse = new AIMessage({
 					content: 'Hello',
@@ -166,7 +159,6 @@ describe('AgentIterationHandler', () => {
 				const iterationCallbacks = [{ handleLLMStart: jest.fn() }];
 
 				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
 					callbacks: constructorCallbacks,
 				});
 
@@ -203,7 +195,6 @@ describe('AgentIterationHandler', () => {
 				const constructorCallbacks = [{ handleLLMStart: jest.fn() }];
 
 				handler = new AgentIterationHandler({
-					debugLog: mockDebugLog,
 					callbacks: constructorCallbacks,
 				});
 
@@ -241,7 +232,6 @@ describe('AgentIterationHandler', () => {
 		it('should return the configured callbacks', () => {
 			const callbacks = [{ handleLLMStart: jest.fn() }];
 			handler = new AgentIterationHandler({
-				debugLog: mockDebugLog,
 				callbacks,
 			});
 
@@ -249,9 +239,7 @@ describe('AgentIterationHandler', () => {
 		});
 
 		it('should return undefined when no callbacks configured', () => {
-			handler = new AgentIterationHandler({
-				debugLog: mockDebugLog,
-			});
+			handler = new AgentIterationHandler({});
 
 			expect(handler.getCallbacks()).toBeUndefined();
 		});
@@ -261,7 +249,6 @@ describe('AgentIterationHandler', () => {
 		it('should return the configured run metadata', () => {
 			const runMetadata = { sessionId: 'test-123' };
 			handler = new AgentIterationHandler({
-				debugLog: mockDebugLog,
 				runMetadata,
 			});
 
@@ -269,9 +256,7 @@ describe('AgentIterationHandler', () => {
 		});
 
 		it('should return undefined when no run metadata configured', () => {
-			handler = new AgentIterationHandler({
-				debugLog: mockDebugLog,
-			});
+			handler = new AgentIterationHandler({});
 
 			expect(handler.getRunMetadata()).toBeUndefined();
 		});

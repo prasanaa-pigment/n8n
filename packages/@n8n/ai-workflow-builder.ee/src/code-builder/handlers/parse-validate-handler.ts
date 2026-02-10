@@ -14,15 +14,9 @@ import type { ParseAndValidateResult, ValidationWarning } from '../types';
 import { stripImportStatements } from '../utils/extract-code';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Configuration for ParseValidateHandler
  */
 export interface ParseValidateHandlerConfig {
-	debugLog?: DebugLogFn;
 	logger?: Logger;
 }
 
@@ -42,11 +36,9 @@ interface ValidationIssue {
 }
 
 export class ParseValidateHandler {
-	private debugLog: DebugLogFn;
 	private logger?: Logger;
 
 	constructor(config: ParseValidateHandlerConfig = {}) {
-		this.debugLog = config.debugLog ?? (() => {});
 		this.logger = config.logger;
 	}
 
@@ -61,13 +53,6 @@ export class ParseValidateHandler {
 		logLevel: 'warn' | 'info',
 	): void {
 		if (issues.length === 0) return;
-
-		this.debugLog('PARSE_VALIDATE', `${context.toUpperCase()}`, {
-			[context.toLowerCase()]: issues.map((i) => ({
-				message: i.message,
-				code: i.code,
-			})),
-		});
 
 		if (logLevel === 'warn') {
 			this.logger?.warn(`Graph validation ${context.toLowerCase()}`, {
@@ -135,51 +120,26 @@ export class ParseValidateHandler {
 		code: string,
 		currentWorkflow?: WorkflowJSON,
 	): Promise<ParseAndValidateResult> {
-		this.debugLog('PARSE_VALIDATE', '========== PARSING WORKFLOW CODE ==========');
-		this.debugLog('PARSE_VALIDATE', 'Input code', {
-			codeLength: code.length,
-			codePreview: code.substring(0, 500),
-			codeEnd: code.substring(Math.max(0, code.length - 500)),
-		});
-
 		// Strip import statements before parsing - SDK functions are available as globals
 		const codeToParse = stripImportStatements(code);
-		this.debugLog('PARSE_VALIDATE', 'Code after stripping imports', {
-			originalLength: code.length,
-			strippedLength: codeToParse.length,
-		});
 
 		try {
 			// Parse the TypeScript code to WorkflowBuilder
 			this.logger?.debug('Parsing WorkflowCode', { codeLength: codeToParse.length });
-			this.debugLog('PARSE_VALIDATE', 'Calling parseWorkflowCodeToBuilder...');
 			const parseStartTime = Date.now();
 			const builder = parseWorkflowCodeToBuilder(codeToParse);
 			const parseDuration = Date.now() - parseStartTime;
 
-			this.debugLog('PARSE_VALIDATE', 'Code parsed to builder', {
-				parseDurationMs: parseDuration,
-			});
-
 			// Regenerate node IDs deterministically to ensure stable IDs across re-parses
 			builder.regenerateNodeIds();
-			this.debugLog('PARSE_VALIDATE', 'Node IDs regenerated deterministically');
 
 			// Run graph + JSON validation
 			const allWarnings: ValidationWarning[] = [];
 
 			// Validate the graph structure BEFORE converting to JSON
-			this.debugLog('PARSE_VALIDATE', 'Validating graph structure...');
 			const graphValidateStartTime = Date.now();
 			const graphValidation = builder.validate();
 			const graphValidateDuration = Date.now() - graphValidateStartTime;
-
-			this.debugLog('PARSE_VALIDATE', 'Graph validation complete', {
-				validateDurationMs: graphValidateDuration,
-				isValid: graphValidation.valid,
-				errorCount: graphValidation.errors.length,
-				warningCount: graphValidation.warnings.length,
-			});
 
 			// Collect graph validation errors as warnings for agent self-correction
 			this.collectValidationIssues(
@@ -201,17 +161,9 @@ export class ParseValidateHandler {
 			const json = builder.toJSON();
 
 			// Run JSON-based validation for additional checks
-			this.debugLog('PARSE_VALIDATE', 'Running JSON validation...');
 			const validateStartTime = Date.now();
 			const validationResult = validateWorkflow(json);
 			const validateDuration = Date.now() - validateStartTime;
-
-			this.debugLog('PARSE_VALIDATE', 'JSON validation complete', {
-				validateDurationMs: validateDuration,
-				isValid: validationResult.valid,
-				errorCount: validationResult.errors.length,
-				warningCount: validationResult.warnings.length,
-			});
 
 			// Collect JSON validation errors as warnings for agent self-correction
 			this.collectValidationIssues(
@@ -233,31 +185,7 @@ export class ParseValidateHandler {
 			builder.generatePinData({ beforeWorkflow: currentWorkflow });
 
 			// Convert to JSON
-			this.debugLog('PARSE_VALIDATE', 'Converting to JSON...');
 			const workflowJson: WorkflowJSON = builder.toJSON();
-
-			this.debugLog('PARSE_VALIDATE', 'Workflow converted to JSON', {
-				workflowId: workflowJson.id,
-				workflowName: workflowJson.name,
-				nodeCount: workflowJson.nodes.length,
-				connectionCount: Object.keys(workflowJson.connections).length,
-			});
-
-			// Log each node
-			this.debugLog('PARSE_VALIDATE', 'Parsed nodes', {
-				nodes: workflowJson.nodes.map((n) => ({
-					id: n.id,
-					name: n.name,
-					type: n.type,
-					position: n.position,
-					parametersKeys: n.parameters ? Object.keys(n.parameters) : [],
-				})),
-			});
-
-			// Log connections
-			this.debugLog('PARSE_VALIDATE', 'Parsed connections', {
-				connections: workflowJson.connections,
-			});
 
 			this.logger?.debug('Parsed workflow', {
 				id: workflowJson.id,
@@ -265,22 +193,9 @@ export class ParseValidateHandler {
 				nodeCount: workflowJson.nodes.length,
 			});
 
-			// Log full workflow JSON
-			this.debugLog('PARSE_VALIDATE', 'Final workflow JSON', {
-				workflow: JSON.stringify(workflowJson, null, 2),
-			});
-
-			this.debugLog('PARSE_VALIDATE', '========== PARSING COMPLETE ==========');
-
 			// Return both workflow and warnings for agent self-correction
 			return { workflow: workflowJson, warnings: allWarnings };
 		} catch (error) {
-			this.debugLog('PARSE_VALIDATE', '========== PARSING FAILED ==========', {
-				errorMessage: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined,
-				code,
-			});
-
 			this.logger?.error('Failed to parse WorkflowCode', {
 				error: error instanceof Error ? error.message : String(error),
 				code: code.substring(0, 500),

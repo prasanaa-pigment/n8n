@@ -30,15 +30,9 @@ function hasUsageMetadata(metadata: unknown): metadata is ResponseMetadataWithUs
 }
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Configuration for AgentIterationHandler
  */
 export interface AgentIterationHandlerConfig {
-	debugLog?: DebugLogFn;
 	onTokenUsage?: (usage: TokenUsage) => void;
 	/** Optional LangChain callbacks (e.g., LangSmith tracer) for LLM invocations */
 	callbacks?: Callbacks;

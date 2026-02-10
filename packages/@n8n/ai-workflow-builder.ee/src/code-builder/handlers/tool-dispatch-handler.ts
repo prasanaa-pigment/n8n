@@ -59,11 +59,6 @@ export function parseReplacements(raw: unknown): StrReplacement[] {
 }
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Tool call structure from LLM response
  */
 export interface ToolCall {
@@ -79,7 +74,6 @@ export interface ToolDispatchHandlerConfig {
 	toolsMap: Map<string, StructuredToolInterface>;
 	toolDisplayTitles?: Map<string, string>;
 	validateToolHandler: ValidateToolHandler;
-	debugLog: DebugLogFn;
 	evalLogger?: EvaluationLogger;
 }
 
@@ -122,14 +116,12 @@ export class ToolDispatchHandler {
 	private toolsMap: Map<string, StructuredToolInterface>;
 	private toolDisplayTitles?: Map<string, string>;
 	private validateToolHandler: ValidateToolHandler;
-	private debugLog: DebugLogFn;
 	private evalLogger?: EvaluationLogger;
 
 	constructor(config: ToolDispatchHandlerConfig) {
 		this.toolsMap = config.toolsMap;
 		this.toolDisplayTitles = config.toolDisplayTitles;
 		this.validateToolHandler = config.validateToolHandler;
-		this.debugLog = config.debugLog;
 		this.evalLogger = config.evalLogger;
 	}
 
@@ -160,17 +152,9 @@ export class ToolDispatchHandler {
 		let validatePassedThisIteration = false;
 		let hasUnvalidatedEdits: boolean | undefined;
 
-		this.debugLog('TOOL_DISPATCH', 'Processing tool calls...', {
-			toolCalls: toolCalls.map((tc) => ({
-				name: tc.name,
-				id: tc.id ?? 'unknown',
-			})),
-		});
-
 		for (const toolCall of toolCalls) {
 			// Skip tool calls without an ID (shouldn't happen but handle gracefully)
 			if (!toolCall.id) {
-				this.debugLog('TOOL_DISPATCH', 'Skipping tool call without ID', { name: toolCall.name });
 				continue;
 			}
 
@@ -324,11 +308,6 @@ export class ToolDispatchHandler {
 		toolCall: ToolCall,
 		messages: BaseMessage[],
 	): AsyncGenerator<StreamOutput, void, unknown> {
-		this.debugLog('TOOL_CALL', `Executing tool: ${toolCall.name}`, {
-			toolCallId: toolCall.id,
-			args: toolCall.args,
-		});
-
 		const displayTitle = this.toolDisplayTitles?.get(toolCall.name);
 
 		// Stream tool progress
@@ -348,7 +327,6 @@ export class ToolDispatchHandler {
 		const tool = this.toolsMap.get(toolCall.name);
 		if (!tool) {
 			const errorMessage = `Tool '${toolCall.name}' not found`;
-			this.debugLog('TOOL_CALL', errorMessage);
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCall.id!,
@@ -380,12 +358,6 @@ export class ToolDispatchHandler {
 			// Serialize result for logging and message
 			const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
 
-			this.debugLog('TOOL_CALL', `Tool ${toolCall.name} completed`, {
-				toolDurationMs: toolDuration,
-				resultLength: resultStr.length,
-				result: resultStr,
-			});
-
 			// Log full tool output to evaluation logger
 			this.evalLogger?.logToolCall(toolCall.name, toolCall.args, resultStr, toolDuration);
 
@@ -411,11 +383,6 @@ export class ToolDispatchHandler {
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			const errorStack = error instanceof Error ? error.stack : undefined;
-			this.debugLog('TOOL_CALL', `Tool ${toolCall.name} failed`, {
-				error: errorMessage,
-				stack: errorStack,
-			});
 
 			messages.push(
 				new ToolMessage({

@@ -16,11 +16,6 @@ import { pushValidationFeedback } from '../utils/content-extractors';
 import { formatWarnings } from '../utils/format-warnings';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Parse and validate function type
  */
 type ParseAndValidateFn = (
@@ -39,7 +34,6 @@ type GetErrorContextFn = (code: string, errorMessage: string) => string;
 export interface AutoFinalizeHandlerConfig {
 	parseAndValidate: ParseAndValidateFn;
 	getErrorContext: GetErrorContextFn;
-	debugLog?: DebugLogFn;
 }
 
 /**
@@ -81,12 +75,10 @@ export interface AutoFinalizeResult {
 export class AutoFinalizeHandler {
 	private parseAndValidate: ParseAndValidateFn;
 	private getErrorContext: GetErrorContextFn;
-	private debugLog: DebugLogFn;
 
 	constructor(config: AutoFinalizeHandlerConfig) {
 		this.parseAndValidate = config.parseAndValidate;
 		this.getErrorContext = config.getErrorContext;
-		this.debugLog = config.debugLog ?? (() => {});
 	}
 
 	/**
@@ -104,7 +96,6 @@ export class AutoFinalizeHandler {
 
 		// No code yet - prompt to create
 		if (!code) {
-			this.debugLog('AUTO_FINALIZE', 'No code exists, prompting to create');
 			pushValidationFeedback(
 				messages,
 				'Please use the text editor tool to create or edit the workflow code.',
@@ -113,32 +104,16 @@ export class AutoFinalizeHandler {
 		}
 
 		// Auto-validate and finalize
-		this.debugLog('AUTO_FINALIZE', '========== AUTO-FINALIZE (NO TOOL CALLS) ==========', {
-			codeLength: code.length,
-		});
-
 		const parseStartTime = Date.now();
 		try {
 			const result = await this.parseAndValidate(code, currentWorkflow);
 			const parseDuration = Date.now() - parseStartTime;
-
-			this.debugLog('AUTO_FINALIZE', 'Parse completed', {
-				parseDurationMs: parseDuration,
-				warningCount: result.warnings.length,
-				nodeCount: result.workflow.nodes.length,
-			});
 
 			// Handle warnings
 			if (result.warnings.length > 0) {
 				const newWarnings = warningTracker
 					? warningTracker.filterNewWarnings(result.warnings)
 					: result.warnings;
-
-				this.debugLog('AUTO_FINALIZE', 'Validation warnings', {
-					warnings: result.warnings,
-					totalWarnings: result.warnings.length,
-					newWarnings: newWarnings.length,
-				});
 
 				if (newWarnings.length > 0) {
 					if (warningTracker) {
@@ -156,17 +131,9 @@ export class AutoFinalizeHandler {
 
 					return { success: false, parseDuration };
 				}
-
-				// All warnings are repeated - treat as success
-				this.debugLog('AUTO_FINALIZE', 'All warnings are repeated, treating as success');
 			}
 
 			// Success - workflow validated
-			this.debugLog('AUTO_FINALIZE', '========== AUTO-FINALIZE SUCCESS ==========', {
-				nodeCount: result.workflow.nodes.length,
-				nodeNames: result.workflow.nodes.map((n) => n.name),
-			});
-
 			return {
 				success: true,
 				workflow: result.workflow,
@@ -176,11 +143,6 @@ export class AutoFinalizeHandler {
 			const parseDuration = Date.now() - parseStartTime;
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			const errorContext = this.getErrorContext(code, errorMessage);
-
-			this.debugLog('AUTO_FINALIZE', '========== AUTO-FINALIZE FAILED ==========', {
-				parseDurationMs: parseDuration,
-				errorMessage,
-			});
 
 			// Send error back to agent for correction
 			pushValidationFeedback(

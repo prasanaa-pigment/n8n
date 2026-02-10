@@ -16,10 +16,6 @@ import type { Logger } from '@n8n/backend-common';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 import { setSchemaBaseDirs } from '@n8n/workflow-sdk';
 import type { ITelemetryTrackProperties } from 'n8n-workflow';
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { inspect } from 'node:util';
 
 import type {
 	StreamOutput,
@@ -81,8 +77,6 @@ export class CodeBuilderAgent {
 	private finalResponseHandler: FinalResponseHandler;
 	private chatSetupHandler: ChatSetupHandler;
 	private toolDispatchHandler: ToolDispatchHandler;
-	/** @TODO Current session log file path (for temporary file-based logging) */
-	private currentLogFile: string | null = null;
 	/** Optional callback for emitting telemetry events */
 	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 	/** Token usage accumulator - tracks original callback and accumulated totals */
@@ -96,10 +90,6 @@ export class CodeBuilderAgent {
 		};
 
 	constructor(config: CodeBuilderAgentConfig) {
-		this.debugLog('CONSTRUCTOR', 'Initializing CodeBuilderAgent...', {
-			nodeTypesCount: config.nodeTypes.length,
-			hasLogger: !!config.logger,
-		});
 		this.nodeTypeParser = new NodeTypeParser(config.nodeTypes);
 		this.logger = config.logger;
 		this.evalLogger = config.evalLogger;
@@ -111,9 +101,7 @@ export class CodeBuilderAgent {
 			setSchemaBaseDirs(config.nodeDefinitionDirs);
 		}
 
-		// Initialize parse/validate handler with debug logging
 		this.parseValidateHandler = new ParseValidateHandler({
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 			logger: config.logger,
 		});
 
@@ -123,7 +111,6 @@ export class CodeBuilderAgent {
 				await this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
 			getErrorContext: (code, errorMessage) =>
 				this.parseValidateHandler.getErrorContext(code, errorMessage),
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 		});
 
 		// Initialize validate tool handler
@@ -132,12 +119,10 @@ export class CodeBuilderAgent {
 				await this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
 			getErrorContext: (code, errorMessage) =>
 				this.parseValidateHandler.getErrorContext(code, errorMessage),
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 		});
 
 		// Initialize iteration handler with wrapped token callback that accumulates totals
 		this.iterationHandler = new AgentIterationHandler({
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 			onTokenUsage: (usage) => {
 				// Accumulate tokens for telemetry
 				this.accumulatedTokens.inputTokens += usage.inputTokens;
@@ -154,7 +139,6 @@ export class CodeBuilderAgent {
 		this.finalResponseHandler = new FinalResponseHandler({
 			parseAndValidate: async (code, currentWorkflow) =>
 				await this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 			evalLogger: config.evalLogger,
 		});
 
@@ -171,7 +155,6 @@ export class CodeBuilderAgent {
 			llm: config.llm,
 			tools: this.tools,
 			enableTextEditorConfig: config.enableTextEditor,
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 			parseAndValidate: async (code, currentWorkflow) =>
 				await this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
 			getErrorContext: (code, errorMessage) =>
@@ -191,84 +174,11 @@ export class CodeBuilderAgent {
 				[CODE_BUILDER_THINK_TOOL.toolName, CODE_BUILDER_THINK_TOOL.displayTitle],
 			]),
 			validateToolHandler: this.validateToolHandler,
-			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
 			evalLogger: config.evalLogger,
 		});
-
-		this.debugLog('CONSTRUCTOR', 'CodeBuilderAgent initialized', {
-			toolNames: this.tools.map((t) => t.name),
-		});
 	}
 
-	/**
-	 * Initialize a log file for the current chat session.
-	 * Creates a file with timestamp, workflow ID, and prompt snippet in the name.
-	 */
-	private initLogFile(workflowId: string | undefined, prompt: string): void {
-		const logDir = join(tmpdir(), 'n8n-code-builder-logs');
-		if (!existsSync(logDir)) {
-			mkdirSync(logDir, { recursive: true });
-		}
-
-		const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-		const id = workflowId ?? `session-${Date.now()}`;
-		// Sanitize prompt for filename: take first 30 chars, replace non-alphanumeric with dash
-		const promptSnippet = prompt
-			.substring(0, 30)
-			.replace(/[^a-zA-Z0-9]/g, '-')
-			.replace(/-+/g, '-')
-			.replace(/^-|-$/g, '')
-			.toLowerCase();
-
-		const filename = `${timestamp}_${id}_${promptSnippet}.log`;
-		this.currentLogFile = join(logDir, filename);
-
-		// Write header to log file
-		const header = `=== Code Builder Agent Log ===
-Timestamp: ${new Date().toISOString()}
-Workflow ID: ${workflowId ?? 'N/A'}
-Prompt: ${prompt}
-Log File: ${this.currentLogFile}
-${'='.repeat(50)}
-
-`;
-		appendFileSync(this.currentLogFile, header);
-	}
-
-	/**
-	 * Debug logging helper - logs to console with timestamp and prefix.
-	 * Also writes to file if a log file is initialized.
-	 * Uses util.inspect for terminal-friendly output with full depth.
-	 */
 	private debugLog(context: string, message: string, data?: Record<string, unknown>): void {
-		const timestamp = new Date().toISOString();
-		const prefix = `[CODE-BUILDER][${timestamp}][${context}]`;
-
-		// Format the log entry
-		let logEntry: string;
-		if (data) {
-			const formatted = inspect(data, {
-				depth: null,
-				colors: false, // No colors for file output
-				maxStringLength: null,
-				maxArrayLength: null,
-				breakLength: 120,
-			});
-			logEntry = `${prefix} ${message}\n${formatted}\n`;
-		} else {
-			logEntry = `${prefix} ${message}\n`;
-		}
-
-		// Write to file if initialized
-		if (this.currentLogFile) {
-			try {
-				appendFileSync(this.currentLogFile, logEntry);
-			} catch {
-				// Silently ignore file write errors
-			}
-		}
-
-		// Also log to eval logger if available
 		if (this.evalLogger) {
 			this.evalLogger.log(`CODE-BUILDER:${context}`, message, data);
 		}
@@ -361,18 +271,7 @@ ${'='.repeat(50)}
 		// Capture before workflow for node diff calculation
 		const beforeWorkflow = payload.workflowContext?.currentWorkflow as WorkflowJSON | undefined;
 
-		// Initialize log file for this session
 		const workflowId = beforeWorkflow?.id;
-		this.initLogFile(workflowId, payload.message);
-
-		this.debugLog('CHAT', '========== STARTING CHAT ==========');
-		this.debugLog('CHAT', 'Input payload', {
-			userId,
-			messageLength: payload.message.length,
-			message: payload.message,
-			hasWorkflowContext: !!payload.workflowContext,
-			hasCurrentWorkflow: !!payload.workflowContext?.currentWorkflow,
-		});
 
 		// Track state for telemetry in catch block
 		let iteration = 0;
@@ -384,7 +283,6 @@ ${'='.repeat(50)}
 			});
 
 			// Setup phase - build prompt, bind tools, format messages, initialize handlers
-			this.debugLog('CHAT', 'Running setup phase...');
 			const setupResult = await this.chatSetupHandler.execute({
 				payload,
 				historyContext,
@@ -421,12 +319,6 @@ ${'='.repeat(50)}
 				);
 			}
 
-			const llmDuration = Date.now() - startTime;
-			this.debugLog('CHAT', 'Agentic loop complete', {
-				iterations: iteration,
-				totalLlmDurationMs: llmDuration,
-			});
-
 			// Log success
 			this.logger?.info('Code builder agent generated workflow', {
 				userId,
@@ -435,7 +327,6 @@ ${'='.repeat(50)}
 			});
 
 			// Stream workflow update
-			this.debugLog('CHAT', 'Streaming workflow update');
 			yield {
 				messages: [
 					{
@@ -460,12 +351,6 @@ ${'='.repeat(50)}
 			};
 
 			const totalDuration = Date.now() - startTime;
-			this.debugLog('CHAT', '========== CHAT COMPLETE ==========', {
-				totalDurationMs: totalDuration,
-				parseDurationMs: parseDuration,
-				nodeCount: workflow.nodes.length,
-				iterations: iteration,
-			});
 
 			// Emit success telemetry
 			this.emitTelemetryEvent({
@@ -483,11 +368,6 @@ ${'='.repeat(50)}
 			const rawErrorMessage = error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
 			const userFacingMessage = sanitizeLlmErrorMessage(error);
-
-			this.debugLog('CHAT', '========== CHAT FAILED ==========', {
-				totalDurationMs: totalDuration,
-				errorMessage: rawErrorMessage,
-			});
 
 			// Log raw error for internal visibility
 			this.evalLogger?.logError('CODE-BUILDER:FATAL', rawErrorMessage, undefined, errorStack);
@@ -547,7 +427,6 @@ ${'='.repeat(50)}
 			previousMessages,
 		} = params;
 
-		this.debugLog('CHAT', 'Starting agentic loop...');
 		const state: AgenticLoopState = {
 			iteration: 0,
 			consecutiveParseErrors: 0,
@@ -566,14 +445,9 @@ ${'='.repeat(50)}
 				const preExisting = this.parseValidateHandler.validateExistingWorkflow(currentWorkflow);
 				if (preExisting.length > 0) {
 					state.warningTracker.markAsPreExisting(preExisting);
-					this.debugLog('PRE_VALIDATE', 'Marked pre-existing warnings', {
-						count: preExisting.length,
-					});
 				}
-			} catch (error) {
-				this.debugLog('PRE_VALIDATE', 'Pre-validation failed (non-fatal)', {
-					error: error instanceof Error ? error.message : String(error),
-				});
+			} catch {
+				// Pre-validation failure is non-fatal
 			}
 		}
 
@@ -676,7 +550,6 @@ ${'='.repeat(50)}
 	 */
 	private checkConsecutiveParseErrors(count: number): void {
 		if (count >= 3) {
-			this.debugLog('CHAT', 'Three consecutive parsing errors - failing');
 			throw new Error('Failed to parse workflow code after 3 consecutive attempts.');
 		}
 	}
@@ -811,7 +684,6 @@ ${'='.repeat(50)}
 
 		// Skip validation if code exists but no edits since last validation
 		if (!state.hasUnvalidatedEdits && code) {
-			this.debugLog('CHAT', 'Text editor mode: no unvalidated edits, skipping re-validation');
 			if (state.workflow) {
 				state.sourceCode = code;
 				return { shouldBreak: true };
@@ -820,7 +692,6 @@ ${'='.repeat(50)}
 			return { shouldBreak: false };
 		}
 
-		this.debugLog('CHAT', 'Text editor mode: no tool calls, auto-finalizing');
 		state.textEditorValidateAttempts++;
 		state.hasUnvalidatedEdits = false;
 

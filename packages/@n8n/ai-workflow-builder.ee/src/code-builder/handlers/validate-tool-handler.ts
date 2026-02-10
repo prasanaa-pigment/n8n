@@ -16,11 +16,6 @@ import type { ParseAndValidateResult } from '../types';
 import { formatWarnings } from '../utils/format-warnings';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Parse and validate function type
  */
 type ParseAndValidateFn = (
@@ -39,7 +34,6 @@ type GetErrorContextFn = (code: string, errorMessage: string) => string;
 export interface ValidateToolHandlerConfig {
 	parseAndValidate: ParseAndValidateFn;
 	getErrorContext: GetErrorContextFn;
-	debugLog?: DebugLogFn;
 }
 
 /**
@@ -75,12 +69,10 @@ export interface ValidateToolResult {
 export class ValidateToolHandler {
 	private parseAndValidate: ParseAndValidateFn;
 	private getErrorContext: GetErrorContextFn;
-	private debugLog: DebugLogFn;
 
 	constructor(config: ValidateToolHandlerConfig) {
 		this.parseAndValidate = config.parseAndValidate;
 		this.getErrorContext = config.getErrorContext;
-		this.debugLog = config.debugLog ?? (() => {});
 	}
 
 	/**
@@ -95,18 +87,11 @@ export class ValidateToolHandler {
 	): AsyncGenerator<StreamOutput, ValidateToolResult, unknown> {
 		const { toolCallId, code, currentWorkflow, iteration, messages, warningTracker } = params;
 
-		this.debugLog('VALIDATE_TOOL', '========== VALIDATE ATTEMPT ==========', {
-			iteration,
-			toolCallId,
-			hasCode: code !== null,
-		});
-
 		// Stream tool progress - running
 		yield this.createToolProgressChunk('running', toolCallId);
 
 		// Check if code exists
 		if (!code) {
-			this.debugLog('VALIDATE_TOOL', 'Validate failed: no code exists');
 			messages.push(
 				new ToolMessage({
 					tool_call_id: toolCallId,
@@ -117,31 +102,14 @@ export class ValidateToolHandler {
 			return { workflowReady: false };
 		}
 
-		this.debugLog('VALIDATE_TOOL', 'Validate: code to check', {
-			codeLength: code.length,
-			codeLines: code.split('\n').length,
-		});
-
 		const parseStartTime = Date.now();
 		try {
 			const result = await this.parseAndValidate(code, currentWorkflow);
 			const parseDuration = Date.now() - parseStartTime;
 
-			this.debugLog('VALIDATE_TOOL', 'Validate: parse completed', {
-				parseDurationMs: parseDuration,
-				warningCount: result.warnings.length,
-				nodeCount: result.workflow.nodes.length,
-			});
-
 			// Handle warnings
 			if (result.warnings.length > 0) {
 				const newWarnings = warningTracker.filterNewWarnings(result.warnings);
-
-				this.debugLog('VALIDATE_TOOL', 'Validate: validation warnings', {
-					totalWarnings: result.warnings.length,
-					newWarnings: newWarnings.length,
-					repeatedWarnings: result.warnings.length - newWarnings.length,
-				});
 
 				if (newWarnings.length > 0) {
 					// Track new warnings
@@ -167,9 +135,6 @@ export class ValidateToolHandler {
 						parseDuration,
 					};
 				}
-
-				// All warnings are repeated - treat as success
-				this.debugLog('VALIDATE_TOOL', 'All warnings are repeated, prompting agent to finalize');
 			}
 
 			// Validation passed
@@ -180,11 +145,6 @@ export class ValidateToolHandler {
 						'Validation passed. Workflow code is valid.\n\nIMPORTANT: Stop calling tools now to finalize the workflow.',
 				}),
 			);
-
-			this.debugLog('VALIDATE_TOOL', '========== VALIDATE SUCCESS ==========', {
-				nodeCount: result.workflow.nodes.length,
-				nodeNames: result.workflow.nodes.map((n) => n.name),
-			});
 
 			// Stream workflow update
 			yield this.createWorkflowUpdateChunk(result.workflow);
@@ -199,11 +159,6 @@ export class ValidateToolHandler {
 			const parseDuration = Date.now() - parseStartTime;
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			const errorContext = this.getErrorContext(code, errorMessage);
-
-			this.debugLog('VALIDATE_TOOL', '========== VALIDATE FAILED ==========', {
-				parseDurationMs: parseDuration,
-				errorMessage,
-			});
 
 			messages.push(
 				new ToolMessage({

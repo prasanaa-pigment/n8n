@@ -22,16 +22,11 @@ const mockFromJSON = workflow.fromJSON as jest.Mock;
 
 describe('ParseValidateHandler', () => {
 	let handler: ParseValidateHandler;
-	let mockDebugLog: jest.Mock;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
 
-		mockDebugLog = jest.fn();
-
-		handler = new ParseValidateHandler({
-			debugLog: mockDebugLog,
-		});
+		handler = new ParseValidateHandler({});
 	});
 
 	describe('parseAndValidate', () => {

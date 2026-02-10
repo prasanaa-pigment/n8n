@@ -11,13 +11,11 @@ import type { ParseAndValidateResult } from '../../types';
 import { FinalResponseHandler } from '../final-response-handler';
 
 describe('FinalResponseHandler', () => {
-	const mockDebugLog = jest.fn();
 	const mockParseAndValidate = jest.fn<Promise<ParseAndValidateResult>, [string, WorkflowJSON?]>();
 
 	const createHandler = () =>
 		new FinalResponseHandler({
 			parseAndValidate: mockParseAndValidate,
-			debugLog: mockDebugLog,
 		});
 
 	beforeEach(() => {

@@ -23,21 +23,18 @@ describe('ValidateToolHandler', () => {
 	let handler: ValidateToolHandler;
 	let mockParseAndValidate: jest.Mock;
 	let mockGetErrorContext: jest.Mock;
-	let mockDebugLog: jest.Mock;
 	let messages: BaseMessage[];
 	let warningTracker: WarningTracker;
 
 	beforeEach(() => {
 		mockParseAndValidate = jest.fn();
 		mockGetErrorContext = jest.fn().mockReturnValue('Code context:\n1: const x = 1;');
-		mockDebugLog = jest.fn();
 		messages = [];
 		warningTracker = new WarningTracker();
 
 		handler = new ValidateToolHandler({
 			parseAndValidate: mockParseAndValidate,
 			getErrorContext: mockGetErrorContext,
-			debugLog: mockDebugLog,
 		});
 	});
 

@@ -11,7 +11,6 @@ import type { ParseAndValidateResult } from '../../types';
 import { AutoFinalizeHandler } from '../auto-finalize-handler';
 
 describe('AutoFinalizeHandler', () => {
-	const mockDebugLog = jest.fn();
 	const mockParseAndValidate = jest.fn<Promise<ParseAndValidateResult>, [string, WorkflowJSON?]>();
 	const mockGetErrorContext = jest.fn<string, [string, string]>();
 
@@ -19,7 +18,6 @@ describe('AutoFinalizeHandler', () => {
 		new AutoFinalizeHandler({
 			parseAndValidate: mockParseAndValidate,
 			getErrorContext: mockGetErrorContext,
-			debugLog: mockDebugLog,
 		});
 
 	beforeEach(() => {

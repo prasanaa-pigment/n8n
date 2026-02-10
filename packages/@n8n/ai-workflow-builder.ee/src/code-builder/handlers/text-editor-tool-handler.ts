@@ -16,11 +16,6 @@ import type { ParseAndValidateResult } from '../types';
 import { formatWarnings } from '../utils/format-warnings';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Text editor execute function type
  */
 type TextEditorExecuteFn = (args: Record<string, unknown>) => string;
@@ -51,7 +46,6 @@ export interface TextEditorToolHandlerConfig {
 	textEditorGetCode: TextEditorGetCodeFn;
 	parseAndValidate: ParseAndValidateFn;
 	getErrorContext: GetErrorContextFn;
-	debugLog?: DebugLogFn;
 }
 
 /**
@@ -99,14 +93,12 @@ export class TextEditorToolHandler {
 	private textEditorGetCode: TextEditorGetCodeFn;
 	private parseAndValidate: ParseAndValidateFn;
 	private getErrorContext: GetErrorContextFn;
-	private debugLog: DebugLogFn;
 
 	constructor(config: TextEditorToolHandlerConfig) {
 		this.textEditorExecute = config.textEditorExecute;
 		this.textEditorGetCode = config.textEditorGetCode;
 		this.parseAndValidate = config.parseAndValidate;
 		this.getErrorContext = config.getErrorContext;
-		this.debugLog = config.debugLog ?? (() => {});
 	}
 
 	/**
@@ -122,11 +114,6 @@ export class TextEditorToolHandler {
 		const { toolCallId, args, currentWorkflow, iteration, messages, warningTracker } = params;
 
 		const command = args.command as string;
-		this.debugLog('TEXT_EDITOR_TOOL', `Executing command: ${command}`, {
-			iteration,
-			toolCallId,
-			command,
-		});
 
 		// Stream tool progress - running
 		yield this.createToolProgressChunk('running', command, toolCallId);
@@ -134,10 +121,6 @@ export class TextEditorToolHandler {
 		try {
 			// Execute the text editor command
 			const result = this.textEditorExecute(args);
-
-			this.debugLog('TEXT_EDITOR_TOOL', `Command ${command} succeeded`, {
-				resultLength: result.length,
-			});
 
 			// Auto-validate after create command — combines create result + validation into single ToolMessage
 			if (command === 'create') {
@@ -183,11 +166,6 @@ export class TextEditorToolHandler {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
 
-			this.debugLog('TEXT_EDITOR_TOOL', `Command ${command} failed`, {
-				errorMessage,
-				stack: errorStack,
-			});
-
 			// Add error message to messages
 			messages.push(
 				new ToolMessage({
@@ -215,22 +193,12 @@ export class TextEditorToolHandler {
 		const code = this.textEditorGetCode();
 
 		if (!code) {
-			this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validate: no code to validate');
 			messages.push(new ToolMessage({ tool_call_id: toolCallId, content: createResult }));
 			return { workflowReady: false };
 		}
 
-		this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validating after create', {
-			codeLength: code.length,
-		});
-
 		try {
 			const result = await this.parseAndValidate(code, currentWorkflow);
-
-			this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validate succeeded', {
-				warningCount: result.warnings.length,
-				nodeCount: result.workflow.nodes.length,
-			});
 
 			// Handle warnings
 			if (result.warnings.length > 0) {
@@ -259,9 +227,6 @@ export class TextEditorToolHandler {
 						workflow: result.workflow,
 					};
 				}
-
-				// All warnings are repeated - treat as valid
-				this.debugLog('TEXT_EDITOR_TOOL', 'All warnings are repeated, treating as valid');
 			}
 
 			// Validation passed — push create result as ToolMessage
@@ -275,11 +240,6 @@ export class TextEditorToolHandler {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			const errorStack = error instanceof Error ? error.stack : undefined;
 			const errorContext = this.getErrorContext(code, errorMessage);
-
-			this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validate parse error', {
-				errorMessage,
-				stack: errorStack,
-			});
 
 			// Combine create result + parse error into single ToolMessage
 			messages.push(

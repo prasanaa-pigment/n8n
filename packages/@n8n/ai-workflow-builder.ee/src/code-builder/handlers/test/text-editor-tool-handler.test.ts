@@ -40,7 +40,6 @@ describe('TextEditorToolHandler', () => {
 	let mockTextEditorGetCode: jest.Mock;
 	let mockParseAndValidate: jest.Mock;
 	let mockGetErrorContext: jest.Mock;
-	let mockDebugLog: jest.Mock;
 	let messages: BaseMessage[];
 
 	beforeEach(() => {
@@ -48,7 +47,6 @@ describe('TextEditorToolHandler', () => {
 		mockTextEditorGetCode = jest.fn();
 		mockParseAndValidate = jest.fn();
 		mockGetErrorContext = jest.fn().mockReturnValue('Code context:\n1: const x = 1;');
-		mockDebugLog = jest.fn();
 		messages = [];
 
 		handler = new TextEditorToolHandler({
@@ -56,7 +54,6 @@ describe('TextEditorToolHandler', () => {
 			textEditorGetCode: mockTextEditorGetCode,
 			parseAndValidate: mockParseAndValidate,
 			getErrorContext: mockGetErrorContext,
-			debugLog: mockDebugLog,
 		});
 	});
 

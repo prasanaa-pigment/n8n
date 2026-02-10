@@ -25,11 +25,6 @@ import type { ParseAndValidateResult } from '../types';
 import { SDK_IMPORT_STATEMENT } from '../utils/extract-code';
 
 /**
- * Debug log callback type
- */
-type DebugLogFn = (context: string, message: string, data?: Record<string, unknown>) => void;
-
-/**
  * Parse and validate function type
  */
 type ParseAndValidateFn = (

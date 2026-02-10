@@ -38,7 +38,6 @@ function isWorkflowUpdateChunk(chunk: unknown): chunk is WorkflowUpdateChunk {
 }
 
 describe('ToolDispatchHandler', () => {
-	const mockDebugLog = jest.fn();
 	const mockValidateToolHandler = {} as ValidateToolHandler;
 
 	function createHandler(
@@ -48,7 +47,6 @@ describe('ToolDispatchHandler', () => {
 		return new ToolDispatchHandler({
 			toolsMap,
 			validateToolHandler: mockValidateToolHandler,
-			debugLog: mockDebugLog,
 			toolDisplayTitles,
 		});
 	}
@@ -309,7 +307,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -336,7 +333,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -363,7 +359,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -392,7 +387,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidate,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -414,7 +408,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -443,7 +436,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidate,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -474,7 +466,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidate,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -507,7 +498,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map([['search_nodes', mockTool]]),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -530,7 +520,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const result = await drainGenerator(
@@ -593,7 +582,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -631,7 +619,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -670,7 +657,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const { chunks } = await collectChunks(
@@ -733,7 +719,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const { chunks } = await collectChunks(
@@ -772,7 +757,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -807,7 +791,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -845,7 +828,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -882,7 +864,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -917,7 +898,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -952,7 +932,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
@@ -987,7 +966,6 @@ describe('ToolDispatchHandler', () => {
 			const handler = new ToolDispatchHandler({
 				toolsMap: new Map(),
 				validateToolHandler: mockValidateToolHandler,
-				debugLog: mockDebugLog,
 			});
 
 			const messages: BaseMessage[] = [];
