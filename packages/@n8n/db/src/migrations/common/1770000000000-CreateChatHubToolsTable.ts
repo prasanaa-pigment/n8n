@@ -98,7 +98,7 @@ export class CreateChatHubToolsTable1770000000000 implements ReversibleMigration
 		const toolsTable = escape.tableName(table.tools);
 		const sessionToolsTable = escape.tableName(table.sessionTools);
 		const agentToolsTable = escape.tableName(table.agentTools);
-		const toolsFilter = isPostgres ? `"tools"::text != '[]'` : `"tools" != '[]'`;
+		const toolsFilter = isPostgres ? '"tools"::text != \'[]\'' : '"tools" != \'[]\'';
 
 		// Helper to ensure a tool exists in chat_hub_tools and return its ID
 		async function ensureTool(ownerId: string, def: ToolDefinition): Promise<string> {
