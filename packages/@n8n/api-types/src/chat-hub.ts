@@ -1,5 +1,12 @@
 import type { Scope } from '@n8n/permissions';
-import { type ChunkType, type INode, INodeSchema } from 'n8n-workflow';
+import {
+	CHAT_TOOL_NODE_TYPE,
+	type ChunkType,
+	DATA_TABLE_TOOL_NODE_TYPE,
+	type INode,
+	INodeSchema,
+	WORKFLOW_TOOL_LANGCHAIN_NODE_TYPE,
+} from 'n8n-workflow';
 import { z } from 'zod';
 
 import { Z } from './zod-class';
@@ -613,6 +620,15 @@ export interface ChatHubToolDto {
 	definition: INode;
 	enabled: boolean;
 }
+
+/** Tool types blocked for ALL users in the Chat Hub. */
+export const ALWAYS_BLOCKED_CHAT_HUB_TOOL_TYPES: string[] = [CHAT_TOOL_NODE_TYPE];
+
+/** Additional tool types blocked for chat-only users (global:chatUser). */
+export const CHAT_USER_BLOCKED_CHAT_HUB_TOOL_TYPES: string[] = [
+	WORKFLOW_TOOL_LANGCHAIN_NODE_TYPE,
+	DATA_TABLE_TOOL_NODE_TYPE,
+];
 
 /**
  * Request schema for creating a chat hub tool

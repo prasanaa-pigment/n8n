@@ -9,18 +9,17 @@ import { N8nHeading, N8nIcon, N8nInput, N8nText } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { useDebounceFn } from '@vueuse/core';
+import { NodeConnectionTypes, type INode, type INodeTypeDescription } from 'n8n-workflow';
 import {
-	AGENT_TOOL_LANGCHAIN_NODE_TYPE,
-	NodeConnectionTypes,
-	WORKFLOW_TOOL_LANGCHAIN_NODE_TYPE,
-	type INode,
-	type INodeTypeDescription,
-} from 'n8n-workflow';
+	ALWAYS_BLOCKED_CHAT_HUB_TOOL_TYPES,
+	CHAT_USER_BLOCKED_CHAT_HUB_TOOL_TYPES,
+} from '@n8n/api-types';
 import type { ChatHubToolDto } from '@n8n/api-types';
 import { computed, ref, watch } from 'vue';
 import { DEBOUNCE_TIME, getDebounceTime } from '@/app/constants';
 import { useChatStore } from '@/features/ai/chatHub/chat.store';
 import { useToast } from '@/app/composables/useToast';
+import { hasRole } from '@/app/utils/rbac/checks/hasRole';
 
 defineProps<{
 	modalName: string;
@@ -29,11 +28,6 @@ defineProps<{
 		onConfirm: (tools: INode[]) => void;
 	};
 }>();
-
-const CHAT_HUB_EXCLUDED_TOOL_TYPES: string[] = [
-	AGENT_TOOL_LANGCHAIN_NODE_TYPE,
-	WORKFLOW_TOOL_LANGCHAIN_NODE_TYPE,
-];
 
 function hasInputs(nodeType: INodeTypeDescription): boolean {
 	const { inputs } = nodeType;
@@ -65,6 +59,14 @@ watch(searchQuery, (newValue) => {
 
 const tools = computed<ChatHubToolDto[]>(() => chatStore.configuredTools);
 
+const excludedToolTypes = computed(() => {
+	const blocked = [...ALWAYS_BLOCKED_CHAT_HUB_TOOL_TYPES];
+	if (hasRole(['global:chatUser'])) {
+		blocked.push(...CHAT_USER_BLOCKED_CHAT_HUB_TOOL_TYPES);
+	}
+	return blocked;
+});
+
 const availableToolTypes = computed<INodeTypeDescription[]>(() => {
 	const toolTypeNames =
 		nodeTypesStore.visibleNodeTypesByOutputConnectionTypeNames[NodeConnectionTypes.AiTool] ?? [];
@@ -74,7 +76,7 @@ const availableToolTypes = computed<INodeTypeDescription[]>(() => {
 		.filter(
 			(nodeType): nodeType is INodeTypeDescription =>
 				nodeType !== null &&
-				!CHAT_HUB_EXCLUDED_TOOL_TYPES.includes(nodeType.name) &&
+				!excludedToolTypes.value.includes(nodeType.name) &&
 				!hasInputs(nodeType),
 		);
 });

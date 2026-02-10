@@ -17,6 +17,8 @@ import {
 	type ChatSendMessageResponse,
 	type ChatReconnectResponse,
 	ChatReconnectRequest,
+	ALWAYS_BLOCKED_CHAT_HUB_TOOL_TYPES,
+	CHAT_USER_BLOCKED_CHAT_HUB_TOOL_TYPES,
 } from '@n8n/api-types';
 import { AuthenticatedRequest } from '@n8n/db';
 import {
@@ -274,6 +276,7 @@ export class ChatHubController {
 		_res: Response,
 		@Body payload: ChatHubCreateToolRequest,
 	) {
+		this.assertToolTypeAllowed(payload.definition.type, req.user);
 		const tool = await this.chatToolService.createTool(req.user, payload);
 		return ChatHubToolService.toDto(tool);
 	}
@@ -286,6 +289,9 @@ export class ChatHubController {
 		@Param('toolId') toolId: string,
 		@Body payload: ChatHubUpdateToolRequest,
 	) {
+		if (payload.definition?.type) {
+			this.assertToolTypeAllowed(payload.definition.type, req.user);
+		}
 		const tool = await this.chatToolService.updateTool(toolId, req.user, payload);
 		return ChatHubToolService.toDto(tool);
 	}
@@ -344,5 +350,17 @@ export class ChatHubController {
 		await this.chatAgentService.deleteAgent(agentId, req.user.id);
 
 		res.status(204).send();
+	}
+
+	private assertToolTypeAllowed(type: string, user: AuthenticatedRequest['user']) {
+		if (ALWAYS_BLOCKED_CHAT_HUB_TOOL_TYPES.includes(type)) {
+			throw new BadRequestError(`Tool type "${type}" is not supported in the Chat Hub`);
+		}
+		if (
+			user.role.slug === 'global:chatUser' &&
+			CHAT_USER_BLOCKED_CHAT_HUB_TOOL_TYPES.includes(type)
+		) {
+			throw new BadRequestError(`Tool type "${type}" is not available for your role`);
+		}
 	}
 }
