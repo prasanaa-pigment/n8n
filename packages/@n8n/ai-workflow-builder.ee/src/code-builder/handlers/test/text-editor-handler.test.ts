@@ -3,6 +3,7 @@ import {
 	NoMatchFoundError,
 	MultipleMatchesError,
 	InvalidLineNumberError,
+	InvalidViewRangeError,
 	InvalidPathError,
 	FileExistsError,
 	FileNotFoundError,
@@ -87,6 +88,44 @@ describe('TextEditorHandler', () => {
 					view_range: [5, 10],
 				}),
 			).toThrow(InvalidLineNumberError);
+		});
+
+		it('should treat view_range end of -1 as end of file', () => {
+			const code = 'line1\nline2\nline3\nline4\nline5';
+			handler.setWorkflowCode(code);
+
+			const result = handler.execute({
+				command: 'view',
+				path: '/workflow.js',
+				view_range: [3, -1],
+			});
+
+			expect(result).toBe('3: line3\n4: line4\n5: line5');
+		});
+
+		it('should return full file when view_range is [1, -1]', () => {
+			const code = 'line1\nline2\nline3';
+			handler.setWorkflowCode(code);
+
+			const result = handler.execute({
+				command: 'view',
+				path: '/workflow.js',
+				view_range: [1, -1],
+			});
+
+			expect(result).toBe('1: line1\n2: line2\n3: line3');
+		});
+
+		it('should throw InvalidViewRangeError when end < start', () => {
+			handler.setWorkflowCode('line1\nline2\nline3\nline4\nline5');
+
+			expect(() =>
+				handler.execute({
+					command: 'view',
+					path: '/workflow.js',
+					view_range: [4, 2],
+				}),
+			).toThrow(InvalidViewRangeError);
 		});
 	});
 
@@ -411,6 +450,14 @@ describe('TextEditorHandler', () => {
 			expect(error.message).toContain('Invalid line number 10');
 			expect(error.message).toContain('5 lines');
 			expect(error.name).toBe('InvalidLineNumberError');
+		});
+
+		it('InvalidViewRangeError should include start, end, and maxLine', () => {
+			const error = new InvalidViewRangeError(4, 2, 10);
+			expect(error.message).toContain('end (2)');
+			expect(error.message).toContain('start (4)');
+			expect(error.message).toContain('10 lines');
+			expect(error.name).toBe('InvalidViewRangeError');
 		});
 
 		it('InvalidPathError should include path', () => {

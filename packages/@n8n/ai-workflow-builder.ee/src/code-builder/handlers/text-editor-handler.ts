@@ -19,6 +19,7 @@ import {
 	NoMatchFoundError,
 	MultipleMatchesError,
 	InvalidLineNumberError,
+	InvalidViewRangeError,
 	InvalidPathError,
 	FileNotFoundError,
 } from './text-editor.types';
@@ -141,12 +142,17 @@ export class TextEditorHandler {
 
 		// Handle view_range if specified
 		if (command.view_range) {
-			const [start, end] = command.view_range;
+			const [start, rawEnd] = command.view_range;
+			const end = rawEnd === -1 ? lines.length : rawEnd;
 
 			// Validate range (1-indexed)
-			if (start < 1 || end < start || start > lines.length) {
+			if (start < 1 || start > lines.length) {
 				this.debugLog('VIEW', 'Invalid line range', { start, end, totalLines: lines.length });
 				throw new InvalidLineNumberError(start, lines.length);
+			}
+			if (end < start) {
+				this.debugLog('VIEW', 'Invalid view range', { start, end, totalLines: lines.length });
+				throw new InvalidViewRangeError(start, end, lines.length);
 			}
 
 			// Convert to 0-indexed and extract range

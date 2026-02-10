@@ -98,6 +98,18 @@ export class InvalidLineNumberError extends Error {
 }
 
 /**
+ * Error thrown when view_range end is less than start
+ */
+export class InvalidViewRangeError extends Error {
+	constructor(start: number, end: number, maxLine: number) {
+		super(
+			`Invalid view range: end (${end}) must be >= start (${start}). File has ${maxLine} lines (valid range: 1-${maxLine}).`,
+		);
+		this.name = 'InvalidViewRangeError';
+	}
+}
+
+/**
  * Error thrown for invalid file paths
  */
 export class InvalidPathError extends Error {
