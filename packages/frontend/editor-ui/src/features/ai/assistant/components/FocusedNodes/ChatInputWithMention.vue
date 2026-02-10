@@ -49,6 +49,7 @@ const {
 	unconfirmedNodes,
 	confirmedCount,
 	unconfirmedCount,
+	allNodesConfirmed,
 	shouldBundleConfirmed,
 	shouldBundleUnconfirmed,
 	individualConfirmedNodes,
@@ -194,53 +195,70 @@ defineExpose({
 			@upgrade-click="onUpgradeClick"
 		>
 			<template v-if="isFeatureEnabled && hasConfirmedNodes" #inline-chips>
-				<FocusedNodeChip
-					v-for="node in individualConfirmedNodes"
-					:key="node.nodeId"
-					:node="node"
-					@click="handleChipClick(node.nodeId)"
-					@remove="handleRemove(node.nodeId)"
-				/>
-				<N8nPopover v-if="shouldBundleConfirmed" side="top" width="220px" :z-index="2000">
-					<template #trigger>
-						<span :class="$style.bundledConfirmedChip">
-							<span :class="$style.bundledIconWrapper">
-								<N8nIcon icon="layers" size="small" :class="$style.bundledConfirmedIcon" />
-								<button
-									type="button"
-									:class="$style.bundledRemoveButton"
-									@click.stop="removeAllConfirmed"
-								>
-									<N8nIcon icon="x" size="small" />
-								</button>
+				<!-- All nodes confirmed: single "All nodes" chip -->
+				<span v-if="allNodesConfirmed" :class="$style.bundledConfirmedChip">
+					<span :class="$style.bundledIconWrapper">
+						<N8nIcon icon="layers" size="small" :class="$style.bundledConfirmedIcon" />
+						<button
+							type="button"
+							:class="$style.bundledRemoveButton"
+							@click.stop="removeAllConfirmed"
+						>
+							<N8nIcon icon="x" size="small" />
+						</button>
+					</span>
+					<span>{{ i18n.baseText('focusedNodes.allNodes') }}</span>
+				</span>
+				<!-- Individual confirmed chips (1-3 nodes, not all) -->
+				<template v-else>
+					<FocusedNodeChip
+						v-for="node in individualConfirmedNodes"
+						:key="node.nodeId"
+						:node="node"
+						@click="handleChipClick(node.nodeId)"
+						@remove="handleRemove(node.nodeId)"
+					/>
+					<N8nPopover v-if="shouldBundleConfirmed" side="top" width="220px" :z-index="2000">
+						<template #trigger>
+							<span :class="$style.bundledConfirmedChip">
+								<span :class="$style.bundledIconWrapper">
+									<N8nIcon icon="layers" size="small" :class="$style.bundledConfirmedIcon" />
+									<button
+										type="button"
+										:class="$style.bundledRemoveButton"
+										@click.stop="removeAllConfirmed"
+									>
+										<N8nIcon icon="x" size="small" />
+									</button>
+								</span>
+								<span>{{
+									i18n.baseText('focusedNodes.nodesCount', {
+										interpolate: { count: confirmedCount },
+									})
+								}}</span>
 							</span>
-							<span>{{
-								i18n.baseText('focusedNodes.nodesCount', {
-									interpolate: { count: confirmedCount },
-								})
-							}}</span>
-						</span>
-					</template>
-					<template #content>
-						<div :class="$style.expandedNodeList">
-							<div
-								v-for="node in confirmedNodes"
-								:key="node.nodeId"
-								:class="$style.expandedNodeItem"
-							>
-								<NodeIcon :node-type="getNodeType(node.nodeType)" :size="12" />
-								<span :class="$style.expandedNodeName">{{ node.nodeName }}</span>
-								<button
-									type="button"
-									:class="$style.expandedRemoveButton"
-									@click.stop="handleRemove(node.nodeId)"
+						</template>
+						<template #content>
+							<div :class="$style.expandedNodeList">
+								<div
+									v-for="node in confirmedNodes"
+									:key="node.nodeId"
+									:class="$style.expandedNodeItem"
 								>
-									<N8nIcon icon="x" size="xsmall" />
-								</button>
+									<NodeIcon :node-type="getNodeType(node.nodeType)" :size="12" />
+									<span :class="$style.expandedNodeName">{{ node.nodeName }}</span>
+									<button
+										type="button"
+										:class="$style.expandedRemoveButton"
+										@click.stop="handleRemove(node.nodeId)"
+									>
+										<N8nIcon icon="x" size="xsmall" />
+									</button>
+								</div>
 							</div>
-						</div>
-					</template>
-				</N8nPopover>
+						</template>
+					</N8nPopover>
+				</template>
 			</template>
 
 			<!-- Mention button (only when feature enabled) -->
@@ -248,6 +266,7 @@ defineExpose({
 				<N8nIconButton
 					icon="at-sign"
 					type="tertiary"
+					:text="true"
 					size="small"
 					:title="i18n.baseText('focusedNodes.mentionTooltip')"
 					data-test-id="mention-node-button"
@@ -343,6 +362,9 @@ defineExpose({
 	display: none;
 	align-items: center;
 	justify-content: center;
+	min-width: 24px;
+	min-height: 24px;
+	margin: -5px;
 	padding: 0;
 	background: none;
 	border: none;

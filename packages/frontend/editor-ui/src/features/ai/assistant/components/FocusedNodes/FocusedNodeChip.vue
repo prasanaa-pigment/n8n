@@ -94,6 +94,7 @@ function handleRemove(event: MouseEvent) {
 	width: 12px;
 	height: 12px;
 	position: relative;
+	overflow: visible;
 }
 
 .confirmedIcon {
@@ -118,6 +119,9 @@ function handleRemove(event: MouseEvent) {
 	display: none;
 	align-items: center;
 	justify-content: center;
+	min-width: 24px;
+	min-height: 24px;
+	margin: -6px;
 	padding: 0;
 	background: none;
 	border: none;
