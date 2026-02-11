@@ -1,4 +1,4 @@
-import { AuditLogEvent, auditLogEvent, AuditLogFilterDto } from '@n8n/api-types';
+import { AuditLogListResponse, auditLogEvent, AuditLogFilterDto } from '@n8n/api-types';
 import { AuthenticatedRequest } from '@n8n/db';
 import { Get, GlobalScope, Licensed, Query, RestController } from '@n8n/decorators';
 
@@ -15,8 +15,13 @@ export class AuditLogController {
 		_req: AuthenticatedRequest,
 		_res: unknown,
 		@Query query: AuditLogFilterDto,
-	): Promise<AuditLogEvent[]> {
-		const events = await this.auditLogService.getEvents(query);
-		return events.map((event) => auditLogEvent.parse(event));
+	): Promise<AuditLogListResponse> {
+		const result = await this.auditLogService.getEvents(query);
+		return {
+			data: result.data.map((event) => auditLogEvent.parse(event)),
+			count: result.count,
+			skip: result.skip,
+			take: result.take,
+		};
 	}
 }

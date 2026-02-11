@@ -25,4 +25,15 @@ export class AuditLogFilterDto extends Z.class({
 	userId: z.string().optional(),
 	after: z.string().datetime().optional(),
 	before: z.string().datetime().optional(),
+	skip: z.coerce.number().int().min(0).optional(),
+	take: z.coerce.number().int().min(1).max(100).optional(),
 }) {}
+
+export const auditLogListResponse = z.object({
+	data: z.array(auditLogEvent),
+	count: z.number().int().min(0),
+	skip: z.number().int().min(0),
+	take: z.number().int().min(1),
+});
+
+export type AuditLogListResponse = z.infer<typeof auditLogListResponse>;

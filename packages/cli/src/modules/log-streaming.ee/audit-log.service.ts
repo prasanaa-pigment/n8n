@@ -8,6 +8,13 @@ import type { AuditLog } from './database/entities';
 import { AuditLogRepository } from './database/repositories/audit-log.repository';
 import { LogStreamingDestinationService } from './log-streaming-destination.service';
 
+export interface AuditLogListResult {
+	data: AuditLog[];
+	count: number;
+	skip: number;
+	take: number;
+}
+
 @Service()
 export class AuditLogService {
 	constructor(
@@ -16,7 +23,7 @@ export class AuditLogService {
 		private readonly logStreamingDestinationService: LogStreamingDestinationService,
 	) {}
 
-	async getEvents(filter: AuditLogFilterDto): Promise<AuditLog[]> {
+	async getEvents(filter: AuditLogFilterDto): Promise<AuditLogListResult> {
 		const where: FindOptionsWhere<AuditLog> = {};
 
 		if (filter.eventName) {
@@ -35,38 +42,25 @@ export class AuditLogService {
 			where.timestamp = LessThan(new Date(filter.before));
 		}
 
-		const dbEvents = await this.auditLogRepository.find({
-			take: 50,
+		const skip = filter.skip ?? 0;
+		const take = filter.take ?? 50;
+
+		const [data, count] = await this.auditLogRepository.findAndCount({
+			skip,
+			take,
 			order: { timestamp: 'DESC' },
 			where,
 			relations: ['user'],
 		});
 
-		const bufferedEvents = this.getFilteredBufferedEvents(filter);
+		await this.enrichBufferedEventsWithUsers(data);
 
-		const events = [...bufferedEvents, ...dbEvents]
-			.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-			.slice(0, 50);
-
-		await this.enrichBufferedEventsWithUsers(events);
-
-		return events;
-	}
-
-	private getFilteredBufferedEvents(filter: AuditLogFilterDto): AuditLog[] {
-		const dbDestination = this.logStreamingDestinationService.getDatabaseDestination();
-		if (!dbDestination) return [];
-
-		const afterDate = filter.after ? new Date(filter.after) : undefined;
-		const beforeDate = filter.before ? new Date(filter.before) : undefined;
-
-		return dbDestination.getBufferedEvents().filter((event) => {
-			if (filter.eventName && event.eventName !== filter.eventName) return false;
-			if (filter.userId && event.userId !== filter.userId) return false;
-			if (afterDate && event.timestamp <= afterDate) return false;
-			if (beforeDate && event.timestamp >= beforeDate) return false;
-			return true;
-		});
+		return {
+			data,
+			count,
+			skip,
+			take,
+		};
 	}
 
 	private async enrichBufferedEventsWithUsers(events: AuditLog[]): Promise<void> {

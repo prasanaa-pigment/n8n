@@ -101,6 +101,8 @@ export {
 	auditLogEvent,
 	type AuditLogEvent,
 	AuditLogFilterDto,
+	auditLogListResponse,
+	type AuditLogListResponse,
 } from './log-streaming/audit-log.dto';
 export { TestDestinationQueryDto } from './log-streaming/test-destination-query.dto';
 export { DeleteDestinationQueryDto } from './log-streaming/delete-destination-query.dto';

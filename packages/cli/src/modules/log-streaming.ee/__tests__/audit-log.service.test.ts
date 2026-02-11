@@ -52,12 +52,16 @@ describe('AuditLogService', () => {
 		} as unknown as AuditLog;
 
 		it('should retrieve events with no filters', async () => {
-			auditLogRepository.find.mockResolvedValue([mockAuditLog, mockAuditLog2]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog, mockAuditLog2], 2]);
 
 			const result = await service.getEvents({});
 
-			expect(result).toHaveLength(2);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(2);
+			expect(result.count).toBe(2);
+			expect(result.skip).toBe(0);
+			expect(result.take).toBe(50);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: {},
@@ -66,13 +70,15 @@ describe('AuditLogService', () => {
 		});
 
 		it('should filter events by eventName', async () => {
-			auditLogRepository.find.mockResolvedValue([mockAuditLog]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog], 1]);
 
 			const result = await service.getEvents({ eventName: 'n8n.audit.workflow.created' });
 
-			expect(result).toHaveLength(1);
-			expect(result[0].eventName).toBe('n8n.audit.workflow.created');
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(1);
+			expect(result.data[0].eventName).toBe('n8n.audit.workflow.created');
+			expect(result.count).toBe(1);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: { eventName: 'n8n.audit.workflow.created' },
@@ -81,12 +87,14 @@ describe('AuditLogService', () => {
 		});
 
 		it('should filter events by userId', async () => {
-			auditLogRepository.find.mockResolvedValue([mockAuditLog]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog], 1]);
 
 			const result = await service.getEvents({ userId: 'user-1' });
 
-			expect(result).toHaveLength(1);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(1);
+			expect(result.count).toBe(1);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: { userId: 'user-1' },
@@ -96,12 +104,14 @@ describe('AuditLogService', () => {
 
 		it('should filter events by after timestamp (more recent than)', async () => {
 			const afterDate = '2024-01-01T12:00:00.000Z';
-			auditLogRepository.find.mockResolvedValue([mockAuditLog2]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog2], 1]);
 
 			const result = await service.getEvents({ after: afterDate });
 
-			expect(result).toHaveLength(1);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(1);
+			expect(result.count).toBe(1);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: { timestamp: MoreThan(new Date(afterDate)) },
@@ -111,12 +121,14 @@ describe('AuditLogService', () => {
 
 		it('should filter events by before timestamp (older than)', async () => {
 			const beforeDate = '2024-01-02T00:00:00.000Z';
-			auditLogRepository.find.mockResolvedValue([mockAuditLog]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog], 1]);
 
 			const result = await service.getEvents({ before: beforeDate });
 
-			expect(result).toHaveLength(1);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(1);
+			expect(result.count).toBe(1);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: { timestamp: LessThan(new Date(beforeDate)) },
@@ -127,12 +139,14 @@ describe('AuditLogService', () => {
 		it('should filter events by after and before timestamp range', async () => {
 			const afterDate = '2024-01-01T00:00:00.000Z';
 			const beforeDate = '2024-01-03T00:00:00.000Z';
-			auditLogRepository.find.mockResolvedValue([mockAuditLog, mockAuditLog2]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog, mockAuditLog2], 2]);
 
 			const result = await service.getEvents({ after: afterDate, before: beforeDate });
 
-			expect(result).toHaveLength(2);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(2);
+			expect(result.count).toBe(2);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: {
@@ -145,7 +159,7 @@ describe('AuditLogService', () => {
 		it('should apply all filters together', async () => {
 			const afterDate = '2023-12-31T00:00:00.000Z';
 			const beforeDate = '2024-01-02T00:00:00.000Z';
-			auditLogRepository.find.mockResolvedValue([mockAuditLog]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog], 1]);
 
 			const result = await service.getEvents({
 				eventName: 'n8n.audit.workflow.created',
@@ -154,8 +168,10 @@ describe('AuditLogService', () => {
 				before: beforeDate,
 			});
 
-			expect(result).toHaveLength(1);
-			expect(auditLogRepository.find).toHaveBeenCalledWith({
+			expect(result.data).toHaveLength(1);
+			expect(result.count).toBe(1);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 0,
 				take: 50,
 				order: { timestamp: 'DESC' },
 				where: {
@@ -167,35 +183,88 @@ describe('AuditLogService', () => {
 			});
 		});
 
-		it('should limit results to 50 records', async () => {
+		it('should limit results to 50 records by default', async () => {
 			const manyLogs = Array.from({ length: 50 }, (_, i) => ({
 				...mockAuditLog,
 				id: `audit-${i}`,
 			}));
-			auditLogRepository.find.mockResolvedValue(manyLogs);
+			auditLogRepository.findAndCount.mockResolvedValue([manyLogs, 100]);
 
 			const result = await service.getEvents({});
 
-			expect(result).toHaveLength(50);
-			expect(auditLogRepository.find).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+			expect(result.data).toHaveLength(50);
+			expect(result.count).toBe(100);
+			expect(result.take).toBe(50);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith(
+				expect.objectContaining({ take: 50 }),
+			);
 		});
 
 		it('should order results by timestamp DESC', async () => {
-			auditLogRepository.find.mockResolvedValue([mockAuditLog2, mockAuditLog]);
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog2, mockAuditLog], 2]);
 
 			await service.getEvents({});
 
-			expect(auditLogRepository.find).toHaveBeenCalledWith(
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith(
 				expect.objectContaining({ order: { timestamp: 'DESC' } }),
 			);
 		});
 
 		it('should return empty array when no events found', async () => {
-			auditLogRepository.find.mockResolvedValue([]);
+			auditLogRepository.findAndCount.mockResolvedValue([[], 0]);
 
 			const result = await service.getEvents({});
 
-			expect(result).toHaveLength(0);
+			expect(result.data).toHaveLength(0);
+			expect(result.count).toBe(0);
+		});
+
+		it('should use custom skip parameter', async () => {
+			auditLogRepository.findAndCount.mockResolvedValue([[mockAuditLog2], 100]);
+
+			const result = await service.getEvents({ skip: 10 });
+
+			expect(result.skip).toBe(10);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith(
+				expect.objectContaining({ skip: 10 }),
+			);
+		});
+
+		it('should use custom take parameter', async () => {
+			const manyLogs = Array.from({ length: 25 }, (_, i) => ({
+				...mockAuditLog,
+				id: `audit-${i}`,
+			}));
+			auditLogRepository.findAndCount.mockResolvedValue([manyLogs, 100]);
+
+			const result = await service.getEvents({ take: 25 });
+
+			expect(result.data).toHaveLength(25);
+			expect(result.take).toBe(25);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith(
+				expect.objectContaining({ take: 25 }),
+			);
+		});
+
+		it('should use both skip and take parameters for pagination', async () => {
+			const manyLogs = Array.from({ length: 10 }, (_, i) => ({
+				...mockAuditLog,
+				id: `audit-${i + 20}`,
+			}));
+			auditLogRepository.findAndCount.mockResolvedValue([manyLogs, 100]);
+
+			const result = await service.getEvents({ skip: 20, take: 10 });
+
+			expect(result.data).toHaveLength(10);
+			expect(result.skip).toBe(20);
+			expect(result.take).toBe(10);
+			expect(result.count).toBe(100);
+			expect(auditLogRepository.findAndCount).toHaveBeenCalledWith({
+				skip: 20,
+				take: 10,
+				order: { timestamp: 'DESC' },
+				where: {},
+			});
 		});
 	});
 

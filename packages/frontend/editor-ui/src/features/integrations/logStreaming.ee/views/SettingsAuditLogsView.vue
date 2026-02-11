@@ -9,7 +9,7 @@ import { useDebounce } from '@/app/composables/useDebounce';
 import ResourcesListLayout from '@/app/components/layouts/ResourcesListLayout.vue';
 import AuditLogPayload from '../components/AuditLogPayload.vue';
 import type { BaseFilters, DatatableColumn } from '@/Interface';
-import { ElDatePicker } from 'element-plus';
+import { ElDatePicker, ElPagination } from 'element-plus';
 import {
 	N8nHeading,
 	N8nInputLabel,
@@ -50,6 +50,11 @@ const filters = ref<AuditLogFilters>({
 });
 
 const dateRange = ref<[Date, Date] | null>(null);
+
+// Pagination state
+const currentPage = ref(1);
+const pageSize = ref(50);
+const totalRecords = ref(0);
 
 // Available event names for the dropdown
 const eventNames = ref<string[]>([
@@ -155,13 +160,18 @@ async function fetchAuditLogs() {
 			filterParams.before = dateRange.value[1].toISOString();
 		}
 
-		const events = await getAuditLogs(rootStore.restApiContext, filterParams);
+		// Add pagination parameters
+		filterParams.skip = (currentPage.value - 1) * pageSize.value;
+		filterParams.take = pageSize.value;
 
-		auditLogs.value = events.map((event) => ({
+		const response = await getAuditLogs(rootStore.restApiContext, filterParams);
+
+		auditLogs.value = response.data.map((event) => ({
 			...event,
 			id: event.id,
 			name: event.eventName,
 		}));
+		totalRecords.value = response.count;
 	} catch (err) {
 		console.error('Failed to fetch audit logs:', err);
 	} finally {
@@ -173,7 +183,19 @@ const debouncedFetchAuditLogs = debounce(fetchAuditLogs, { debounceTime: 300 });
 
 async function onFiltersUpdated(newFilters: AuditLogFilters) {
 	filters.value = newFilters;
+	currentPage.value = 1; // Reset to first page when filters change
 	await debouncedFetchAuditLogs();
+}
+
+function onPageChange(page: number) {
+	currentPage.value = page;
+	void fetchAuditLogs();
+}
+
+function onPageSizeChange(size: number) {
+	pageSize.value = size;
+	currentPage.value = 1; // Reset to first page when page size changes
+	void fetchAuditLogs();
 }
 
 async function loadAutoRefresh() {
@@ -198,6 +220,7 @@ function stopAutoRefreshInterval() {
 }
 
 watch(dateRange, async () => {
+	currentPage.value = 1; // Reset to first page when date range changes
 	await debouncedFetchAuditLogs();
 });
 
@@ -219,145 +242,160 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<ResourcesListLayout
-		v-model:filters="filters"
-		resource-key="auditLogs"
-		:display-name="displayName"
-		:resources="auditLogs"
-		:initialize="initialize"
-		:disabled="false"
-		:loading="isLoading"
-		:shareable="false"
-		:ui-config="{
-			searchEnabled: false,
-			showFiltersDropdown: true,
-			sortEnabled: false,
-		}"
-		type="datatable"
-		:type-props="{ columns }"
-		@update:filters="onFiltersUpdated"
-	>
-		<template #header>
-			<div class="mb-2xl">
-				<N8nHeading size="2xlarge">
-					{{ i18n.baseText('settings.auditLogs.heading') }}
-				</N8nHeading>
-			</div>
-		</template>
+	<div :class="$style.auditLogsContainer">
+		<!-- @ts-expect-error - ResourcesListLayout type definitions don't match our use case -->
+		<ResourcesListLayout
+			v-model:filters="filters"
+			resource-key="auditLogs"
+			:display-name="displayName"
+			:resources="auditLogs"
+			:initialize="initialize"
+			:disabled="false"
+			:loading="isLoading"
+			:shareable="false"
+			:ui-config="{
+				searchEnabled: false,
+				showFiltersDropdown: true,
+				sortEnabled: false,
+			}"
+			type="datatable"
+			:type-props="{ columns }"
+			@update:filters="onFiltersUpdated"
+		>
+			<template #header>
+				<div class="mb-2xl">
+					<N8nHeading size="2xlarge">
+						{{ i18n.baseText('settings.auditLogs.heading') }}
+					</N8nHeading>
+				</div>
+			</template>
 
-		<template #breadcrumbs>
-			<N8nTooltip placement="top">
-				<template #content>
-					{{ i18n.baseText('settings.auditLogs.autoRefresh.tooltip') }}
-				</template>
-				<N8nCheckbox
-					v-model="autoRefresh"
-					:label="i18n.baseText('settings.auditLogs.autoRefresh.label')"
-					data-test-id="auto-refresh-checkbox"
-				/>
-			</N8nTooltip>
-		</template>
-
-		<template #filters="{ setKeyValue }">
-			<div class="mb-s">
-				<N8nInputLabel
-					:label="i18n.baseText('settings.auditLogs.filter.eventName.label')"
-					:bold="false"
-					size="small"
-					color="text-base"
-					class="mb-3xs"
-				/>
-				<N8nSelect
-					:model-value="filters.eventName"
-					:placeholder="i18n.baseText('settings.auditLogs.filter.eventName.placeholder')"
-					clearable
-					filterable
-					data-test-id="audit-logs-event-filter"
-					@update:model-value="setKeyValue('eventName', $event)"
-				>
-					<N8nOption
-						v-for="eventName in eventNames"
-						:key="eventName"
-						:value="eventName"
-						:label="eventName"
+			<template #breadcrumbs>
+				<N8nTooltip placement="top">
+					<template #content>
+						{{ i18n.baseText('settings.auditLogs.autoRefresh.tooltip') }}
+					</template>
+					<N8nCheckbox
+						v-model="autoRefresh"
+						:label="i18n.baseText('settings.auditLogs.autoRefresh.label')"
+						data-test-id="auto-refresh-checkbox"
 					/>
-				</N8nSelect>
-			</div>
+				</N8nTooltip>
+			</template>
 
-			<div class="mb-s">
-				<N8nInputLabel
-					:label="i18n.baseText('settings.auditLogs.filter.userId.label')"
-					:bold="false"
-					size="small"
-					color="text-base"
-					class="mb-3xs"
-				/>
-				<N8nInput
-					:model-value="filters.userId"
-					:placeholder="i18n.baseText('settings.auditLogs.filter.userId.placeholder')"
-					clearable
-					data-test-id="audit-logs-user-filter"
-					@update:model-value="setKeyValue('userId', $event)"
-				/>
-			</div>
+			<template #filters="{ setKeyValue }">
+				<div class="mb-s">
+					<N8nInputLabel
+						:label="i18n.baseText('settings.auditLogs.filter.eventName.label')"
+						:bold="false"
+						size="small"
+						color="text-base"
+						class="mb-3xs"
+					/>
+					<N8nSelect
+						:model-value="filters.eventName"
+						:placeholder="i18n.baseText('settings.auditLogs.filter.eventName.placeholder')"
+						clearable
+						filterable
+						data-test-id="audit-logs-event-filter"
+						@update:model-value="setKeyValue('eventName', $event)"
+					>
+						<N8nOption
+							v-for="eventName in eventNames"
+							:key="eventName"
+							:value="eventName"
+							:label="eventName"
+						/>
+					</N8nSelect>
+				</div>
 
-			<div>
-				<N8nInputLabel
-					:label="i18n.baseText('settings.auditLogs.filter.dateRange.label')"
-					:bold="false"
-					size="small"
-					color="text-base"
-					class="mb-3xs"
-				/>
-				<ElDatePicker
-					v-model="dateRange"
-					type="datetimerange"
-					:placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.placeholder')"
-					:start-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.start')"
-					:end-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.end')"
-					:clearable="true"
-					size="default"
-					data-test-id="audit-logs-date-filter"
-				/>
-			</div>
-		</template>
+				<div class="mb-s">
+					<N8nInputLabel
+						:label="i18n.baseText('settings.auditLogs.filter.userId.label')"
+						:bold="false"
+						size="small"
+						color="text-base"
+						class="mb-3xs"
+					/>
+					<N8nInput
+						:model-value="filters.userId"
+						:placeholder="i18n.baseText('settings.auditLogs.filter.userId.placeholder')"
+						clearable
+						data-test-id="audit-logs-user-filter"
+						@update:model-value="setKeyValue('userId', $event)"
+					/>
+				</div>
 
-		<template #default="{ data }">
-			<tr data-test-id="audit-log-row">
-				<td>
-					<N8nText color="text-base" size="small">
-						{{ formatTimestamp(data.timestamp) }}
-					</N8nText>
-				</td>
-				<td>
-					<N8nText :class="$style.eventName" color="text-dark" size="small" bold>
-						{{ data.eventName }}
-					</N8nText>
-				</td>
-				<td>
-					<div :class="$style.userCell">
+				<div>
+					<N8nInputLabel
+						:label="i18n.baseText('settings.auditLogs.filter.dateRange.label')"
+						:bold="false"
+						size="small"
+						color="text-base"
+						class="mb-3xs"
+					/>
+					<ElDatePicker
+						v-model="dateRange"
+						type="datetimerange"
+						:placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.placeholder')"
+						:start-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.start')"
+						:end-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.end')"
+						:clearable="true"
+						size="default"
+						data-test-id="audit-logs-date-filter"
+					/>
+				</div>
+			</template>
+
+			<template #default="{ data }">
+				<tr data-test-id="audit-log-row">
+					<td>
 						<N8nText color="text-base" size="small">
-							{{ getUserDisplay(data) }}
+							{{ formatTimestamp(data.timestamp) }}
 						</N8nText>
-						<N8nText
-							v-if="data.payload?.userEmail"
-							color="text-light"
-							size="small"
-							:class="$style.userEmail"
-						>
-							{{ data.payload.userEmail }}
+					</td>
+					<td>
+						<N8nText :class="$style.eventName" color="text-dark" size="small" bold>
+							{{ data.eventName }}
 						</N8nText>
-					</div>
-				</td>
-				<td>
-					<AuditLogPayload :event-name="data.eventName" :payload="data.payload" />
-				</td>
-			</tr>
-		</template>
-	</ResourcesListLayout>
+					</td>
+					<td>
+						<N8nText v-if="getMessage(data)" color="text-base" size="small">
+							{{ getMessage(data) }}
+						</N8nText>
+						<N8nText v-else color="text-light" size="small" italic> — </N8nText>
+					</td>
+					<td>
+						<div :class="$style.userCell">
+							<N8nText color="text-base" size="small">
+								{{ getUserDisplay(data) }}
+							</N8nText>
+							<N8nText
+								v-if="data.payload?.userEmail"
+								color="text-light"
+								size="small"
+								:class="$style.userEmail"
+							>
+								{{ data.payload.userEmail }}
+							</N8nText>
+						</div>
+					</td>
+					<td>
+						<AuditLogPayload :event-name="data.eventName" :payload="data.payload" />
+					</td>
+				</tr>
+			</template>
+		</ResourcesListLayout>
+	</div>
 </template>
 
 <style lang="scss" module>
+.auditLogsContainer {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
 .eventName {
 	font-family: var(--font-family--monospace, 'Courier New', monospace);
 }
@@ -370,5 +408,13 @@ onBeforeUnmount(() => {
 
 .userEmail {
 	font-size: var(--font-size--2xs);
+}
+
+.paginationContainer {
+	display: flex;
+	justify-content: center;
+	padding: var(--spacing--lg) 0;
+	margin-top: var(--spacing--md);
+	border-top: var(--border-width) var(--border-style) var(--color--foreground);
 }
 </style>
