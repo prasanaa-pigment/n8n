@@ -2974,6 +2974,7 @@
 	"settings.secretsProviderConnections.delete.impact.oneCredential": "1 credential",
 	"settings.secretsProviderConnections.delete.impact.credentials": "{count} credentials",
 	"settings.secretsProviderConnections.delete.impact.description": "will stop working",
+	"settings.secretsProviderConnections.delete.description.noImpact": "Deleting this vault will remove it. This action can't be undone. No secrets were imported from it, and no credentials will be affected.",
 	"settings.secretsProviderConnections.delete.confirmationLabel": "Type \"{name}\" to confirm.",
 	"settings.secretsProviderConnections.delete.success": "Secret store \"{name}\" deleted successfully",
 	"settings.secretsProviderConnections.delete.error": "Failed to delete secret store",
