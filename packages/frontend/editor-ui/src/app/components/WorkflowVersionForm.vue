@@ -68,7 +68,7 @@ defineExpose({
 				<N8nButton
 					:class="$style.aiButton"
 					type="tertiary"
-					size="small"
+					size="large"
 					:loading="aiGenerateLoading"
 					icon="sparkles"
 					square
@@ -115,6 +115,5 @@ defineExpose({
 
 .aiButton {
 	flex-shrink: 0;
-	margin-bottom: var(--spacing--5xs);
 }
 </style>

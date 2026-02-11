@@ -5,6 +5,13 @@ import WorkflowVersionForm from '@/app/components/WorkflowVersionForm.vue';
 import { useI18n } from '@n8n/i18n';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { useUIStore } from '@/app/stores/ui.store';
+import { useSettingsStore } from '@/app/stores/settings.store';
+import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { useRootStore } from '@n8n/stores/useRootStore';
+import { useWorkflowHistoryStore } from '@/features/workflows/workflowHistory/workflowHistory.store';
+import { useToast } from '@/app/composables/useToast';
+import { generateVersionDescription } from '@/features/ai/assistant/assistant.api';
+import type { GenerateVersionDescriptionRequest } from '@/features/ai/assistant/assistant.types';
 import { ref, computed, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
 import { generateVersionName } from '@/features/workflows/workflowHistory/utils';
 import type { EventBus } from '@n8n/utils/event-bus';
@@ -32,13 +39,65 @@ const props = defineProps<{
 const i18n = useI18n();
 const modalEventBus = createEventBus();
 const uiStore = useUIStore();
+const settingsStore = useSettingsStore();
+const workflowsStore = useWorkflowsStore();
+const rootStore = useRootStore();
+const workflowHistoryStore = useWorkflowHistoryStore();
+const { showError } = useToast();
 
 const versionForm = useTemplateRef<InstanceType<typeof WorkflowVersionForm>>('versionForm');
 
 const versionName = ref('');
 const description = ref('');
+const generatingAi = ref(false);
 
 const submitting = computed(() => props.data.submitting ?? false);
+
+const showAiGenerate = computed(() => settingsStore.isAskAiEnabled);
+
+async function handleGenerateWithAi() {
+	if (generatingAi.value) return;
+
+	generatingAi.value = true;
+
+	try {
+		const currentVersion = {
+			nodes: workflowsStore.allNodes,
+			connections: workflowsStore.allConnections as Record<string, unknown>,
+		};
+
+		let previousVersion: GenerateVersionDescriptionRequest.WorkflowVersionPayload | undefined;
+
+		const activeVersion = workflowsStore.workflow.activeVersion;
+		if (activeVersion?.versionId && activeVersion.versionId !== props.data.versionId) {
+			try {
+				const prevVersionData = await workflowHistoryStore.getWorkflowVersion(
+					workflowsStore.workflow.id,
+					activeVersion.versionId,
+				);
+				previousVersion = {
+					nodes: prevVersionData.nodes,
+					connections: prevVersionData.connections as Record<string, unknown>,
+				};
+			} catch {
+				// Continue without previous version if fetch fails
+			}
+		}
+
+		const result = await generateVersionDescription(rootStore.restApiContext, {
+			workflowName: workflowsStore.workflow.name,
+			currentVersion,
+			previousVersion,
+		});
+
+		versionName.value = result.name;
+		description.value = result.description;
+	} catch (error) {
+		showError(error, i18n.baseText('workflows.publishModal.generateWithAi.error'));
+	} finally {
+		generatingAi.value = false;
+	}
+}
 
 function onModalOpened() {
 	versionForm.value?.focusInput();
@@ -104,7 +163,10 @@ const handleSubmit = () => {
 					v-model:description="description"
 					:version-name-test-id="`${modalName}-version-name-input`"
 					:description-test-id="`${modalName}-description-input`"
+					:show-ai-generate="showAiGenerate"
+					:ai-generate-loading="generatingAi"
 					@submit="handleSubmit"
+					@generate-with-ai="handleGenerateWithAi"
 				/>
 				<div :class="$style.actions">
 					<N8nButton
