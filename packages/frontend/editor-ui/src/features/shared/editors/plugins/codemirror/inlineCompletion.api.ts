@@ -20,3 +20,22 @@ export async function fetchCodeCompletion(
 	);
 	return response.completion || null;
 }
+
+export async function fetchCodeGeneration(
+	context: IRestApiContext,
+	payload: {
+		prompt: string;
+		language: string;
+		mode?: string;
+		existingCode?: string;
+		inputSchema?: string;
+	},
+): Promise<string | null> {
+	const response = await makeRestApiRequest<{ code: string }>(
+		context,
+		'POST',
+		'/ai/code-generation',
+		payload as unknown as IDataObject,
+	);
+	return response.code || null;
+}

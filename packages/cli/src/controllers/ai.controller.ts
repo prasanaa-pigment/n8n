@@ -10,6 +10,7 @@ import {
 	AiUsageSettingsRequestDto,
 	AiTruncateMessagesRequestDto,
 	AiCodeCompletionRequestDto,
+	AiCodeGenerationRequestDto,
 } from '@n8n/api-types';
 import { AuthenticatedRequest } from '@n8n/db';
 import { Body, Get, Licensed, Post, RestController, GlobalScope } from '@n8n/decorators';
@@ -287,6 +288,23 @@ export class AiController {
 	) {
 		try {
 			return await this.aiCodeCompletionService.getCompletion(payload);
+		} catch (e) {
+			if (e instanceof BadRequestError) {
+				throw e;
+			}
+			assert(e instanceof Error);
+			throw new InternalServerError(e.message, e);
+		}
+	}
+
+	@Post('/code-generation', { ipRateLimit: { limit: 100 } })
+	async codeGeneration(
+		_req: AuthenticatedRequest,
+		_res: Response,
+		@Body payload: AiCodeGenerationRequestDto,
+	) {
+		try {
+			return await this.aiCodeCompletionService.generateCode(payload);
 		} catch (e) {
 			if (e instanceof BadRequestError) {
 				throw e;

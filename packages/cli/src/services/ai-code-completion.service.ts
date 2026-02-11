@@ -1,10 +1,10 @@
 import { GlobalConfig } from '@n8n/config';
 import { Service } from '@n8n/di';
-import type { AiCodeCompletionRequestDto } from '@n8n/api-types';
+import type { AiCodeCompletionRequestDto, AiCodeGenerationRequestDto } from '@n8n/api-types';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 
-interface CodestralFimResponse {
+interface MistralChatResponse {
 	choices: Array<{
 		message: {
 			content: string;
@@ -173,10 +173,54 @@ export class AiCodeCompletionService {
 			throw new BadRequestError(`Codestral API error: ${response.status} ${errorText}`);
 		}
 
-		const data = (await response.json()) as CodestralFimResponse;
+		const data = (await response.json()) as MistralChatResponse;
 		const completion = data.choices?.[0]?.message?.content ?? '';
 
 		return { completion };
+	}
+
+	async generateCode(payload: AiCodeGenerationRequestDto): Promise<{ code: string }> {
+		if (!this.apiKey) {
+			throw new BadRequestError(
+				'Codestral API key not configured. Set N8N_AI_CODESTRAL_API_KEY environment variable.',
+			);
+		}
+
+		const systemPrompt = this.buildCodeGenSystemPrompt(payload.mode, payload.inputSchema);
+		const userPrompt = this.buildCodeGenUserPrompt(payload.prompt, payload.existingCode);
+
+		const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${this.apiKey}`,
+			},
+			body: JSON.stringify({
+				model: 'devstral-small-latest',
+				messages: [
+					{ role: 'system', content: systemPrompt },
+					{ role: 'user', content: userPrompt },
+				],
+				max_tokens: 4000,
+				temperature: 0,
+			}),
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new BadRequestError(`Devstral API error: ${response.status} ${errorText}`);
+		}
+
+		const data = (await response.json()) as MistralChatResponse;
+		let code = data.choices?.[0]?.message?.content ?? '';
+
+		// Strip markdown code fences if present
+		const fenceMatch = code.match(/^```(?:javascript|js|typescript|ts|python)?\n([\s\S]*?)\n```$/m);
+		if (fenceMatch) {
+			code = fenceMatch[1];
+		}
+
+		return { code };
 	}
 
 	private getContextPrefix(mode?: string, inputSchema?: string): string {
@@ -187,5 +231,25 @@ export class AiCodeCompletionService {
 		}
 
 		return prefix;
+	}
+
+	private buildCodeGenSystemPrompt(mode?: string, inputSchema?: string): string {
+		const context = this.getContextPrefix(mode, inputSchema);
+		return `You are an n8n Code node assistant. Generate complete, working code for the n8n Code node.
+
+IMPORTANT RULES:
+- Return ONLY the code. No explanations, no markdown fences, no comments about what the code does.
+- The code must be ready to paste directly into the n8n Code node editor.
+
+Here is the full reference for the n8n Code node environment:
+
+${context}`;
+	}
+
+	private buildCodeGenUserPrompt(prompt: string, existingCode?: string): string {
+		if (existingCode?.trim()) {
+			return `Here is the current code in the editor:\n\`\`\`\n${existingCode}\n\`\`\`\n\nUser request: ${prompt}`;
+		}
+		return prompt;
 	}
 }
