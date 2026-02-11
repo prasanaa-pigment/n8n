@@ -452,11 +452,15 @@ export class ChatHubService {
 			})),
 		});
 
-		// Check if we should resume a waiting execution instead of starting a new one
-		// This happens when the previous message is in 'waiting' state (Chat node waiting for user input)
+		// Check if we should resume a waiting execution instead of starting a new one.
+		// This happens when the previous message is in 'waiting' state (Chat node waiting for user input).
+		// Allow resuming if EITHER the chat trigger's or the scheduled trigger's response mode is 'responseNodes'.
+		const canResumeWaiting =
+			workflow.responseMode === 'responseNodes' ||
+			workflow.scheduledTriggerResponseMode === 'responseNodes';
 		if (
 			model.provider === 'n8n' &&
-			workflow.responseMode === 'responseNodes' &&
+			canResumeWaiting &&
 			previousMessage?.status === 'waiting' &&
 			previousMessage?.executionId
 		) {
@@ -486,9 +490,16 @@ export class ChatHubService {
 				user,
 				messageId,
 				model,
-				workflow.responseMode,
+				'responseNodes',
 			);
 			return;
+		}
+
+		// No chat trigger means we can't start a new execution — only resume waiting ones (handled above)
+		if (workflow.responseMode === null) {
+			throw new BadRequestError(
+				'This workflow can only respond to scheduled executions. It does not have a Chat Trigger to accept new messages.',
+			);
 		}
 
 		// Start the workflow execution with streaming
@@ -766,7 +777,9 @@ export class ChatHubService {
 			sessionId,
 			previousMessageId,
 			retryOfMessageId,
-			workflow.responseMode,
+			// responseMode is guaranteed non-null here because sendHumanMessage
+			// throws before calling this method when responseMode is null
+			workflow.responseMode!,
 		);
 
 		// Generate title for the session on receiving the first human message

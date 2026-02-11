@@ -183,6 +183,11 @@ export class ScheduledChatTriggerService {
 			throw new OperationalError('There was a problem starting the scheduled chat execution.');
 		}
 
+		// Update the AI message with the execution ID now that we have it
+		await this.messageRepository.updateChatMessage(messageId, {
+			executionId: parseInt(executionId, 10),
+		});
+
 		// Register execution context for the watcher to handle completion
 		await this.chatHubExecutionStore.register({
 			executionId,

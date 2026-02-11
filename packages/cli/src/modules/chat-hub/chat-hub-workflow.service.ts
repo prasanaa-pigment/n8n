@@ -23,6 +23,7 @@ import {
 	CHAT_NODE_TYPE,
 	AGENT_LANGCHAIN_NODE_TYPE,
 	CHAT_TRIGGER_NODE_TYPE,
+	SCHEDULED_CHAT_TRIGGER_NODE_TYPE,
 	createRunExecutionData,
 	IConnections,
 	IExecuteData,
@@ -1201,7 +1202,7 @@ Respond the title only:`,
 		attachments: IBinaryData[],
 		trx: EntityManager,
 		executionMetadata: ChatHubAuthenticationMetadata,
-	) {
+	): Promise<PreparedChatWorkflow> {
 		const workflow = await this.workflowFinderService.findWorkflowForUser(
 			workflowId,
 			user,
@@ -1213,9 +1214,46 @@ Respond the title only:`,
 			throw new BadRequestError('Workflow not found');
 		}
 
+		// Check for a ScheduledChatTrigger and capture its response mode
+		const scheduledChatTriggers = workflow.activeVersion.nodes.filter(
+			(node) => node.type === SCHEDULED_CHAT_TRIGGER_NODE_TYPE,
+		);
+		const scheduledTriggerResponseMode =
+			scheduledChatTriggers.length > 0
+				? ((scheduledChatTriggers[0].parameters.responseMode as ChatTriggerResponseMode) ??
+					'lastNode')
+				: undefined;
+
 		const chatTriggers = workflow.activeVersion.nodes.filter(
 			(node) => node.type === CHAT_TRIGGER_NODE_TYPE,
 		);
+
+		if (chatTriggers.length === 0 && scheduledChatTriggers.length === 0) {
+			throw new BadRequestError('Workflow must have a Chat Trigger or Scheduled Chat Trigger node');
+		}
+
+		// If there's no chat trigger, we can't start new executions from the chat UI.
+		// Return workflow info with the scheduled trigger's response mode so the caller
+		// can decide whether to resume a waiting execution.
+		if (chatTriggers.length === 0) {
+			const workflowData: IWorkflowBase = {
+				...workflow,
+				nodes: workflow.activeVersion.nodes,
+				connections: workflow.activeVersion.connections,
+				settings: {
+					...workflow.settings,
+					saveDataSuccessExecution: 'all',
+				},
+			};
+
+			return {
+				workflowData,
+				// No execution data — can't start a new execution without a chat trigger
+				executionData: createRunExecutionData({}),
+				responseMode: null,
+				scheduledTriggerResponseMode,
+			};
+		}
 
 		if (chatTriggers.length !== 1) {
 			throw new BadRequestError('Workflow must have exactly one chat trigger');
@@ -1299,6 +1337,7 @@ Respond the title only:`,
 			workflowData,
 			executionData,
 			responseMode,
+			scheduledTriggerResponseMode,
 		};
 	}
 

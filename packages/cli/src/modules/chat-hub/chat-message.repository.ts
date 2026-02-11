@@ -107,7 +107,12 @@ export class ChatHubMessageRepository extends Repository<ChatHubMessage> {
 
 	async updateChatMessage(
 		id: ChatMessageId,
-		fields: { status?: ChatHubMessageStatus; content?: string; attachments?: IBinaryData[] },
+		fields: {
+			status?: ChatHubMessageStatus;
+			content?: string;
+			attachments?: IBinaryData[];
+			executionId?: number;
+		},
 		trx?: EntityManager,
 	) {
 		const em = trx ?? this.manager;

@@ -88,5 +88,8 @@ export const chatTriggerParamsShape = z.object({
 export type PreparedChatWorkflow = {
 	workflowData: IWorkflowBase;
 	executionData: IRunExecutionData;
-	responseMode: ChatTriggerResponseMode;
+	/** Response mode from the ChatTrigger node, or null if no chat trigger is present */
+	responseMode: ChatTriggerResponseMode | null;
+	/** Response mode from the ScheduledChatTrigger node, if present */
+	scheduledTriggerResponseMode?: ChatTriggerResponseMode;
 };
