@@ -641,6 +641,8 @@ export class WorkflowsController {
 			workflowId,
 			body.versionId,
 			body.percentage,
+			body.name,
+			body.description,
 		);
 
 		return {

@@ -790,6 +790,8 @@ export class WorkflowService {
 		workflowId: string,
 		gradualRolloutVersionId: string | undefined,
 		gradualRolloutPercentage: number | undefined,
+		name?: string,
+		description?: string,
 	): Promise<WorkflowEntity> {
 		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
 			'workflow:publish',
@@ -832,6 +834,17 @@ export class WorkflowService {
 			gradualRolloutPercentage,
 			updatedAt: workflow.updatedAt,
 		});
+
+		if (name !== undefined || description !== undefined) {
+			const updateFields: UpdateWorkflowHistoryVersionDto = {};
+			if (name !== undefined) updateFields.name = name;
+			if (description !== undefined) updateFields.description = description;
+			await this.workflowHistoryService.updateVersion(
+				workflowId,
+				gradualRolloutVersionId,
+				updateFields,
+			);
+		}
 
 		workflow.gradualRolloutVersionId = gradualRolloutVersionId;
 		workflow.gradualRolloutPercentage = gradualRolloutPercentage;

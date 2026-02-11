@@ -1,9 +1,12 @@
 import type { Server } from 'miragejs';
 import { Response } from 'miragejs';
+import { jsonParse } from 'n8n-workflow';
 
 export function routesForGradualPublish(server: Server) {
 	server.post('/rest/workflows/:workflowId/gradual-rollout', (_schema, request) => {
-		const { percentage, versionId } = JSON.parse(request.requestBody);
+		const { percentage, versionId } = jsonParse<{ percentage: number; versionId: string }>(
+			request.requestBody,
+		);
 
 		// Mock: Active gradual rollout (1-99%)
 		return new Response(
