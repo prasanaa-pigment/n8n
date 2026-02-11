@@ -70,11 +70,35 @@ export const useDataTableStore = defineStore(DATA_TABLE_STORE, () => {
 		hasPermission(['rbac'], { rbac: { scope: 'dataTable:list' } }),
 	);
 
-	const fetchDataTables = async (projectId: string, page: number, pageSize: number) => {
-		const response = await fetchDataTablesApi(rootStore.restApiContext, projectId, {
-			skip: (page - 1) * pageSize,
-			take: pageSize,
-		});
+	const fetchDataTables = async (
+		projectId: string,
+		page: number,
+		pageSize: number,
+		filter?: {
+			id?: string | string[];
+			name?: string | string[];
+			projectId?: string | string[];
+		},
+		sortBy?:
+			| 'name:asc'
+			| 'name:desc'
+			| 'createdAt:asc'
+			| 'createdAt:desc'
+			| 'updatedAt:asc'
+			| 'updatedAt:desc'
+			| 'size:asc'
+			| 'size:desc',
+	) => {
+		const response = await fetchDataTablesApi(
+			rootStore.restApiContext,
+			projectId,
+			{
+				skip: (page - 1) * pageSize,
+				take: pageSize,
+			},
+			filter,
+			sortBy,
+		);
 		dataTables.value = response.data;
 		totalCount.value = response.count;
 	};

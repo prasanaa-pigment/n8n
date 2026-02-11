@@ -712,7 +712,7 @@ export class DataTableService {
 		return {
 			totalBytes: allSizeData.totalBytes,
 			quotaStatus: this.dataTableSizeValidator.sizeToState(allSizeData.totalBytes),
-			dataTables: accessibleDataTables,
+			dataTables: allSizeData.dataTables,
 		};
 	}
 

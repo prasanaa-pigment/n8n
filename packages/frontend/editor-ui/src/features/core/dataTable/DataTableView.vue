@@ -18,7 +18,7 @@ import { useUIStore } from '@/app/stores/ui.store';
 import { useDataTableStore } from '@/features/core/dataTable/dataTable.store';
 import type { DataTableResource } from '@/features/core/dataTable/types';
 import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
-import type { SortingAndPaginationUpdates } from '@/Interface';
+import type { BaseFilters, SortingAndPaginationUpdates } from '@/Interface';
 import { useI18n } from '@n8n/i18n';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -44,6 +44,19 @@ const loading = ref(true);
 
 const currentPage = ref(1);
 const pageSize = ref(DEFAULT_DATA_TABLE_PAGE_SIZE);
+
+const SEARCH_DEBOUNCE_TIME = 300;
+
+interface Filters extends BaseFilters {
+	// status: string | boolean;
+	// showArchived: boolean;
+	// tags: string[];
+}
+
+const filters = ref<Filters>({
+	search: '',
+	homeProject: '',
+});
 
 const dataTableResources = computed<DataTableResource[]>(() =>
 	dataTableStore.dataTables.map((ds) => {
@@ -77,15 +90,55 @@ const initialize = async () => {
 	}
 };
 
+const WORKFLOWS_SORT_MAP = {
+	lastUpdated: 'updatedAt:desc',
+	lastCreated: 'createdAt:desc',
+	nameAsc: 'name:asc',
+	nameDesc: 'name:desc',
+	sizeAsc: 'size:asc',
+	sizeDesc: 'size:desc',
+} as const;
+type SORT_TYPE = typeof WORKFLOWS_SORT_MAP;
+
+const currentSort = ref<SORT_TYPE[keyof SORT_TYPE]>('updatedAt:desc');
+
+const fetchDataTables = async () => {
+	loading.value = true;
+	const projectIdFilter = projectPages.isOverviewSubPage ? '' : projectsStore.currentProjectId;
+	try {
+		console.log('CCC' + currentSort.value);
+		await dataTableStore.fetchDataTables(
+			projectIdFilter ?? '',
+			currentPage.value,
+			pageSize.value,
+			{
+				name: filters.value.search === '' ? undefined : filters.value.search,
+				projectId: filters.value.homeProject === '' ? undefined : filters.value.homeProject,
+			},
+			currentSort.value,
+		);
+	} catch (error) {
+		toast.showError(error, 'Error loading data tables');
+	} finally {
+		loading.value = false;
+	}
+};
+
 const onPaginationUpdate = async (payload: SortingAndPaginationUpdates) => {
+	console.log(payload);
 	if (payload.page) {
 		currentPage.value = payload.page;
 	}
 	if (payload.pageSize) {
 		pageSize.value = payload.pageSize;
 	}
+	if (payload.sort) {
+		currentSort.value =
+			WORKFLOWS_SORT_MAP[payload.sort as keyof typeof WORKFLOWS_SORT_MAP] ?? 'updatedAt:desc';
+	}
+
 	if (!loading.value) {
-		await callDebounced(initialize, { debounceTime: 200, trailing: true });
+		await callDebounced(fetchDataTables, { debounceTime: 200, trailing: true });
 	}
 };
 
@@ -94,6 +147,40 @@ const onAddModalClick = () => {
 		name: PROJECT_DATA_TABLES,
 		params: { projectId: currentProject.value?.id, new: 'new' },
 	});
+};
+
+const saveFiltersOnQueryString = () => {
+	// Get current query parameters
+	const currentQuery = { ...route.query };
+
+	// Update filter parameters
+	if (filters.value.search) {
+		currentQuery.search = filters.value.search;
+	} else {
+		delete currentQuery.search;
+	}
+
+	if (filters.value.homeProject) {
+		currentQuery.homeProject = filters.value.homeProject;
+	} else {
+		delete currentQuery.homeProject;
+	}
+
+	void router.replace({
+		query: Object.keys(currentQuery).length ? currentQuery : undefined,
+	});
+};
+
+const onSearchUpdated = async (search: string) => {
+	currentPage.value = 1;
+	filters.value.search = search;
+	// saveFiltersOnQueryString();
+	if (search) {
+		await callDebounced(fetchDataTables, { debounceTime: SEARCH_DEBOUNCE_TIME, trailing: true });
+	} else {
+		// No need to debounce when clearing search
+		await fetchDataTables();
+	}
 };
 
 onMounted(() => {
@@ -120,15 +207,18 @@ watch(
 		:resources="dataTableResources"
 		:initialize="initialize"
 		:type-props="{ itemSize: 80 }"
-		:loading="loading"
+		:loading="false"
 		:disabled="false"
 		:total-items="totalCount"
+		:resources-refreshing="loading"
+		:sort-options="Object.keys(WORKFLOWS_SORT_MAP)"
 		:dont-perform-sorting-and-filtering="true"
 		:ui-config="{
-			searchEnabled: false,
+			searchEnabled: true,
 			showFiltersDropdown: false,
-			sortEnabled: false,
+			sortEnabled: true,
 		}"
+		@update:search="onSearchUpdated"
 		@update:pagination-and-sort="onPaginationUpdate"
 	>
 		<template #header>

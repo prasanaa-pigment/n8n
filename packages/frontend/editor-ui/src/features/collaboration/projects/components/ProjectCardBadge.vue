@@ -9,8 +9,10 @@ import { VIEWS } from '@/app/constants';
 import { type IconOrEmoji, isIconOrEmoji } from '@n8n/design-system/components/N8nIconPicker/types';
 import ProjectIcon from './ProjectIcon.vue';
 import { N8nBadge, N8nTooltip } from '@n8n/design-system';
+import type { DataTableResource } from '@/features/core/dataTable/types';
+
 type Props = {
-	resource: WorkflowResource | CredentialsResource | FolderResource;
+	resource: WorkflowResource | CredentialsResource | FolderResource | DataTableResource;
 	resourceType: ResourceType;
 	resourceTypeLabel: string;
 	personalProject: Project | null;
@@ -32,6 +34,15 @@ const props = withDefaults(defineProps<Props>(), {
 	showBadgeBorder: true,
 });
 
+const refinedResource = computed(() => {
+	if (props.resource.resourceType === 'dataTable') {
+		return {
+			...props.resource,
+			homeProject: props.resource.project,
+		};
+	} else return props.resource;
+});
+
 const i18n = useI18n();
 
 const isShared = computed(() => {
@@ -40,21 +51,21 @@ const isShared = computed(() => {
 
 const projectState = computed(() => {
 	if (
-		(props.resource.homeProject &&
+		(refinedResource.value.homeProject &&
 			props.personalProject &&
-			props.resource.homeProject.id === props.personalProject.id) ||
-		!props.resource.homeProject
+			refinedResource.value.id === props.personalProject.id) ||
+		!refinedResource.value
 	) {
 		if (isShared.value) {
 			return ProjectState.SharedOwned;
 		}
 		return ProjectState.Owned;
-	} else if (props.resource.homeProject?.type !== ProjectTypes.Team) {
+	} else if (refinedResource.value?.homeProject?.type !== ProjectTypes.Team) {
 		if (isShared.value) {
 			return ProjectState.SharedPersonal;
 		}
 		return ProjectState.Personal;
-	} else if (props.resource.homeProject?.type === ProjectTypes.Team) {
+	} else if (refinedResource.value?.homeProject?.type === ProjectTypes.Team) {
 		if (isShared.value) {
 			return ProjectState.SharedTeam;
 		}
@@ -74,7 +85,7 @@ const badgeText = computed(() => {
 	) {
 		return i18n.baseText('projects.menu.personal');
 	} else {
-		const { name, email } = splitName(props.resource.homeProject?.name ?? '');
+		const { name, email } = splitName(refinedResource.value.homeProject?.name ?? '');
 		return name ?? email ?? '';
 	}
 });
@@ -88,8 +99,8 @@ const badgeIcon = computed<IconOrEmoji>(() => {
 			return { type: 'icon', value: 'user' };
 		case ProjectState.Team:
 		case ProjectState.SharedTeam:
-			return isIconOrEmoji(props.resource.homeProject?.icon)
-				? props.resource.homeProject?.icon
+			return isIconOrEmoji(refinedResource.value.homeProject?.icon)
+				? refinedResource.value.homeProject?.icon
 				: { type: 'icon', value: 'layers' };
 		default:
 			return { type: 'icon', value: 'layers' };
@@ -142,12 +153,12 @@ const projectLocation = computed(() => {
 	if (
 		projectState.value !== ProjectState.Personal &&
 		projectState.value !== ProjectState.SharedPersonal &&
-		props.resource.homeProject?.id &&
+		refinedResource.value.homeProject?.id &&
 		props.resourceType === ResourceType.Workflow
 	) {
 		return {
 			name: VIEWS.PROJECTS_WORKFLOWS,
-			params: { projectId: props.resource.homeProject.id },
+			params: { projectId: refinedResource.value.homeProject.id },
 		};
 	}
 	return null;

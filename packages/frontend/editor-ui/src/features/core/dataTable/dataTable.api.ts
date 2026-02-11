@@ -19,8 +19,17 @@ export const fetchDataTablesApi = async (
 	filter?: {
 		id?: string | string[];
 		name?: string | string[];
-		projectId: string | string[];
+		projectId?: string | string[];
 	},
+	sortBy?:
+		| 'name:asc'
+		| 'name:desc'
+		| 'createdAt:asc'
+		| 'createdAt:desc'
+		| 'updatedAt:asc'
+		| 'updatedAt:desc'
+		| 'size:asc'
+		| 'size:desc',
 ) => {
 	const apiEndpoint = projectId ? `/projects/${projectId}/data-tables` : '/data-tables-global';
 	return await makeRestApiRequest<{ count: number; data: DataTable[] }>(
@@ -30,6 +39,7 @@ export const fetchDataTablesApi = async (
 		{
 			...options,
 			filter: filter ?? undefined,
+			sortBy,
 		},
 	);
 };
