@@ -44,7 +44,8 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 	const collaborators = ref<Collaborator[]>([]);
 
 	// Write-lock state for single-write mode
-	const currentWriterId = ref<string | null>(null);
+	const currentWriterClientId = ref<string | null>(null);
+	const currentWriterUserId = ref<string | null>(null);
 	const lastActivityTime = ref<number>(Date.now());
 	const activityCheckInterval = ref<number | null>(null);
 
@@ -63,16 +64,16 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 
 	// Computed properties for write-lock state
 	const isCurrentUserWriter = computed(() => {
-		return currentWriterId.value === usersStore.currentUserId;
+		return currentWriterClientId.value === rootStore.pushRef;
 	});
 
 	const currentWriter = computed(() => {
-		if (!currentWriterId.value) return null;
-		return collaborators.value.find((c) => c.user.id === currentWriterId.value);
+		if (!currentWriterUserId.value) return null;
+		return collaborators.value.find((c) => c.user.id === currentWriterUserId.value);
 	});
 
 	const isAnyoneWriting = computed(() => {
-		return currentWriterId.value !== null;
+		return currentWriterClientId.value !== null;
 	});
 
 	const shouldBeReadOnly = computed(() => {
@@ -90,7 +91,7 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 				rootStore.restApiContext,
 				workflowId,
 			);
-			return response.userId;
+			return response.clientId;
 		} catch {
 			return null;
 		}
@@ -166,11 +167,12 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 			return;
 		}
 
-		const writeLockUserId = await fetchWriteLockState();
+		const writeLockClientId = await fetchWriteLockState();
 
 		// If lock is gone on backend but still exists in frontend, clear it
-		if (!writeLockUserId && currentWriterId.value) {
-			currentWriterId.value = null;
+		if (!writeLockClientId && currentWriterClientId.value) {
+			currentWriterClientId.value = null;
+			currentWriterUserId.value = null;
 			stopLockStatePolling();
 		}
 	};
@@ -215,7 +217,8 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 	}
 
 	function releaseWriteAccess() {
-		currentWriterId.value = null;
+		currentWriterClientId.value = null;
+		currentWriterUserId.value = null;
 		stopWriteLockHeartbeat();
 
 		if (!collaboratingWorkflowId.value) {
@@ -285,12 +288,15 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 	}
 
 	function handleWriteLockHolderLeft() {
-		if (!currentWriterId.value) return;
+		if (!currentWriterUserId.value) return;
 
-		const writerStillPresent = collaborators.value.some((c) => c.user.id === currentWriterId.value);
+		const writerStillPresent = collaborators.value.some(
+			(c) => c.user.id === currentWriterUserId.value,
+		);
 
 		if (!writerStillPresent) {
-			currentWriterId.value = null;
+			currentWriterClientId.value = null;
+			currentWriterUserId.value = null;
 		}
 	}
 
@@ -303,9 +309,9 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 		collaboratingWorkflowId.value = workflowsStore.workflowId;
 
 		// Fetch current write-lock state from backend to restore state after page refresh
-		const writeLockUserId = await fetchWriteLockState();
-		if (writeLockUserId) {
-			currentWriterId.value = writeLockUserId;
+		const writeLockClientId = await fetchWriteLockState();
+		if (writeLockClientId) {
+			currentWriterClientId.value = writeLockClientId;
 
 			// If current user holds the lock, restart the heartbeat
 			if (isCurrentUserWriter.value) {
@@ -330,7 +336,8 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 				event.type === 'writeAccessAcquired' &&
 				event.data.workflowId === collaboratingWorkflowId.value
 			) {
-				currentWriterId.value = event.data.userId;
+				currentWriterClientId.value = event.data.clientId;
+				currentWriterUserId.value = event.data.userId;
 
 				// Start heartbeat and record activity if current user acquired the lock
 				if (isCurrentUserWriter.value) {
@@ -348,7 +355,8 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 				event.type === 'writeAccessReleased' &&
 				event.data.workflowId === collaboratingWorkflowId.value
 			) {
-				currentWriterId.value = null;
+				currentWriterClientId.value = null;
+				currentWriterUserId.value = null;
 				stopWriteLockHeartbeat();
 				stopLockStatePolling();
 				return;
@@ -388,7 +396,8 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 			clearTimeout(unloadTimeout.value);
 		}
 		collaboratingWorkflowId.value = null;
-		currentWriterId.value = null;
+		currentWriterClientId.value = null;
+		currentWriterUserId.value = null;
 		collaborators.value = [];
 	}
 
