@@ -217,6 +217,24 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 		return true;
 	}
 
+	function requestWriteAccessForce() {
+		if (!collaboratingWorkflowId.value) {
+			return false;
+		}
+
+		try {
+			pushStore.send({
+				type: 'writeAccessRequested',
+				workflowId: collaboratingWorkflowId.value,
+				force: true,
+			});
+		} catch {
+			return false;
+		}
+
+		return true;
+	}
+
 	function releaseWriteAccess() {
 		currentWriterLock.value = null;
 		stopWriteLockHeartbeat();
@@ -408,6 +426,7 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 		isAnyoneWriting,
 		shouldBeReadOnly,
 		requestWriteAccess,
+		requestWriteAccessForce,
 		releaseWriteAccess,
 		recordActivity,
 		initialize,

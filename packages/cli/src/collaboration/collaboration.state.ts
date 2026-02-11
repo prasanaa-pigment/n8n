@@ -173,4 +173,29 @@ export class CollaborationState {
 	private formWriteLockCacheKey(workflowId: Workflow['id']) {
 		return `collaboration:write-lock:${workflowId}`;
 	}
+
+	/**
+	 * Acquire write lock forcefully, stealing from same user's other tab if necessary.
+	 * Checks permission before stealing - only same user can force-steal their own lock.
+	 *
+	 * @returns true if lock was acquired, false if lock is held by different user
+	 */
+	async acquireWriteLockForce(
+		workflowId: Workflow['id'],
+		clientId: string,
+		userId: User['id'],
+	): Promise<boolean> {
+		// Check if lock exists and belongs to a different user
+		const currentLock = await this.getWriteLock(workflowId);
+
+		if (currentLock && currentLock.userId !== userId) {
+			// Different user owns the lock, cannot steal
+			return false;
+		}
+
+		// Either no lock exists, or it's owned by the same user
+		// Set the lock (stealing from own other tab if necessary)
+		await this.setWriteLock(workflowId, clientId, userId);
+		return true;
+	}
 }

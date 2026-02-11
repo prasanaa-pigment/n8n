@@ -137,19 +137,25 @@ export class CollaborationService {
 		clientId: string,
 		msg: WriteAccessRequestedMessage,
 	) {
-		const { workflowId } = msg;
+		const { workflowId, force } = msg;
 
 		if (!(await this.accessService.hasWriteAccess(userId, workflowId))) {
 			return;
 		}
 
-		// Check if someone else already holds the write lock
-		const currentLock = await this.state.getWriteLock(workflowId);
-		if (currentLock && currentLock.clientId !== clientId) {
-			return;
-		}
+		if (force) {
+			const acquired = await this.state.acquireWriteLockForce(workflowId, clientId, userId);
+			if (!acquired) {
+				return;
+			}
+		} else {
+			const currentLock = await this.state.getWriteLock(workflowId);
+			if (currentLock && currentLock.clientId !== clientId) {
+				return;
+			}
 
-		await this.state.setWriteLock(workflowId, clientId, userId);
+			await this.state.setWriteLock(workflowId, clientId, userId);
+		}
 
 		await this.sendWriteAccessAcquiredMessage(workflowId, userId, clientId);
 	}

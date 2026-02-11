@@ -144,7 +144,12 @@ import { useCollaborationStore } from '@/features/collaboration/collaboration/co
 import { injectStrict } from '@/app/utils/injectStrict';
 import { WorkflowIdKey } from '@/app/constants/injectionKeys';
 
-import { N8nCallout, N8nCanvasThinkingPill, N8nCanvasCollaborationPill } from '@n8n/design-system';
+import {
+	N8nCallout,
+	N8nCanvasThinkingPill,
+	N8nCanvasCollaborationPill,
+	N8nButton,
+} from '@n8n/design-system';
 
 defineOptions({
 	name: 'NodeView',
@@ -1476,6 +1481,10 @@ function checkIfEditingIsAllowed(): boolean {
 	return true;
 }
 
+function onAcquireEditingClick() {
+	collaborationStore.requestWriteAccessForce();
+}
+
 function checkIfRouteIsAllowed() {
 	if (
 		isReadOnlyEnvironment.value &&
@@ -1998,6 +2007,25 @@ onBeforeUnmount(() => {
 				:class="$style.readOnlyEnvironmentNotification"
 			>
 				{{ i18n.baseText('readOnlyEnv.cantEditOrRun') }}
+			</N8nCallout>
+
+			<N8nCallout
+				v-if="collaborationStore.shouldBeReadOnly && collaborationStore.isCurrentUserWriter"
+				theme="info"
+				icon="lock"
+				:class="$style.readOnlyEnvironmentNotification"
+			>
+				<template #default>
+					<span>{{ i18n.baseText('collaboration.anotherTabIsEditing') }}</span>
+					<N8nButton
+						size="small"
+						type="secondary"
+						style="margin-left: var(--spacing--xs); cursor: pointer"
+						@click="onAcquireEditingClick"
+					>
+						{{ i18n.baseText('collaboration.acquireEditing') }}
+					</N8nButton>
+				</template>
 			</N8nCallout>
 
 			<N8nCanvasCollaborationPill
