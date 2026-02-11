@@ -158,6 +158,7 @@
       "dist/nodes/trigger/ManualChatTrigger/ManualChatTrigger.node.js",
       "dist/nodes/trigger/ChatTrigger/ChatTrigger.node.js",
       "dist/nodes/trigger/ChatTrigger/Chat.node.js",
+      "dist/nodes/trigger/ScheduledChatTrigger/ScheduledChatTrigger.node.js",
       "dist/nodes/vector_store/VectorStoreAzureAISearch/VectorStoreAzureAISearch.node.js",
       "dist/nodes/vector_store/VectorStoreInMemory/VectorStoreInMemory.node.js",
       "dist/nodes/vector_store/VectorStoreInMemoryInsert/VectorStoreInMemoryInsert.node.js",

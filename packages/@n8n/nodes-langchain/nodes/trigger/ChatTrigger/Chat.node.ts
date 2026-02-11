@@ -14,6 +14,7 @@ import {
 	FREE_TEXT_CHAT_RESPONSE_TYPE,
 	NodeConnectionTypes,
 	NodeOperationError,
+	SCHEDULED_CHAT_TRIGGER_NODE_TYPE,
 	SEND_AND_WAIT_OPERATION,
 } from 'n8n-workflow';
 import type {
@@ -304,8 +305,10 @@ export class Chat implements INodeType {
 			includeNodeParameters: true,
 		});
 
+		const chatTriggerTypes = new Set([CHAT_TRIGGER_NODE_TYPE, SCHEDULED_CHAT_TRIGGER_NODE_TYPE]);
+
 		let chatTrigger: INode | NodeTypeAndVersion | undefined | null = connectedNodes.find(
-			(node) => node.type === CHAT_TRIGGER_NODE_TYPE && !node.disabled,
+			(node) => chatTriggerTypes.has(node.type) && !node.disabled,
 		);
 
 		if (!chatTrigger) {
@@ -322,23 +325,36 @@ export class Chat implements INodeType {
 			);
 		}
 
-		const parameters = chatTrigger.parameters as {
-			mode?: 'hostedChat' | 'webhook';
-			options: { responseMode: 'lastNode' | 'responseNodes' | 'streaming' | 'responseNode' };
-		};
+		if (chatTrigger.type === SCHEDULED_CHAT_TRIGGER_NODE_TYPE) {
+			const parameters = chatTrigger.parameters as {
+				responseMode?: 'lastNode' | 'responseNodes';
+			};
 
-		if (parameters.mode === 'webhook') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'"Embedded chat" is not supported, change the "Mode" in the chat trigger node to the "Hosted Chat"',
-			);
-		}
+			if (parameters.responseMode !== 'responseNodes') {
+				throw new NodeOperationError(
+					this.getNode(),
+					'"Response Mode" in the scheduled chat trigger node must be set to "Using Response Nodes"',
+				);
+			}
+		} else {
+			const parameters = chatTrigger.parameters as {
+				mode?: 'hostedChat' | 'webhook';
+				options: { responseMode: 'lastNode' | 'responseNodes' | 'streaming' | 'responseNode' };
+			};
 
-		if (parameters.options.responseMode !== 'responseNodes') {
-			throw new NodeOperationError(
-				this.getNode(),
-				'"Response Mode" in the chat trigger node must be set to "Using Response Nodes"',
-			);
+			if (parameters.mode === 'webhook') {
+				throw new NodeOperationError(
+					this.getNode(),
+					'"Embedded chat" is not supported, change the "Mode" in the chat trigger node to the "Hosted Chat"',
+				);
+			}
+
+			if (parameters.options.responseMode !== 'responseNodes') {
+				throw new NodeOperationError(
+					this.getNode(),
+					'"Response Mode" in the chat trigger node must be set to "Using Response Nodes"',
+				);
+			}
 		}
 
 		const message = getChatMessage(this);

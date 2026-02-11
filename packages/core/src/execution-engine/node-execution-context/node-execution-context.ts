@@ -28,6 +28,7 @@ import {
 	ApplicationError,
 	CHAT_TRIGGER_NODE_TYPE,
 	deepCopy,
+	SCHEDULED_CHAT_TRIGGER_NODE_TYPE,
 	ExpressionError,
 	NodeHelpers,
 	NodeOperationError,
@@ -154,8 +155,10 @@ export abstract class NodeExecutionContext implements Omit<FunctionsBase, 'getCr
 	 * this is needed for sub-nodes where the parent nodes are not available
 	 */
 	getChatTrigger() {
+		const chatTriggerTypes = new Set([CHAT_TRIGGER_NODE_TYPE, SCHEDULED_CHAT_TRIGGER_NODE_TYPE]);
+
 		for (const node of Object.values(this.workflow.nodes)) {
-			if (this.workflow.nodes[node.name].type === CHAT_TRIGGER_NODE_TYPE) {
+			if (chatTriggerTypes.has(this.workflow.nodes[node.name].type)) {
 				return this.workflow.nodes[node.name];
 			}
 		}

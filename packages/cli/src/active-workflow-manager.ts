@@ -5,12 +5,12 @@ import {
 	WORKFLOW_REACTIVATE_INITIAL_TIMEOUT,
 	WORKFLOW_REACTIVATE_MAX_TIMEOUT,
 } from '@/constants';
-import { Logger } from '@n8n/backend-common';
+import { Logger, ModuleRegistry } from '@n8n/backend-common';
 import { WorkflowsConfig } from '@n8n/config';
 import type { WorkflowEntity, IWorkflowDb } from '@n8n/db';
 import { WorkflowRepository } from '@n8n/db';
 import { OnLeaderStepdown, OnLeaderTakeover, OnPubSubEvent, OnShutdown } from '@n8n/decorators';
-import { Service } from '@n8n/di';
+import { Container, Service } from '@n8n/di';
 import chunk from 'lodash/chunk';
 import {
 	ActiveWorkflows,
@@ -44,6 +44,7 @@ import {
 	ensureError,
 	createRunExecutionData,
 	validateWorkflowHasTriggerLikeNode,
+	SCHEDULED_CHAT_TRIGGER_NODE_TYPE,
 } from 'n8n-workflow';
 import { strict } from 'node:assert';
 
@@ -96,6 +97,7 @@ export class ActiveWorkflowManager {
 		private readonly push: Push,
 		private readonly eventService: EventService,
 		private readonly storageConfig: StorageConfig,
+		private readonly moduleRegistry: ModuleRegistry,
 	) {
 		this.logger = this.logger.scoped(['workflow-activation']);
 	}
@@ -353,6 +355,22 @@ export class ActiveWorkflowManager {
 			) => {
 				this.logger.debug(`Received trigger for workflow "${workflow.name}"`);
 				void this.workflowStaticDataService.saveStaticData(workflow);
+
+				// Intercept scheduled chat trigger emissions and route to chat hub
+				if (node.type === SCHEDULED_CHAT_TRIGGER_NODE_TYPE) {
+					if (!this.moduleRegistry.isActive('chat-hub')) {
+						this.logger.error(
+							`Scheduled Chat Trigger requires the chat-hub module to be enabled. Skipping execution for workflow "${workflowData.name}".`,
+						);
+						return;
+					}
+					void (async () => {
+						const mod = await import('@/modules/chat-hub/scheduled-chat-trigger.service');
+						const service = Container.get(mod.ScheduledChatTriggerService);
+						await service.handleScheduledExecution(workflowData, node, additionalData, mode);
+					})().catch((error: Error) => this.logger.error(error.message, { error }));
+					return;
+				}
 
 				const executePromise = this.workflowExecutionService.runWorkflow(
 					workflowData,
