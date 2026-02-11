@@ -174,9 +174,9 @@ async function fetchAuditLogs() {
 
 const debouncedFetchAuditLogs = debounce(fetchAuditLogs, { debounceTime: 300 });
 
-function onFiltersUpdated(newFilters: AuditLogFilters) {
+async function onFiltersUpdated(newFilters: AuditLogFilters) {
 	filters.value = newFilters;
-	debouncedFetchAuditLogs();
+	await debouncedFetchAuditLogs();
 }
 
 async function loadAutoRefresh() {
@@ -200,8 +200,8 @@ function stopAutoRefreshInterval() {
 	}
 }
 
-watch(dateRange, () => {
-	debouncedFetchAuditLogs();
+watch(dateRange, async () => {
+	await debouncedFetchAuditLogs();
 });
 
 watch(autoRefresh, (enabled) => {
