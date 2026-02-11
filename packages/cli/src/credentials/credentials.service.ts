@@ -506,7 +506,7 @@ export class CredentialsService {
 		if (this.externalSecretsConfig.externalSecretsForProjects && data.projectId && data.data) {
 			await validateAccessToReferencedSecretProviders(
 				data.projectId,
-				data,
+				data.data,
 				this.externalSecretsProviderAccessCheckService,
 			);
 		}
@@ -955,25 +955,6 @@ export class CredentialsService {
 		}
 		validateExternalSecretsPermissions(user, data);
 		this.validateOAuthCredentialUrls(type, data);
-	}
-
-	/**
-	 * Validates that the project has access to all external secret providers referenced in credential data.
-	 *
-	 * Call validateExternalSecretsPermissions before this one.
-	 *
-	 * @param projectId - The project ID to check access for
-	 * @param data - The credential data that may contain external secret expressions
-	 * @throws BadRequestError if any providers are inaccessible.
-	 */
-	async checkAccessToReferencedSecretProviders(
-		projectId: string,
-		data: ICredentialDataDecryptedObject,
-	) {
-		// Skip validation if project-scoped external secrets feature is disabled
-		if (!this.externalSecretsConfig.externalSecretsForProjects) {
-			return;
-		}
 	}
 
 	/**
