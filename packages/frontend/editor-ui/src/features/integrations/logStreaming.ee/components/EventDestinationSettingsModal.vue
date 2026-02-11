@@ -23,7 +23,6 @@ import {
 	defaultMessageEventBusDestinationSyslogOptions,
 	defaultMessageEventBusDestinationSentryOptions,
 	NodeHelpers,
-	defaultMessageEventBusDestinationDatabaseOptions,
 } from 'n8n-workflow';
 import type { EventBus } from '@n8n/utils/event-bus';
 import { createEventBus } from '@n8n/utils/event-bus';
@@ -50,7 +49,6 @@ import {
 	webhookModalDescription,
 	sentryModalDescription,
 	syslogModalDescription,
-	databaseModalDescription,
 } from '../logStreaming.constants';
 import { useElementSize } from '@vueuse/core';
 
@@ -107,7 +105,6 @@ const nodeParameters = ref(deepCopy(defaultMessageEventBusDestinationOptions) as
 const webhookDescription = ref(webhookModalDescription);
 const sentryDescription = ref(sentryModalDescription);
 const syslogDescription = ref(syslogModalDescription);
-const databaseDescription = ref(databaseModalDescription);
 const modalBus = ref(createEventBus());
 const headerLabel = ref(destination.label!);
 const testMessageSent = ref(false);
@@ -144,10 +141,6 @@ const isTypeSyslog = computed(
 
 const isTypeSentry = computed(
 	() => nodeParameters.value.__type === MessageEventBusDestinationTypeNames.sentry,
-);
-
-const isTypeDatabase = computed(
-	() => nodeParameters.value.__type === MessageEventBusDestinationTypeNames.database,
 );
 
 const node = computed(() => destinationToFakeINodeUi(nodeParameters.value));
@@ -188,8 +181,6 @@ const isFormValid = computed(() => {
 		parameterDescription = sentryDescription.value;
 	} else if (isTypeSyslog.value) {
 		parameterDescription = syslogDescription.value;
-	} else if (isTypeDatabase.value) {
-		parameterDescription = databaseDescription.value;
 	} else {
 		return false;
 	}
@@ -260,11 +251,6 @@ async function onContinueAddClicked() {
 			break;
 		case MessageEventBusDestinationTypeNames.webhook:
 			newDestination = Object.assign(deepCopy(defaultMessageEventBusDestinationWebhookOptions), {
-				id: destination.id,
-			});
-			break;
-		case MessageEventBusDestinationTypeNames.database:
-			newDestination = Object.assign(deepCopy(defaultMessageEventBusDestinationDatabaseOptions), {
 				id: destination.id,
 			});
 			break;
@@ -393,8 +379,6 @@ async function saveDestination() {
 					syslogDestination.facility !== undefined &&
 					syslogDestination.app_name !== ''
 				);
-			} else if (isTypeDatabase.value) {
-				return true;
 			}
 			return false;
 		};
@@ -563,16 +547,6 @@ const { width } = useElementSize(defNameRef);
 						<template v-else-if="isTypeSentry">
 							<ParameterInputList
 								:parameters="sentryDescription"
-								:hide-delete="true"
-								:node-values="nodeParameters"
-								:is-read-only="!canManageLogStreaming"
-								path=""
-								@value-changed="valueChanged"
-							/>
-						</template>
-						<template v-else-if="isTypeDatabase">
-							<ParameterInputList
-								:parameters="databaseDescription"
 								:hide-delete="true"
 								:node-values="nodeParameters"
 								:is-read-only="!canManageLogStreaming"
