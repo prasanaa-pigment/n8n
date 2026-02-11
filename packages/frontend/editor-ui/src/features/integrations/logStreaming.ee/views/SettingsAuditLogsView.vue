@@ -16,6 +16,7 @@ import {
 	N8nSelect,
 	N8nOption,
 	N8nText,
+	N8nInput,
 	N8nCheckbox,
 	N8nTooltip,
 	N8nBadge,
@@ -114,25 +115,18 @@ const columns = computed<DatatableColumn[]>(() => [
 	},
 ]);
 
-function prettifyEventName(eventName: string): string {
-	const label = eventName.replace('n8n.audit.', '');
-	if (label.length === 0) return eventName;
-	return label[0].toUpperCase() + label.substring(1).replaceAll('.', ' ');
-}
-
 function displayName(log: AuditLogResource): string {
-	return prettifyEventName(log.eventName);
+	return log.eventName;
 }
 
 function formatEventName(eventName: string): string {
-	// Remove 'n8n.audit.' prefix first, then fall back to 'n8n.' prefix
-	if (eventName.startsWith('n8n.audit.')) {
-		return eventName.substring('n8n.audit.'.length);
+	let label = eventName;
+	if (label.startsWith('n8n.audit.')) {
+		label = label.substring('n8n.audit.'.length);
+	} else if (label.startsWith('n8n.')) {
+		label = label.substring('n8n.'.length);
 	}
-	if (eventName.startsWith('n8n.')) {
-		return eventName.substring('n8n.'.length);
-	}
-	return eventName;
+	return label.charAt(0).toUpperCase() + label.slice(1).replaceAll('.', ' ');
 }
 
 function formatTimestamp(timestamp: Date | string): string {
@@ -222,7 +216,22 @@ function stopAutoRefreshInterval() {
 	}
 }
 
-watch(dateRange, async () => {
+const filteredUsers = computed(() => {
+	const query = userFilter.value.toLowerCase();
+	return usersStore.allUsers.filter(
+		(user) =>
+			user.email?.toLowerCase().includes(query) ||
+			user.firstName?.toLowerCase().includes(query) ||
+			user.lastName?.toLowerCase().includes(query) ||
+			user.fullName?.toLowerCase().includes(query),
+	);
+});
+
+const setUserFilter = (query: string) => {
+	userFilter.value = query;
+};
+
+watch([startDate, endDate], async () => {
 	currentPage.value = 1; // Reset to first page when date range changes
 	await debouncedFetchAuditLogs();
 });
@@ -308,7 +317,7 @@ onBeforeUnmount(() => {
 							v-for="eventName in eventNames"
 							:key="eventName"
 							:value="eventName"
-							:label="eventName"
+							:label="formatEventName(eventName)"
 						/>
 					</N8nSelect>
 				</div>
@@ -321,13 +330,23 @@ onBeforeUnmount(() => {
 						color="text-base"
 						class="mb-3xs"
 					/>
-					<N8nInput
+					<N8nSelect
 						:model-value="filters.userId"
 						:placeholder="i18n.baseText('settings.auditLogs.filter.userId.placeholder')"
+						:no-data-text="i18n.baseText('settings.auditLogs.filter.userId.noResults')"
+						filterable
+						:filter-method="setUserFilter"
 						clearable
 						data-test-id="audit-logs-user-filter"
 						@update:model-value="setKeyValue('userId', $event)"
-					/>
+					>
+						<N8nOption
+							v-for="user in filteredUsers"
+							:key="user.id"
+							:value="user.id"
+							:label="user.fullName || user.email || user.id"
+						/>
+					</N8nSelect>
 				</div>
 
 				<div>
@@ -338,25 +357,45 @@ onBeforeUnmount(() => {
 						color="text-base"
 						class="mb-3xs"
 					/>
-					<ElDatePicker
-						v-model="dateRange"
-						type="datetimerange"
-						:placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.placeholder')"
-						:start-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.start')"
-						:end-placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.end')"
-						:clearable="true"
-						size="default"
-						data-test-id="audit-logs-date-filter"
-					/>
+					<div :class="$style.dates">
+						<ElDatePicker
+							v-model="startDate"
+							type="datetime"
+							:format="DATE_TIME_MASK"
+							:placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.start')"
+							data-test-id="audit-logs-start-date-filter"
+						/>
+						<span :class="$style.divider">to</span>
+						<ElDatePicker
+							v-model="endDate"
+							type="datetime"
+							:format="DATE_TIME_MASK"
+							:placeholder="i18n.baseText('settings.auditLogs.filter.dateRange.end')"
+							data-test-id="audit-logs-end-date-filter"
+						/>
+					</div>
 				</div>
 			</template>
 
 			<template #default="{ data }">
 				<tr data-test-id="audit-log-row">
 					<td>
-						<N8nText :class="$style.eventName" color="text-dark" size="small" bold>
-							{{ formatEventName(data.eventName) }}
-						</N8nText>
+						<div :class="$style.eventCell">
+							<N8nText :class="$style.eventName" color="text-dark" size="small" bold>
+								{{ formatEventName(data.eventName) }}
+							</N8nText>
+							<N8nTooltip
+								v-if="data.payload"
+								placement="bottom"
+								:show-after="300"
+								content-class="audit-log-payload-tooltip"
+							>
+								<template #content>
+									<pre :class="$style.jsonTooltip">{{ JSON.stringify(data.payload, null, 2) }}</pre>
+								</template>
+								<N8nBadge :class="$style.infoBadge" theme="secondary"> info </N8nBadge>
+							</N8nTooltip>
+						</div>
 					</td>
 					<td>
 						<N8nText color="text-base" size="small">
@@ -378,9 +417,6 @@ onBeforeUnmount(() => {
 							</N8nText>
 						</div>
 					</td>
-					<td>
-						<AuditLogPayload :event-name="data.eventName" :payload="data.payload" />
-					</td>
 				</tr>
 			</template>
 		</ResourcesListLayout>
@@ -392,6 +428,12 @@ onBeforeUnmount(() => {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+}
+
+.eventCell {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing--2xs);
 }
 
 .eventName {
