@@ -101,7 +101,9 @@ export class AiService {
 				model: 'claude-sonnet-4-5-20250929',
 				max_tokens: 1024,
 				system:
-					'You generate concise version names and descriptions for workflow changes. ' +
+					'You generate concise version names and descriptions for n8n workflow automation versions. ' +
+					'Version names should be descriptive and specific to what the workflow does or what changed (e.g. "Add Slack notification step", "Filter inactive users", "Handle CSV export"). ' +
+					'NEVER use generic names like "Initial Version" or "Version 1". ' +
 					'Always respond with ONLY valid JSON in this exact format: ' +
 					'{"name": "short version name (max 100 chars)", "description": "description of changes (max 500 chars)"}',
 				messages: [{ role: 'user', content: prompt }],
@@ -123,11 +125,18 @@ export class AiService {
 		return this.parseVersionDescriptionResponse(content);
 	}
 
+	private summarizeNode(n: Record<string, unknown>): Record<string, unknown> {
+		return {
+			name: n.name,
+			type: n.type,
+			parameters: n.parameters,
+		};
+	}
+
 	private buildVersionDescriptionPrompt(payload: AiGenerateVersionDescriptionRequestDto): string {
-		const currentNodes = payload.currentVersion.nodes.map((n) => ({
-			name: (n as Record<string, unknown>).name,
-			type: (n as Record<string, unknown>).type,
-		}));
+		const currentNodes = payload.currentVersion.nodes.map((n) =>
+			this.summarizeNode(n as Record<string, unknown>),
+		);
 
 		let prompt =
 			`Generate a short version name and description for a workflow called "${payload.workflowName}".\n\n` +
@@ -135,18 +144,18 @@ export class AiService {
 			`Current connections: ${JSON.stringify(payload.currentVersion.connections)}\n`;
 
 		if (payload.previousVersion) {
-			const prevNodes = payload.previousVersion.nodes.map((n) => ({
-				name: (n as Record<string, unknown>).name,
-				type: (n as Record<string, unknown>).type,
-			}));
+			const prevNodes = payload.previousVersion.nodes.map((n) =>
+				this.summarizeNode(n as Record<string, unknown>),
+			);
 			prompt +=
 				'\nPrevious version nodes: ' +
 				JSON.stringify(prevNodes) +
 				'\nPrevious connections: ' +
 				JSON.stringify(payload.previousVersion.connections) +
-				'\n\nDescribe what changed between the two versions.';
+				'\n\nDescribe what changed between the two versions. Focus on parameter changes, added/removed nodes, and connection changes.';
 		} else {
-			prompt += '\nThis is the first published version. Summarize what the workflow does.';
+			prompt +=
+				'\nThis is the first version. Summarize what the workflow does based on the nodes and their configuration.';
 		}
 
 		return prompt;

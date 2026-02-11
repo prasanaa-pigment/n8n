@@ -90,6 +90,9 @@ const activeCalloutId = computed<WorkflowPublishCalloutId | null>(() => {
 
 function onModalOpened() {
 	publishForm.value?.focusInput();
+	if (showAiGenerate.value) {
+		void handleGenerateWithAi();
+	}
 }
 
 onMounted(() => {

@@ -61,27 +61,42 @@ async function handleGenerateWithAi() {
 	generatingAi.value = true;
 
 	try {
+		// Fetch the version being named
+		const currentVersionData = await workflowHistoryStore.getWorkflowVersion(
+			workflowsStore.workflow.id,
+			props.data.versionId,
+		);
+
 		const currentVersion = {
-			nodes: workflowsStore.allNodes,
-			connections: workflowsStore.allConnections as Record<string, unknown>,
+			nodes: currentVersionData.nodes,
+			connections: currentVersionData.connections as Record<string, unknown>,
 		};
 
 		let previousVersion: GenerateVersionDescriptionRequest.WorkflowVersionPayload | undefined;
 
-		const activeVersion = workflowsStore.workflow.activeVersion;
-		if (activeVersion?.versionId && activeVersion.versionId !== props.data.versionId) {
-			try {
-				const prevVersionData = await workflowHistoryStore.getWorkflowVersion(
-					workflowsStore.workflow.id,
-					activeVersion.versionId,
-				);
-				previousVersion = {
-					nodes: prevVersionData.nodes,
-					connections: prevVersionData.connections as Record<string, unknown>,
-				};
-			} catch {
-				// Continue without previous version if fetch fails
+		// Find the latest named or published version before this one
+		try {
+			const history = await workflowHistoryStore.getWorkflowHistory(workflowsStore.workflow.id, {
+				take: 50,
+			});
+			const currentIndex = history.findIndex((v) => v.versionId === props.data.versionId);
+			if (currentIndex >= 0) {
+				const prevEntry = history
+					.slice(currentIndex + 1)
+					.find((v) => v.name !== null || v.workflowPublishHistory.length > 0);
+				if (prevEntry) {
+					const prevVersionData = await workflowHistoryStore.getWorkflowVersion(
+						workflowsStore.workflow.id,
+						prevEntry.versionId,
+					);
+					previousVersion = {
+						nodes: prevVersionData.nodes,
+						connections: prevVersionData.connections as Record<string, unknown>,
+					};
+				}
 			}
+		} catch {
+			// Continue without previous version if fetch fails
 		}
 
 		const result = await generateVersionDescription(rootStore.restApiContext, {
@@ -101,6 +116,9 @@ async function handleGenerateWithAi() {
 
 function onModalOpened() {
 	versionForm.value?.focusInput();
+	if (showAiGenerate.value) {
+		void handleGenerateWithAi();
+	}
 }
 
 onMounted(() => {
