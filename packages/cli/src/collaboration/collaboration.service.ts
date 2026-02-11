@@ -220,10 +220,7 @@ export class CollaborationService {
 
 	async broadcastWorkflowUpdate(workflowId: Workflow['id'], updatedByUserId: User['id']) {
 		const collaborators = await this.state.getCollaborators(workflowId);
-		// Filter out the user who made the update
-		const userIds = collaborators
-			.map((user) => user.userId)
-			.filter((userId) => userId !== updatedByUserId);
+		const userIds = collaborators.map((user) => user.userId);
 
 		if (userIds.length === 0) {
 			return;
