@@ -1,4 +1,4 @@
-import type { ChatHubConversationModel } from '@n8n/api-types';
+import type { ChatHubConversationModel, ChatHubSessionDto } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { UserRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
@@ -65,7 +65,7 @@ export class ScheduledChatTriggerService {
 		};
 
 		// Create chat hub session
-		await this.sessionRepository.createChatSession({
+		const sessionEntity = await this.sessionRepository.createChatSession({
 			id: sessionId,
 			ownerId: user.id,
 			title: `Scheduled: ${workflowData.name}`,
@@ -77,6 +77,28 @@ export class ScheduledChatTriggerService {
 			agentId: null,
 			agentName: workflowData.name,
 			tools: [],
+		});
+
+		// Notify frontend about the new session
+		const sessionDto: ChatHubSessionDto = {
+			id: sessionEntity.id,
+			title: sessionEntity.title,
+			ownerId: sessionEntity.ownerId,
+			lastMessageAt: sessionEntity.lastMessageAt?.toISOString() ?? null,
+			credentialId: sessionEntity.credentialId,
+			provider: sessionEntity.provider,
+			model: sessionEntity.model,
+			workflowId: sessionEntity.workflowId,
+			agentId: sessionEntity.agentId,
+			agentName: sessionEntity.agentName ?? workflowData.name,
+			agentIcon: null,
+			createdAt: sessionEntity.createdAt.toISOString(),
+			updatedAt: sessionEntity.updatedAt.toISOString(),
+			tools: sessionEntity.tools,
+		};
+		await this.chatStreamService.sendSessionCreated({
+			userId: user.id,
+			session: sessionDto,
 		});
 
 		// Use the ScheduledChatTrigger node itself as the start node

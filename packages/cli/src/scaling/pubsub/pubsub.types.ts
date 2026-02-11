@@ -59,6 +59,7 @@ export namespace PubSub {
 		export type RelayChatStreamEvent = ToCommand<'relay-chat-stream-event'>;
 		export type RelayChatHumanMessage = ToCommand<'relay-chat-human-message'>;
 		export type RelayChatMessageEdit = ToCommand<'relay-chat-message-edit'>;
+		export type RelayChatSessionCreated = ToCommand<'relay-chat-session-created'>;
 		export type ClearTestWebhooks = ToCommand<'clear-test-webhooks'>;
 		export type ReloadSsoProvisioningConfiguration =
 			ToCommand<'reload-sso-provisioning-configuration'>;
@@ -84,6 +85,7 @@ export namespace PubSub {
 		| Commands.RelayChatStreamEvent
 		| Commands.RelayChatHumanMessage
 		| Commands.RelayChatMessageEdit
+		| Commands.RelayChatSessionCreated
 		| Commands.ClearTestWebhooks
 		| Commands.ReloadOIDCConfiguration
 		| Commands.ReloadSamlConfiguration

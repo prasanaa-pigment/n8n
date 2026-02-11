@@ -9,6 +9,7 @@ import type {
 	ChatHubExecutionEnd,
 	ChatHubHumanMessageCreated,
 	ChatHubMessageEdited,
+	ChatHubSessionCreated,
 	ChatSessionId,
 	ChatMessageId,
 } from '@n8n/api-types';
@@ -157,6 +158,13 @@ export function useChatPushHandler() {
 	}
 
 	/**
+	 * Handle a session created event
+	 */
+	function handleSessionCreated(event: ChatHubSessionCreated): void {
+		chatStore.handleSessionCreated(event.data);
+	}
+
+	/**
 	 * Handle WebSocket reconnection by catching up all active streams
 	 */
 	async function handleReconnect(): Promise<void> {
@@ -178,6 +186,9 @@ export function useChatPushHandler() {
 	 */
 	function processMessage(event: PushMessage): void {
 		switch (event.type) {
+			case 'chatHubSessionCreated':
+				handleSessionCreated(event);
+				break;
 			case 'chatHubHumanMessageCreated':
 				handleHumanMessageCreated(event);
 				break;

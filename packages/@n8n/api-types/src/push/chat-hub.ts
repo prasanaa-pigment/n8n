@@ -1,4 +1,9 @@
-import type { ChatHubMessageStatus, ChatMessageId, ChatSessionId } from '../chat-hub';
+import type {
+	ChatHubMessageStatus,
+	ChatHubSessionDto,
+	ChatMessageId,
+	ChatSessionId,
+} from '../chat-hub';
 
 /**
  * Base metadata included in all chat stream push messages
@@ -114,6 +119,17 @@ export type ChatHubMessageEdited = {
 };
 
 /**
+ * Sent when a new chat session is created (for cross-client sync)
+ */
+export type ChatHubSessionCreated = {
+	type: 'chatHubSessionCreated';
+	data: {
+		session: ChatHubSessionDto;
+		timestamp: number;
+	};
+};
+
+/**
  * Sent when a chat execution begins (can contain multiple messages, e.g., with tool calls)
  */
 export type ChatHubExecutionBegin = {
@@ -162,4 +178,5 @@ export type ChatHubPushMessage =
 	| ChatHubStreamEvent
 	| ChatHubExecutionEvent
 	| ChatHubHumanMessageCreated
-	| ChatHubMessageEdited;
+	| ChatHubMessageEdited
+	| ChatHubSessionCreated;

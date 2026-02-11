@@ -25,6 +25,7 @@ export type PubSubEventName =
 	| 'relay-chat-stream-event'
 	| 'relay-chat-human-message'
 	| 'relay-chat-message-edit'
+	| 'relay-chat-session-created'
 	| 'reload-sso-provisioning-configuration'
 	| 'reload-source-control-config';
 

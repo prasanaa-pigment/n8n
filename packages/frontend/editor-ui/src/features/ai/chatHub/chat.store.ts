@@ -1114,6 +1114,22 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	}
 
 	/**
+	 * Handle a session created event
+	 */
+	function handleSessionCreated(data: {
+		session: ChatHubSessionDto;
+		timestamp: number;
+	}): void {
+		const { session } = data;
+		// Skip if session already exists (e.g., we created it from this client)
+		if (sessions.value.byId[session.id]) return;
+
+		sessions.value.byId[session.id] = session;
+		sessions.value.ids ??= [];
+		sessions.value.ids.unshift(session.id);
+	}
+
+	/**
 	 * Handle a message edited event
 	 */
 	function handleMessageEdited(data: {
@@ -1238,6 +1254,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		/**
 		 * Stream message actions
 		 */
+		handleSessionCreated,
 		handleHumanMessageCreated,
 		handleMessageEdited,
 

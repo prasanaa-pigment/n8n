@@ -5,6 +5,8 @@ import type {
 	ChatHubMessageStatus,
 	ChatHubHumanMessageCreated,
 	ChatHubMessageEdited,
+	ChatHubSessionCreated,
+	ChatHubSessionDto,
 	ChatMessageId,
 	ChatSessionId,
 	ChatHubStreamBegin,
@@ -553,6 +555,63 @@ export class ChatStreamService {
 		if (this.shouldRelayViaPubSub()) {
 			await this.relayMessageEditViaPubSub(params, message);
 		}
+	}
+
+	/**
+	 * Broadcast a session created event to all user connections (for cross-client sync)
+	 */
+	async sendSessionCreated(params: {
+		userId: string;
+		session: ChatHubSessionDto;
+	}): Promise<void> {
+		const message: ChatHubSessionCreated = {
+			type: 'chatHubSessionCreated',
+			data: {
+				session: params.session,
+				timestamp: Date.now(),
+			},
+		};
+
+		this.push.sendToUsers(message, [params.userId]);
+
+		if (this.shouldRelayViaPubSub()) {
+			await this.relaySessionCreatedViaPubSub(params);
+		}
+	}
+
+	/**
+	 * Relay session created via Redis pub/sub for multi-main coordination
+	 */
+	private async relaySessionCreatedViaPubSub(params: {
+		userId: string;
+		session: ChatHubSessionDto;
+	}): Promise<void> {
+		await this.publisher.publishCommand({
+			command: 'relay-chat-session-created',
+			payload: {
+				userId: params.userId,
+				session: params.session,
+			},
+		});
+	}
+
+	/**
+	 * Handle relay events for session created from other main instances
+	 */
+	@OnPubSubEvent('relay-chat-session-created', { instanceType: 'main' })
+	handleRelayChatSessionCreated(payload: {
+		userId: string;
+		session: ChatHubSessionDto;
+	}): void {
+		const message: ChatHubSessionCreated = {
+			type: 'chatHubSessionCreated',
+			data: {
+				session: payload.session,
+				timestamp: Date.now(),
+			},
+		};
+
+		this.push.sendToUsers(message, [payload.userId]);
 	}
 
 	/**

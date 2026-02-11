@@ -1,4 +1,9 @@
-import type { ChatHubMessageStatus, PushMessage, WorkerStatus } from '@n8n/api-types';
+import type {
+	ChatHubMessageStatus,
+	ChatHubSessionDto,
+	PushMessage,
+	WorkerStatus,
+} from '@n8n/api-types';
 import type { IWorkflowBase } from 'n8n-workflow';
 
 export type PubSubCommandMap = {
@@ -137,6 +142,18 @@ export type PubSubCommandMap = {
 		content: string;
 		/** Attachments on the message */
 		attachments: Array<{ id: string; fileName: string; mimeType: string }>;
+	};
+
+	/**
+	 * Relay session created events between main instances.
+	 * Used for cross-client synchronization when a scheduled trigger
+	 * creates a new session and other browser windows need to be updated.
+	 */
+	'relay-chat-session-created': {
+		/** User ID - sends to all user connections */
+		userId: string;
+		/** The created session */
+		session: ChatHubSessionDto;
 	};
 
 	/**

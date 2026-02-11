@@ -80,6 +80,7 @@ export type {
 	ChatHubExecutionEnd,
 	ChatHubHumanMessageCreated,
 	ChatHubMessageEdited,
+	ChatHubSessionCreated,
 	ChatHubAttachmentInfo,
 } from './push/chat-hub';
 
