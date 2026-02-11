@@ -19,6 +19,8 @@ import { MessageEventBusDestinationDatabase } from './destinations/message-event
 import { messageEventBusDestinationFromDb } from './destinations/message-event-bus-destination-from-db';
 import { MessageEventBusDestination } from './destinations/message-event-bus-destination.ee';
 
+const BUILT_IN_DATABASE_DESTINATION_ID = 'database-destination';
+
 /**
  * Service to handle all log streaming destination operations including:
  * - Database persistence
@@ -82,6 +84,7 @@ export class LogStreamingDestinationService {
 				label: 'Local Database',
 				enabled: true,
 				subscribedEvents: ['n8n.audit'],
+				id: BUILT_IN_DATABASE_DESTINATION_ID,
 			});
 			this.destinations[dbDestination.getId()] = dbDestination;
 			this.logger.debug('Auto-provisioned built-in database destination');
@@ -199,6 +202,15 @@ export class LogStreamingDestinationService {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Get the built-in database destination instance, if present.
+	 */
+	getDatabaseDestination(): MessageEventBusDestinationDatabase | undefined {
+		return this.destinations[
+			BUILT_IN_DATABASE_DESTINATION_ID
+		] as MessageEventBusDestinationDatabase;
 	}
 
 	/**
