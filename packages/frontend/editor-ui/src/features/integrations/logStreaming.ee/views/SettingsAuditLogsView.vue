@@ -16,10 +16,9 @@ import {
 	N8nSelect,
 	N8nOption,
 	N8nText,
-	N8nInput,
 	N8nCheckbox,
 	N8nTooltip,
-	N8nBadge,
+	N8nIcon,
 } from '@n8n/design-system';
 
 interface AuditLogResource extends AuditLogEvent {
@@ -284,16 +283,18 @@ onBeforeUnmount(() => {
 			</template>
 
 			<template #breadcrumbs>
-				<N8nTooltip placement="top">
-					<template #content>
-						{{ i18n.baseText('settings.auditLogs.autoRefresh.tooltip') }}
-					</template>
-					<N8nCheckbox
-						v-model="autoRefresh"
-						:label="i18n.baseText('settings.auditLogs.autoRefresh.label')"
-						data-test-id="auto-refresh-checkbox"
-					/>
-				</N8nTooltip>
+				<div :class="$style.autoRefresh">
+					<N8nTooltip placement="top">
+						<template #content>
+							{{ i18n.baseText('settings.auditLogs.autoRefresh.tooltip') }}
+						</template>
+						<N8nCheckbox
+							v-model="autoRefresh"
+							:label="i18n.baseText('settings.auditLogs.autoRefresh.label')"
+							data-test-id="auto-refresh-checkbox"
+						/>
+					</N8nTooltip>
+				</div>
 			</template>
 
 			<template #filters="{ setKeyValue }">
@@ -393,7 +394,7 @@ onBeforeUnmount(() => {
 								<template #content>
 									<pre :class="$style.jsonTooltip">{{ JSON.stringify(data.payload, null, 2) }}</pre>
 								</template>
-								<N8nBadge :class="$style.infoBadge" theme="secondary"> info </N8nBadge>
+								<N8nIcon icon="info" size="medium" color="text-light" :class="$style.infoIcon" />
 							</N8nTooltip>
 						</div>
 					</td>
@@ -430,6 +431,10 @@ onBeforeUnmount(() => {
 	height: 100%;
 }
 
+.autoRefresh {
+	display: inline-block;
+}
+
 .eventCell {
 	display: flex;
 	align-items: center;
@@ -440,7 +445,7 @@ onBeforeUnmount(() => {
 	font-family: var(--font-family--monospace, 'Courier New', monospace);
 }
 
-.infoBadge {
+.infoIcon {
 	cursor: help;
 	flex-shrink: 0;
 }

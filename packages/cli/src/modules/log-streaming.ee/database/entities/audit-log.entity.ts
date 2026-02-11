@@ -16,7 +16,7 @@ export class AuditLog extends WithTimestampsAndStringId {
 	@JoinColumn({ name: 'userId' })
 	user: Relation<User> | null;
 
-	@Column('varchar', { length: 255, nullable: true })
+	@Column({ nullable: true })
 	userId: string | null;
 
 	@DateTimeColumn()

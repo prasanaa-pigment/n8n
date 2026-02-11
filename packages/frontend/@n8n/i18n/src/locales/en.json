@@ -2793,6 +2793,7 @@
 	"auditLogs.sort.eventName-desc": "Event Z-A",
 	"auditLogs.filters.active": "Filters are active.",
 	"auditLogs.filters.active.shortText": "Filters active",
+	"auditLogs.filters.active.reset": "Reset",
 	"settings.log-streaming.eventGroup.n8n.ai": "AI node logs",
 	"settings.log-streaming.eventGroup.n8n.audit": "Audit Events",
 	"settings.log-streaming.eventGroup.n8n.audit.info": "Will send events when user details or other audit data changes",
