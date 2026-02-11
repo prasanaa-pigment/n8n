@@ -1,4 +1,5 @@
 import {
+	MessageEventBusDestinationDatabaseOptionsSchema,
 	MessageEventBusDestinationSentryOptionsSchema,
 	MessageEventBusDestinationSyslogOptionsSchema,
 	MessageEventBusDestinationWebhookOptionsSchema,
@@ -10,6 +11,7 @@ export const CreateDestinationDto = z.discriminatedUnion('__type', [
 	MessageEventBusDestinationWebhookOptionsSchema,
 	MessageEventBusDestinationSentryOptionsSchema,
 	MessageEventBusDestinationSyslogOptionsSchema,
+	MessageEventBusDestinationDatabaseOptionsSchema,
 ]);
 
 // Type exports for use in other files - re-export from workflow package
@@ -17,4 +19,5 @@ export type {
 	MessageEventBusDestinationWebhookOptions as WebhookDestination,
 	MessageEventBusDestinationSentryOptions as SentryDestination,
 	MessageEventBusDestinationSyslogOptions as SyslogDestination,
+	MessageEventBusDestinationDatabaseOptions as DatabaseDestination,
 } from 'n8n-workflow';

@@ -4,6 +4,7 @@ import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 
 import type { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
+import { MessageEventBusDestinationDatabase } from './message-event-bus-destination-database.ee';
 import { MessageEventBusDestinationSentry } from './message-event-bus-destination-sentry.ee';
 import { MessageEventBusDestinationSyslog } from './message-event-bus-destination-syslog.ee';
 import { MessageEventBusDestinationWebhook } from './message-event-bus-destination-webhook.ee';
@@ -23,6 +24,8 @@ export function messageEventBusDestinationFromDb(
 				return MessageEventBusDestinationSyslog.deserialize(eventBusInstance, destinationData);
 			case MessageEventBusDestinationTypeNames.webhook:
 				return MessageEventBusDestinationWebhook.deserialize(eventBusInstance, destinationData);
+			case MessageEventBusDestinationTypeNames.database:
+				return MessageEventBusDestinationDatabase.deserialize(eventBusInstance, destinationData);
 			default:
 				Container.get(Logger).debug('MessageEventBusDestination __type unknown');
 		}

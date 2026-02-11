@@ -7,6 +7,7 @@ import {
 import type { AuthenticatedRequest } from '@n8n/db';
 import { Delete, Get, GlobalScope, Licensed, Post, Query, RestController } from '@n8n/decorators';
 import type {
+	MessageEventBusDestinationDatabaseOptions,
 	MessageEventBusDestinationOptions,
 	MessageEventBusDestinationSentryOptions,
 	MessageEventBusDestinationSyslogOptions,
@@ -18,6 +19,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { eventNamesAll } from '@/eventbus/event-message-classes';
 import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus';
 
+import { MessageEventBusDestinationDatabase } from './destinations/message-event-bus-destination-database.ee';
 import { MessageEventBusDestinationSentry } from './destinations/message-event-bus-destination-sentry.ee';
 import { MessageEventBusDestinationSyslog } from './destinations/message-event-bus-destination-syslog.ee';
 import { MessageEventBusDestinationWebhook } from './destinations/message-event-bus-destination-webhook.ee';
@@ -83,6 +85,14 @@ export class EventBusController {
 					new MessageEventBusDestinationSyslog(
 						this.eventBus,
 						body as MessageEventBusDestinationSyslogOptions,
+					),
+				);
+				break;
+			case MessageEventBusDestinationTypeNames.database:
+				result = await this.destinationService.addDestination(
+					new MessageEventBusDestinationDatabase(
+						this.eventBus,
+						body as MessageEventBusDestinationDatabaseOptions,
 					),
 				);
 				break;

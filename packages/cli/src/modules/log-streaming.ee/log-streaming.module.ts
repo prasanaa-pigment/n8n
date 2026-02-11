@@ -26,7 +26,8 @@ export class LogStreamingModule implements ModuleInterface {
 	}
 
 	async entities() {
+		const { AuditLog } = await import('./database/entities/audit-log.entity');
 		const { EventDestinations } = await import('./database/entities/event-destination.entity');
-		return [EventDestinations];
+		return [AuditLog, EventDestinations];
 	}
 }

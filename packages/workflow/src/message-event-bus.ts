@@ -24,6 +24,7 @@ export const enum MessageEventBusDestinationTypeNames {
 	webhook = '$$MessageEventBusDestinationWebhook',
 	sentry = '$$MessageEventBusDestinationSentry',
 	syslog = '$$MessageEventBusDestinationSyslog',
+	database = '$$MessageEventBusDestinationDatabase',
 }
 
 export const messageEventBusDestinationTypeNames = [
@@ -31,6 +32,7 @@ export const messageEventBusDestinationTypeNames = [
 	MessageEventBusDestinationTypeNames.webhook,
 	MessageEventBusDestinationTypeNames.sentry,
 	MessageEventBusDestinationTypeNames.syslog,
+	MessageEventBusDestinationTypeNames.database,
 ];
 
 // ===============================
@@ -132,6 +134,7 @@ export const MessageEventBusDestinationOptionsSchema = z.object({
 			'$$MessageEventBusDestinationWebhook',
 			'$$MessageEventBusDestinationSentry',
 			'$$MessageEventBusDestinationSyslog',
+			'$$MessageEventBusDestinationDatabase',
 		])
 		.optional(),
 	id: z.string().min(1).optional(),
@@ -175,6 +178,12 @@ export const MessageEventBusDestinationSentryOptionsSchema =
 		dsn: z.string().url(),
 		tracesSampleRate: z.number().min(0).max(1).optional(),
 		sendPayload: z.boolean().optional(),
+	});
+
+// Database Destination Schema
+export const MessageEventBusDestinationDatabaseOptionsSchema =
+	MessageEventBusDestinationOptionsSchema.extend({
+		__type: z.literal('$$MessageEventBusDestinationDatabase'),
 	});
 
 // Syslog Destination Schema
@@ -231,6 +240,14 @@ export type MessageEventBusDestinationSyslogOptions = Omit<
 
 export type MessageEventBusDestinationSentryOptions = Omit<
 	z.infer<typeof MessageEventBusDestinationSentryOptionsSchema>,
+	'__type' | 'credentials'
+> & {
+	__type?: MessageEventBusDestinationTypeNames;
+	credentials?: INodeCredentials;
+};
+
+export type MessageEventBusDestinationDatabaseOptions = Omit<
+	z.infer<typeof MessageEventBusDestinationDatabaseOptionsSchema>,
 	'__type' | 'credentials'
 > & {
 	__type?: MessageEventBusDestinationTypeNames;
@@ -297,4 +314,11 @@ export const defaultMessageEventBusDestinationSentryOptions: MessageEventBusDest
 		label: 'Sentry DSN',
 		dsn: 'https://',
 		sendPayload: true,
+	};
+
+export const defaultMessageEventBusDestinationDatabaseOptions: MessageEventBusDestinationDatabaseOptions =
+	{
+		...defaultMessageEventBusDestinationOptions,
+		__type: MessageEventBusDestinationTypeNames.database,
+		label: 'Local Database',
 	};
