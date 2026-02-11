@@ -56,6 +56,9 @@ import { ignoreUpdateAnnotation } from '@/app/utils/forceParse';
 import type { TargetNodeParameterContext } from '@/Interface';
 import type { CodeNodeLanguageOption } from '../components/CodeNodeEditor/CodeNodeEditor.vue';
 import { isEventTargetContainedBy } from '@/app/utils/htmlUtils';
+import { inlineCompletion } from '../plugins/codemirror/inlineCompletion';
+import { fetchCodeCompletion } from '../plugins/codemirror/inlineCompletion.api';
+import { useRootStore } from '@n8n/stores/useRootStore';
 
 export type CodeEditorLanguageParamsMap = {
 	json: {};
@@ -103,6 +106,7 @@ export const useCodeEditor = <L extends CodeNodeLanguageOption>({
 	const telemetryExtensions = ref<Compartment>(new Compartment());
 	const languageExtensions = ref<Compartment>(new Compartment());
 	const themeExtensions = ref<Compartment>(new Compartment());
+	const inlineCompletionExtensions = ref(new Compartment());
 	const autocompleteStatus = ref<'pending' | 'active' | null>(null);
 	const dragging = ref(false);
 	const storedStateFields = { fold: foldState, history: historyField };
@@ -240,12 +244,32 @@ export const useCodeEditor = <L extends CodeNodeLanguageOption>({
 
 		const initialValue = toValue(editorValue) ? toValue(editorValue) : toValue(placeholder);
 
+		const rootStore = useRootStore();
+		const inlineCompletionProvider = async (
+			codeBeforeCursor: string,
+			codeAfterCursor: string,
+		): Promise<string | null> => {
+			const lang = toValue(language);
+			if (lang !== 'javaScript' && lang !== 'python') return null;
+			try {
+				return await fetchCodeCompletion(rootStore.restApiContext, {
+					codeBeforeCursor,
+					codeAfterCursor,
+					language: lang,
+					mode: mode.value,
+				});
+			} catch {
+				return null;
+			}
+		};
+
 		const allExtensions = [
 			customExtensions.value.of(toValue(extensions)),
 			readOnlyExtensions.value.of(getReadOnlyExtensions()),
 			telemetryExtensions.value.of([]),
 			languageExtensions.value.of(getInitialLanguageExtensions(toValue(language))),
 			themeExtensions.value.of(codeEditorTheme(toValue(theme))),
+			inlineCompletionExtensions.value.of(inlineCompletion(inlineCompletionProvider)),
 			EditorView.updateListener.of(onEditorUpdate),
 			EditorView.focusChangeEffect.of((_, newHasFocus) => {
 				hasFocus.value = newHasFocus;
