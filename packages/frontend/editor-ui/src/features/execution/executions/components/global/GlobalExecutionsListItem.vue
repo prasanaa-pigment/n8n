@@ -9,6 +9,10 @@ import type { PermissionsRecord } from '@n8n/permissions';
 import { convertToDisplayDate } from '@/app/utils/formatters/dateFormatter';
 import type { IconColor } from '@n8n/design-system/types/icon';
 import type { ExecutionStatus, ExecutionSummary } from 'n8n-workflow';
+import type {
+	ExecutionColumnDefinition,
+	ExecutionSummaryWithCustomData,
+} from '../../executions.types';
 import { WAIT_INDEFINITELY } from 'n8n-workflow';
 import { computed, ref, useCssModule } from 'vue';
 import { type IconName } from '@n8n/design-system/components/N8nIcon/icons';
@@ -19,6 +23,7 @@ import {
 	N8nCheckbox,
 	N8nIcon,
 	N8nIconButton,
+	N8nTags,
 	N8nText,
 	N8nTooltip,
 } from '@n8n/design-system';
@@ -35,7 +40,8 @@ const emit = defineEmits<{
 
 const props = withDefaults(
 	defineProps<{
-		execution: ExecutionSummary;
+		execution: ExecutionSummaryWithCustomData;
+		visibleColumns: ExecutionColumnDefinition[];
 		selected?: boolean;
 		workflowName?: string;
 		workflowPermissions: PermissionsRecord['workflow'];
@@ -185,91 +191,124 @@ async function handleActionItemClick(commandData: Command) {
 				@update:model-value="onSelect"
 			/>
 		</td>
-		<td>
-			<N8nTooltip :content="execution.workflowName || workflowName" placement="top">
-				<RouterLink
-					:to="{
-						name: VIEWS.EXECUTION_PREVIEW,
-						params: { name: execution.workflowId, executionId: execution.id },
-					}"
-					:class="$style.workflowName"
-					target="_blank"
-				>
-					{{ execution.workflowName || workflowName }}
-				</RouterLink>
-			</N8nTooltip>
-		</td>
-		<td data-test-id="execution-status">
-			<GlobalExecutionsListItemQueuedTooltip
-				v-if="isWaitTillIndefinite || execution.status === EXECUTION_STATUS.NEW"
-				:status="props.execution.status"
-				:concurrency-cap="props.concurrencyCap"
-				:is-cloud-deployment="props.isCloudDeployment"
-				@go-to-upgrade="emit('goToUpgrade')"
-			>
-				<div>
-					<N8nIcon :icon="statusRender.icon" :color="statusRender.color" class="mr-2xs" />
-					{{ statusRender.label }}
-				</div>
-			</GlobalExecutionsListItemQueuedTooltip>
-			<N8nTooltip
-				v-else
-				:disabled="execution.status !== EXECUTION_STATUS.WAITING"
-				:content="
-					locale.baseText('executionsList.statusWaiting', {
-						interpolate: { status: execution.status, time: formattedWaitTillDate },
-					})
-				"
-			>
-				<div>
-					<N8nText
-						v-if="execution.status === EXECUTION_STATUS.RUNNING"
-						color="secondary"
-						class="mr-2xs"
+		<template v-for="col in visibleColumns" :key="col.id">
+			<!-- Workflow -->
+			<td v-if="col.id === 'workflow'">
+				<N8nTooltip :content="execution.workflowName || workflowName" placement="top">
+					<RouterLink
+						:to="{
+							name: VIEWS.EXECUTION_PREVIEW,
+							params: { name: execution.workflowId, executionId: execution.id },
+						}"
+						:class="$style.workflowName"
+						target="_blank"
 					>
-						<AnimatedSpinner />
-					</N8nText>
-					<N8nIcon
-						v-else
-						size="medium"
-						:icon="statusRender.icon"
-						:color="statusRender.color"
-						class="mr-2xs"
-					/>
-					{{ statusRender.label }}
-				</div>
-			</N8nTooltip>
-		</td>
-		<td>
-			{{ formattedStartedAtDate }}
-		</td>
-		<td data-test-id="execution-time">
-			<template v-if="formattedStoppedAtDate">
-				{{ formattedStoppedAtDate }}
-			</template>
-			<ExecutionsTime v-else :start-time="execution.startedAt ?? execution.createdAt" />
-		</td>
-		<td>
-			<span v-if="execution.id">{{ execution.id }}</span>
-			<span v-if="execution.retryOf">
-				<br />
-				<small> ({{ locale.baseText('executionsList.retryOf') }} {{ execution.retryOf }}) </small>
-			</span>
-			<span v-else-if="execution.retrySuccessId">
-				<br />
-				<small>
-					({{ locale.baseText('executionsList.successRetry') }} {{ execution.retrySuccessId }})
-				</small>
-			</span>
-		</td>
-		<td>
-			<N8nTooltip v-if="execution.mode === 'manual'" content="Manual Execution" placement="top">
-				<N8nIcon icon="flask-conical" />
-			</N8nTooltip>
-			<N8nTooltip v-else-if="execution.mode === 'chat'" content="Chat Execution" placement="top">
-				<N8nIcon icon="messages-square" />
-			</N8nTooltip>
-		</td>
+						{{ execution.workflowName || workflowName }}
+					</RouterLink>
+				</N8nTooltip>
+			</td>
+			<!-- Status -->
+			<td v-else-if="col.id === 'status'" data-test-id="execution-status">
+				<GlobalExecutionsListItemQueuedTooltip
+					v-if="isWaitTillIndefinite || execution.status === EXECUTION_STATUS.NEW"
+					:status="props.execution.status"
+					:concurrency-cap="props.concurrencyCap"
+					:is-cloud-deployment="props.isCloudDeployment"
+					@go-to-upgrade="emit('goToUpgrade')"
+				>
+					<div>
+						<N8nIcon :icon="statusRender.icon" :color="statusRender.color" class="mr-2xs" />
+						{{ statusRender.label }}
+					</div>
+				</GlobalExecutionsListItemQueuedTooltip>
+				<N8nTooltip
+					v-else
+					:disabled="execution.status !== EXECUTION_STATUS.WAITING"
+					:content="
+						locale.baseText('executionsList.statusWaiting', {
+							interpolate: { status: execution.status, time: formattedWaitTillDate },
+						})
+					"
+				>
+					<div>
+						<N8nText
+							v-if="execution.status === EXECUTION_STATUS.RUNNING"
+							color="secondary"
+							class="mr-2xs"
+						>
+							<AnimatedSpinner />
+						</N8nText>
+						<N8nIcon
+							v-else
+							size="medium"
+							:icon="statusRender.icon"
+							:color="statusRender.color"
+							class="mr-2xs"
+						/>
+						{{ statusRender.label }}
+					</div>
+				</N8nTooltip>
+			</td>
+			<!-- Started At -->
+			<td v-else-if="col.id === 'startedAt'">
+				{{ formattedStartedAtDate }}
+			</td>
+			<!-- Run Time -->
+			<td v-else-if="col.id === 'runTime'" data-test-id="execution-time">
+				<template v-if="formattedStoppedAtDate">
+					{{ formattedStoppedAtDate }}
+				</template>
+				<ExecutionsTime v-else :start-time="execution.startedAt ?? execution.createdAt" />
+			</td>
+			<!-- ID -->
+			<td v-else-if="col.id === 'id'">
+				<span v-if="execution.id">{{ execution.id }}</span>
+				<span v-if="execution.retryOf">
+					<br />
+					<small> ({{ locale.baseText('executionsList.retryOf') }} {{ execution.retryOf }}) </small>
+				</span>
+				<span v-else-if="execution.retrySuccessId">
+					<br />
+					<small>
+						({{ locale.baseText('executionsList.successRetry') }} {{ execution.retrySuccessId }})
+					</small>
+				</span>
+			</td>
+			<!-- Tags -->
+			<td v-else-if="col.id === 'tags'">
+				<N8nTags
+					v-if="execution.annotation?.tags?.length"
+					:tags="execution.annotation.tags"
+					:clickable="false"
+					truncate
+					:truncate-at="3"
+				/>
+				<span v-else>-</span>
+			</td>
+			<!-- Rating -->
+			<td v-else-if="col.id === 'rating'">
+				<N8nIcon v-if="execution.annotation?.vote === 'up'" icon="thumbs-up" color="success" />
+				<N8nIcon
+					v-else-if="execution.annotation?.vote === 'down'"
+					icon="thumbs-down"
+					color="danger"
+				/>
+				<span v-else>-</span>
+			</td>
+			<!-- Mode -->
+			<td v-else-if="col.id === 'mode'">
+				<N8nTooltip v-if="execution.mode === 'manual'" content="Manual Execution" placement="top">
+					<N8nIcon icon="flask-conical" />
+				</N8nTooltip>
+				<N8nTooltip v-else-if="execution.mode === 'chat'" content="Chat Execution" placement="top">
+					<N8nIcon icon="messages-square" />
+				</N8nTooltip>
+			</td>
+			<!-- Custom Data -->
+			<td v-else-if="col.id.startsWith('customData:')" :class="$style.customDataCell">
+				{{ execution.customData?.[col.id.slice('customData:'.length)] ?? '-' }}
+			</td>
+		</template>
 		<td>
 			<N8nButton
 				v-if="!execution.stoppedAt || execution.waitTill"
@@ -340,5 +379,12 @@ tr.dangerBg {
 	font-size: var(--font-size--sm);
 	line-height: var(--line-height--lg);
 	max-width: 450px;
+}
+
+.customDataCell {
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 </style>
