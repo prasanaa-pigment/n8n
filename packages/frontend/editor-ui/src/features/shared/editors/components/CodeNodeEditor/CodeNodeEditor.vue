@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { Extension } from '@codemirror/state';
 import type { ViewUpdate } from '@codemirror/view';
-import type { CodeExecutionMode, CodeNodeEditorLanguage } from 'n8n-workflow';
+import type { CodeExecutionMode, CodeNodeEditorLanguage, INodeExecutionData } from 'n8n-workflow';
 import { format } from 'prettier';
 import jsParser from 'prettier/plugins/babel';
 import * as estree from 'prettier/plugins/estree';
@@ -14,13 +15,20 @@ import { useCodeEditor } from '../../composables/useCodeEditor';
 import { useI18n } from '@n8n/i18n';
 import { useMessage } from '@/app/composables/useMessage';
 import { useTelemetry } from '@/app/composables/useTelemetry';
+import { useDataSchema } from '@/app/composables/useDataSchema';
+import { DEBOUNCE_TIME, getDebounceTime } from '@/app/constants/durations';
 import AskAI from './AskAI/AskAI.vue';
 import { CODE_PLACEHOLDERS } from './constants';
 import { useLinter } from './linter';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { dropInCodeEditor } from '../../plugins/codemirror/dragAndDrop';
-import type { TargetNodeParameterContext } from '@/Interface';
+import { inlineCopilot } from '../../plugins/codemirror/ai-autocomplete';
+import { generateCodeForPrompt } from '@/features/ai/assistant/assistant.api';
+import type { AskAiRequest } from '@/features/ai/assistant/assistant.types';
+import { useNDVStore } from '@/features/ndv/shared/ndv.store';
+import { executionDataToJson } from '@/app/utils/nodeTypesUtils';
+import type { INodeUi, Schema, TargetNodeParameterContext } from '@/Interface';
 import { valueToInsert } from './utils';
 import DraggableTarget from '@/app/components/DraggableTarget.vue';
 
@@ -65,15 +73,40 @@ const hasManualChanges = ref(false);
 const rootStore = useRootStore();
 const i18n = useI18n();
 const telemetry = useTelemetry();
+const ndvStore = useNDVStore();
 const settingsStore = useSettingsStore();
 const workflowsStore = useWorkflowsStore();
+const { getSchemaForExecutionData, getInputDataWithPinned } = useDataSchema();
+
+const INLINE_AI_PREFIX_MAX_CHARS = 1_800;
+const INLINE_AI_SUFFIX_MAX_CHARS = 500;
+const INLINE_AI_CONTEXT_PREFIX_LINES = 18;
+const INLINE_AI_CONTEXT_SUFFIX_LINES = 8;
+const INLINE_AI_DEBOUNCE_MS = getDebounceTime(DEBOUNCE_TIME.INPUT.SEARCH);
 
 const linter = useLinter(
 	() => props.mode,
 	() => (props.language === 'pythonNative' ? 'python' : props.language),
 	() => workflowsStore.workflow.settings?.binaryMode,
 );
-const extensions = computed(() => [linter.value]);
+const askAiEnabled = computed(() => {
+	return !props.disableAskAi && settingsStore.isAskAiEnabled && props.language === 'javaScript';
+});
+
+const isInlineAiBackendReady = computed(() => {
+	const aiAssistant = settingsStore.settings?.aiAssistant;
+	return Boolean(aiAssistant?.enabled && aiAssistant?.setup);
+});
+
+const inlineAiExtensions = computed<Extension[]>(() => {
+	if (!askAiEnabled.value || !isInlineAiBackendReady.value || props.isReadOnly) {
+		return [];
+	}
+
+	return [inlineCopilot(onInlineAiSuggestionRequest, INLINE_AI_DEBOUNCE_MS)];
+});
+
+const extensions = computed(() => [linter.value, ...inlineAiExtensions.value]);
 const placeholder = computed(() => CODE_PLACEHOLDERS[props.language]?.[props.mode] ?? '');
 const dragAndDropEnabled = computed(() => {
 	return !props.isReadOnly;
@@ -109,10 +142,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	codeNodeEditorEventBus.off('codeDiffApplied', diffApplied);
 	if (!props.isReadOnly) codeNodeEditorEventBus.off('highlightLine', highlightLine);
-});
-
-const askAiEnabled = computed(() => {
-	return !props.disableAskAi && settingsStore.isAskAiEnabled && props.language === 'javaScript';
 });
 
 watch([() => props.language, () => props.mode], (_, [prevLanguage, prevMode]) => {
@@ -160,6 +189,250 @@ function diffApplied() {
 	codeNodeEditorContainerRef.value?.addEventListener('animationend', () => {
 		codeNodeEditorContainerRef.value?.classList.remove('flash-editor');
 	});
+}
+
+function getInlineAiParentNodes() {
+	const activeNode = ndvStore.activeNode;
+	const { workflowObject, getNodeByName } = workflowsStore;
+
+	if (!activeNode || !workflowObject) return [];
+
+	return workflowObject
+		.getParentNodesByDepth(activeNode.name)
+		.filter(({ name }: { name: string }, i: number, nodes: Array<{ name: string }>) => {
+			return (
+				name !== activeNode.name &&
+				nodes.findIndex((node: { name: string }) => node.name === name) === i
+			);
+		})
+		.map((node: { name: string }) => getNodeByName(node.name))
+		.filter((node): node is INodeUi => node !== null);
+}
+
+function getInlineAiSchemas(parentNodes: INodeUi[]) {
+	const parentNodeNames = parentNodes.map((node) => node.name);
+	const parentNodeSchemas: Array<{ nodeName: string; schema: Schema }> = parentNodes
+		.map((node) => {
+			const inputData: INodeExecutionData[] = getInputDataWithPinned(node);
+
+			return {
+				nodeName: node.name,
+				schema: getSchemaForExecutionData(executionDataToJson(inputData), true),
+			};
+		})
+		.filter((node) => node.schema?.value.length > 0);
+
+	const inputSchema = parentNodeSchemas.shift() ?? {
+		nodeName: parentNodeNames[0] ?? '',
+		schema: { path: '', type: 'undefined', value: '' },
+	};
+
+	return {
+		inputSchema,
+		schema: parentNodeSchemas,
+	};
+}
+
+function trimPrefix(prefix: string): string {
+	return prefix.slice(-INLINE_AI_PREFIX_MAX_CHARS);
+}
+
+function trimSuffix(suffix: string): string {
+	return suffix.slice(0, INLINE_AI_SUFFIX_MAX_CHARS);
+}
+
+function getCursorContextWindow(
+	prefix: string,
+	suffix: string,
+): { prefixWindow: string; suffixWindow: string } {
+	const prefixWindow = prefix.split('\n').slice(-INLINE_AI_CONTEXT_PREFIX_LINES).join('\n');
+	const suffixWindow = suffix.split('\n').slice(0, INLINE_AI_CONTEXT_SUFFIX_LINES).join('\n');
+
+	return {
+		prefixWindow,
+		suffixWindow,
+	};
+}
+
+function buildInlineAiQuestion(
+	prefix: string,
+	suffix: string,
+	metadata: {
+		mode: CodeExecutionMode;
+		activeNodeName: string;
+		inputNodeName: string;
+		schemaCount: number;
+	},
+): string {
+	const { prefixWindow, suffixWindow } = getCursorContextWindow(prefix, suffix);
+	const { mode, activeNodeName, inputNodeName, schemaCount } = metadata;
+
+	return [
+		'Complete JavaScript code at cursor.',
+		'Return only the insertion for <FILL_ME> and nothing else.',
+		'Do not use markdown and do not repeat surrounding code.',
+		`Execution mode: ${mode}. Active node: ${activeNodeName}. Input node: ${inputNodeName}. Parent schemas available: ${schemaCount > 0 ? 'yes' : 'no'}.`,
+		`${prefixWindow}<FILL_ME>${suffixWindow}`,
+	].join('\n');
+}
+
+function buildInlineAiFallbackQuestion(
+	prefix: string,
+	suffix: string,
+	metadata: {
+		mode: CodeExecutionMode;
+		activeNodeName: string;
+		inputNodeName: string;
+		schemaCount: number;
+	},
+): string {
+	const { prefixWindow, suffixWindow } = getCursorContextWindow(prefix, suffix);
+	const { mode, activeNodeName, inputNodeName, schemaCount } = metadata;
+
+	return [
+		'Complete JavaScript code at cursor.',
+		'Return only insertion for <FILL_ME>.',
+		`Mode=${mode}; ActiveNode=${activeNodeName}; InputNode=${inputNodeName}; ParentSchemaCount=${schemaCount}.`,
+		`${prefixWindow}<FILL_ME>${suffixWindow}`,
+	].join('\n');
+}
+
+function buildInlineAiMinimalQuestion(prefix: string, suffix: string): string {
+	return [
+		'Complete JavaScript code at cursor.',
+		'Return only insertion for <FILL_ME>.',
+		`${prefix}<FILL_ME>${suffix}`,
+	].join('\n');
+}
+
+function extractSuggestionFromFillMarker(prediction: string): string | null {
+	const marker = '<FILL_ME>';
+	if (!prediction.includes(marker)) {
+		return null;
+	}
+
+	const [, ...afterParts] = prediction.split(marker);
+	const after = afterParts.join(marker);
+	return after.trim();
+}
+
+function normalizeInlineSuggestion(prediction: string, prefix: string, suffix: string): string {
+	const withoutCodeFence = prediction
+		.replace(/^```[a-zA-Z]*\s*/, '')
+		.replace(/\s*```$/, '')
+		.trim();
+
+	if (!withoutCodeFence) {
+		return '';
+	}
+
+	const markerExtracted = extractSuggestionFromFillMarker(withoutCodeFence);
+	if (markerExtracted) {
+		return markerExtracted;
+	}
+
+	if (withoutCodeFence.startsWith(prefix) && withoutCodeFence.endsWith(suffix)) {
+		return withoutCodeFence.slice(prefix.length, withoutCodeFence.length - suffix.length).trim();
+	}
+
+	if (withoutCodeFence.startsWith(prefix)) {
+		return withoutCodeFence.slice(prefix.length).trim();
+	}
+
+	return withoutCodeFence;
+}
+
+function isBadRequestError(error: unknown): boolean {
+	if (typeof error !== 'object' || error === null) {
+		return false;
+	}
+
+	if ('httpStatusCode' in error && error.httpStatusCode === 400) {
+		return true;
+	}
+
+	if ('response' in error && typeof error.response === 'object' && error.response !== null) {
+		const response = error.response;
+		if ('status' in response && response.status === 400) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+async function onInlineAiSuggestionRequest(prefix: string, suffix: string): Promise<string> {
+	const activeNode = ndvStore.activeNode;
+
+	if (!activeNode || !askAiEnabled.value || !isInlineAiBackendReady.value || props.isReadOnly) {
+		return '';
+	}
+
+	const trimmedPrefix = trimPrefix(prefix);
+	const trimmedSuffix = trimSuffix(suffix);
+
+	// Avoid expensive calls while the context is still tiny.
+	if (trimmedPrefix.trim().length < 12) {
+		return '';
+	}
+
+	const parentNodes = getInlineAiParentNodes();
+	const schemas = getInlineAiSchemas(parentNodes);
+	const richQuestion = buildInlineAiQuestion(trimmedPrefix, trimmedSuffix, {
+		mode: props.mode,
+		activeNodeName: activeNode.name,
+		inputNodeName: schemas.inputSchema.nodeName,
+		schemaCount: schemas.schema.length,
+	});
+
+	const payloadBase: Omit<AskAiRequest.RequestPayload, 'question'> = {
+		context: {
+			schema: schemas.schema,
+			inputSchema: schemas.inputSchema,
+			ndvPushRef: ndvStore.pushRef,
+			pushRef: rootStore.pushRef,
+		},
+		forNode: 'code',
+	};
+
+	try {
+		const { code } = await generateCodeForPrompt(rootStore.restApiContext, {
+			...payloadBase,
+			question: richQuestion,
+		});
+		return normalizeInlineSuggestion(code, trimmedPrefix, trimmedSuffix);
+	} catch (error) {
+		if (!isBadRequestError(error)) {
+			return '';
+		}
+
+		try {
+			const { code } = await generateCodeForPrompt(rootStore.restApiContext, {
+				...payloadBase,
+				question: buildInlineAiFallbackQuestion(trimmedPrefix, trimmedSuffix, {
+					mode: props.mode,
+					activeNodeName: activeNode.name,
+					inputNodeName: schemas.inputSchema.nodeName,
+					schemaCount: schemas.schema.length,
+				}),
+			});
+			return normalizeInlineSuggestion(code, trimmedPrefix, trimmedSuffix);
+		} catch (fallbackError) {
+			if (!isBadRequestError(fallbackError)) {
+				return '';
+			}
+
+			try {
+				const { code } = await generateCodeForPrompt(rootStore.restApiContext, {
+					...payloadBase,
+					question: buildInlineAiMinimalQuestion(trimmedPrefix, trimmedSuffix),
+				});
+				return normalizeInlineSuggestion(code, trimmedPrefix, trimmedSuffix);
+			} catch {
+				return '';
+			}
+		}
+	}
 }
 
 function trackCompletion(viewUpdate: ViewUpdate) {
