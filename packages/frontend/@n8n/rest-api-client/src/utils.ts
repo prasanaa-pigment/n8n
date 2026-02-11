@@ -181,7 +181,8 @@ export async function getFullApiResponse<T>(
 		method,
 		baseURL: context.baseUrl,
 		endpoint,
-		headers: { 'push-ref': context.pushRef },
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		headers: { 'push-ref': context.pushRef, 'x-client-id': context.pushRef },
 		data,
 	});
 
@@ -198,7 +199,8 @@ export async function makeRestApiRequest<T>(
 		method,
 		baseURL: context.baseUrl,
 		endpoint,
-		headers: { 'push-ref': context.pushRef },
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		headers: { 'push-ref': context.pushRef, 'x-client-id': context.pushRef },
 		data,
 	});
 
