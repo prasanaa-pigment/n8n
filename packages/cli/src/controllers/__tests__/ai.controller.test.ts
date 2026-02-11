@@ -25,6 +25,7 @@ describe('AiController', () => {
 		mock(),
 		mock(),
 		aiUsageService,
+		mock(),
 	);
 
 	const request = mock<AuthenticatedRequest>({

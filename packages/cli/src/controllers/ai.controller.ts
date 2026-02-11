@@ -9,6 +9,7 @@ import {
 	AiSessionRetrievalRequestDto,
 	AiUsageSettingsRequestDto,
 	AiTruncateMessagesRequestDto,
+	AiCodeCompletionRequestDto,
 } from '@n8n/api-types';
 import { AuthenticatedRequest } from '@n8n/db';
 import { Body, Get, Licensed, Post, RestController, GlobalScope } from '@n8n/decorators';
@@ -23,6 +24,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ContentTooLargeError } from '@/errors/response-errors/content-too-large.error';
 import { InternalServerError } from '@/errors/response-errors/internal-server.error';
 import { TooManyRequestsError } from '@/errors/response-errors/too-many-requests.error';
+import { AiCodeCompletionService } from '@/services/ai-code-completion.service';
 import { AiUsageService } from '@/services/ai-usage.service';
 import { WorkflowBuilderService } from '@/services/ai-workflow-builder.service';
 import { AiService } from '@/services/ai.service';
@@ -38,6 +40,7 @@ export class AiController {
 		private readonly credentialsService: CredentialsService,
 		private readonly userService: UserService,
 		private readonly aiUsageService: AiUsageService,
+		private readonly aiCodeCompletionService: AiCodeCompletionService,
 	) {}
 
 	// Use usesTemplates flag to bypass the send() wrapper which would cause
@@ -271,6 +274,23 @@ export class AiController {
 			);
 			return { success };
 		} catch (e) {
+			assert(e instanceof Error);
+			throw new InternalServerError(e.message, e);
+		}
+	}
+
+	@Post('/code-completion', { ipRateLimit: { limit: 200 } })
+	async codeCompletion(
+		_req: AuthenticatedRequest,
+		_res: Response,
+		@Body payload: AiCodeCompletionRequestDto,
+	) {
+		try {
+			return await this.aiCodeCompletionService.getCompletion(payload);
+		} catch (e) {
+			if (e instanceof BadRequestError) {
+				throw e;
+			}
 			assert(e instanceof Error);
 			throw new InternalServerError(e.message, e);
 		}
