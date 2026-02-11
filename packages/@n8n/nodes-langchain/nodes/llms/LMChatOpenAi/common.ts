@@ -123,9 +123,9 @@ export const prepareAdditionalResponsesParams = (options: ModelOptions) => {
 			textConfig.format = {
 				type: textOptions.type,
 				name: textOptions.name as string,
-				schema: jsonParse(textOptions.schema as string, {
-					errorMessage: 'Failed to parse schema',
-				}),
+				schema: textOptions.schemaDefinition
+					? (textOptions.schemaDefinition as unknown as Record<string, unknown>)
+					: jsonParse(textOptions.schema as string, { errorMessage: 'Failed to parse schema' }),
 			};
 		} else {
 			textConfig.format = {

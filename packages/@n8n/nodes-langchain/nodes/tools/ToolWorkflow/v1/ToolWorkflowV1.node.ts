@@ -19,6 +19,7 @@ import type {
 	INodeParameterResourceLocator,
 	ITaskMetadata,
 	INodeTypeBaseDescription,
+	JsonSchemaValue,
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError, jsonParse } from 'n8n-workflow';
 
@@ -207,16 +208,23 @@ export class ToolWorkflowV1 implements INodeType {
 
 		if (useSchema) {
 			try {
-				// We initialize these even though one of them will always be empty
-				// it makes it easier to navigate the ternary operator
-				const jsonExample = this.getNodeParameter('jsonSchemaExample', itemIndex, '') as string;
-				const inputSchema = this.getNodeParameter('inputSchema', itemIndex, '') as string;
+				let jsonSchema: JSONSchema7;
 
-				const schemaType = this.getNodeParameter('schemaType', itemIndex) as 'fromJson' | 'manual';
-				const jsonSchema =
-					schemaType === 'fromJson'
-						? generateSchemaFromExample(jsonExample)
-						: jsonParse<JSONSchema7>(inputSchema);
+				if (this.getNode().typeVersion >= 1.4) {
+					const schema = this.getNodeParameter('schema', itemIndex) as JsonSchemaValue;
+					jsonSchema = schema as unknown as JSONSchema7;
+				} else {
+					const jsonExample = this.getNodeParameter('jsonSchemaExample', itemIndex, '') as string;
+					const inputSchema = this.getNodeParameter('inputSchema', itemIndex, '') as string;
+
+					const schemaType = this.getNodeParameter('schemaType', itemIndex) as
+						| 'fromJson'
+						| 'manual';
+					jsonSchema =
+						schemaType === 'fromJson'
+							? generateSchemaFromExample(jsonExample)
+							: jsonParse<JSONSchema7>(inputSchema);
+				}
 
 				const zodSchema = convertJsonSchemaToZod<DynamicZodObject>(jsonSchema);
 

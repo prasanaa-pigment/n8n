@@ -7,6 +7,7 @@ import {
 	type INodeTypeDescription,
 	type ISupplyDataFunctions,
 	type SupplyData,
+	type JsonSchemaValue,
 	NodeOperationError,
 	NodeConnectionTypes,
 } from 'n8n-workflow';
@@ -34,8 +35,8 @@ export class OutputParserStructured implements INodeType {
 		icon: 'fa:code',
 		iconColor: 'black',
 		group: ['transform'],
-		version: [1, 1.1, 1.2, 1.3],
-		defaultVersion: 1.3,
+		version: [1, 1.1, 1.2, 1.3, 1.4],
+		defaultVersion: 1.4,
 		description: 'Return data in a defined JSON format',
 		defaults: {
 			name: 'Structured Output Parser',
@@ -71,7 +72,7 @@ export class OutputParserStructured implements INodeType {
 		outputNames: ['Output Parser'],
 		properties: [
 			getConnectionHintNoticeField([NodeConnectionTypes.AiChain, NodeConnectionTypes.AiAgent]),
-			{ ...schemaTypeField, displayOptions: { show: { '@version': [{ _cnd: { gte: 1.2 } }] } } },
+			{ ...schemaTypeField, displayOptions: { show: { '@version': [1.2, 1.3] } } },
 			{
 				...jsonSchemaExampleField,
 				default: `{
@@ -131,6 +132,26 @@ export class OutputParserStructured implements INodeType {
 				},
 			},
 			{
+				displayName: 'Schema',
+				name: 'schema',
+				type: 'jsonSchema',
+				default: {
+					type: 'object',
+					properties: {
+						state: { type: 'string' },
+						cities: { type: 'array', items: { type: 'string' } },
+					},
+					required: ['state', 'cities'],
+				},
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.4 } }],
+					},
+				},
+				description: 'JSON Schema to structure and validate the output against',
+			},
+			{
 				displayName: 'Auto-Fix Format',
 				description:
 					'Whether to automatically fix the output when it is not in the correct format. Will cause another LLM call.',
@@ -184,6 +205,56 @@ export class OutputParserStructured implements INodeType {
 	};
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+		const nodeVersion = this.getNode().typeVersion;
+
+		if (nodeVersion >= 1.4) {
+			const schema = this.getNodeParameter('schema', itemIndex) as JsonSchemaValue;
+			const jsonSchema = schema as unknown as JSONSchema7;
+			const zodSchema = convertJsonSchemaToZod<z.ZodSchema<object>>(jsonSchema);
+
+			const autoFix = this.getNodeParameter('autoFix', itemIndex, false) as boolean;
+
+			let outputParser;
+			try {
+				outputParser = await N8nStructuredOutputParser.fromZodJsonSchema(
+					zodSchema,
+					nodeVersion,
+					this,
+				);
+			} catch (error) {
+				throw new NodeOperationError(
+					this.getNode(),
+					'Error during parsing of JSON Schema. Please check the schema and try again.',
+				);
+			}
+
+			if (!autoFix) {
+				return { response: outputParser };
+			}
+
+			const model = (await this.getInputConnectionData(
+				NodeConnectionTypes.AiLanguageModel,
+				itemIndex,
+			)) as BaseLanguageModel;
+
+			const prompt = this.getNodeParameter('prompt', itemIndex, NAIVE_FIX_PROMPT) as string;
+
+			if (prompt.length === 0 || !prompt.includes('{error}')) {
+				throw new NodeOperationError(
+					this.getNode(),
+					'Auto-fixing parser prompt has to contain {error} placeholder',
+				);
+			}
+			const parser = new N8nOutputFixingParser(
+				this,
+				model,
+				outputParser,
+				PromptTemplate.fromTemplate(prompt),
+			);
+
+			return { response: parser };
+		}
+
 		const schemaType = this.getNodeParameter('schemaType', itemIndex, '') as 'fromJson' | 'manual';
 		// We initialize these even though one of them will always be empty
 		// it makes it easer to navigate the ternary operator
@@ -206,7 +277,6 @@ export class OutputParserStructured implements INodeType {
 				: jsonParse<JSONSchema7>(inputSchema);
 
 		const zodSchema = convertJsonSchemaToZod<z.ZodSchema<object>>(jsonSchema);
-		const nodeVersion = this.getNode().typeVersion;
 
 		const autoFix = this.getNodeParameter('autoFix', itemIndex, false) as boolean;
 

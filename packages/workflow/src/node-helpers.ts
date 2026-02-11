@@ -44,6 +44,7 @@ import type { IRunExecutionData } from './run-execution-data/run-execution-data'
 import {
 	isFilterValue,
 	isINodePropertyOptionsList,
+	isJsonSchemaValue,
 	isResourceLocatorValue,
 	isResourceMapperValue,
 	isValidResourceLocatorParameterValue,
@@ -1456,6 +1457,19 @@ export function getParameterIssues(
 			if (Object.keys(issues).length > 0) {
 				foundIssues.parameters = { ...foundIssues.parameters, ...issues };
 			}
+		}
+	} else if (nodeProperties.type === 'jsonSchema' && isDisplayed) {
+		const value = getParameterValueByPath(nodeValues, nodeProperties.name, path);
+		if (value && !isJsonSchemaValue(value)) {
+			if (foundIssues.parameters === undefined) {
+				foundIssues.parameters = {};
+			}
+			if (foundIssues.parameters[nodeProperties.name] === undefined) {
+				foundIssues.parameters[nodeProperties.name] = [];
+			}
+			foundIssues.parameters[nodeProperties.name].push(
+				'The value must be a valid JSON Schema object with type "object"',
+			);
 		}
 	} else if (nodeProperties.validateType) {
 		const value = getParameterValueByPath(nodeValues, nodeProperties.name, path);

@@ -170,9 +170,9 @@ export async function createRequest(
 			textConfig.format = {
 				type: textOptions.type,
 				name: textOptions.name as string,
-				schema: jsonParse(textOptions.schema as string, {
-					errorMessage: 'Failed to parse schema',
-				}),
+				schema: textOptions.schemaDefinition
+					? (textOptions.schemaDefinition as Record<string, unknown>)
+					: jsonParse(textOptions.schema as string, { errorMessage: 'Failed to parse schema' }),
 			};
 		} else if (textOptions.type === 'json_object') {
 			textConfig.format = {

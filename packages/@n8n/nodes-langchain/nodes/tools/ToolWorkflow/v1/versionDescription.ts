@@ -14,7 +14,7 @@ export const versionDescription: INodeTypeDescription = {
 	displayName: 'Call n8n Workflow Tool',
 	name: 'toolWorkflow',
 	group: ['transform'],
-	version: [1, 1.1, 1.2, 1.3],
+	version: [1, 1.1, 1.2, 1.3, 1.4],
 	description: 'Uses another n8n workflow as a tool. Allows packaging any n8n node(s) as a tool.',
 	defaults: {
 		name: 'Call n8n Workflow Tool',
@@ -336,8 +336,43 @@ export const versionDescription: INodeTypeDescription = {
 			noDataExpression: true,
 			default: false,
 		},
-		{ ...schemaTypeField, displayOptions: { show: { specifyInputSchema: [true] } } },
-		jsonSchemaExampleField,
-		inputSchemaField,
+		{
+			...schemaTypeField,
+			displayOptions: { show: { specifyInputSchema: [true], '@version': [1, 1.1, 1.2, 1.3] } },
+		},
+		{
+			...jsonSchemaExampleField,
+			displayOptions: {
+				show: { ...jsonSchemaExampleField.displayOptions?.show, '@version': [1, 1.1, 1.2, 1.3] },
+			},
+		},
+		{
+			...inputSchemaField,
+			displayOptions: {
+				show: { ...inputSchemaField.displayOptions?.show, '@version': [1, 1.1, 1.2, 1.3] },
+			},
+		},
+		{
+			displayName: 'Input Schema',
+			name: 'schema',
+			type: 'jsonSchema',
+			default: {
+				type: 'object',
+				properties: {
+					some_input: {
+						type: 'string',
+						description: 'Some input to the function',
+					},
+				},
+			},
+			noDataExpression: true,
+			displayOptions: {
+				show: {
+					specifyInputSchema: [true],
+					'@version': [{ _cnd: { gte: 1.4 } }],
+				},
+			},
+			description: 'Schema to use for the function input',
+		},
 	],
 };

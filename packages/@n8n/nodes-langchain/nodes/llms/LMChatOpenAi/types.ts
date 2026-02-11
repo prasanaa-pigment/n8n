@@ -1,4 +1,5 @@
 import type { OpenAIClient } from '@langchain/openai';
+import type { JsonSchemaValue } from 'n8n-workflow';
 
 export type BuiltInTools = {
 	webSearch?: {
@@ -52,6 +53,7 @@ export type TextOptions = {
 	verbosity?: 'low' | 'medium' | 'high';
 	name?: string;
 	schema?: string;
+	schemaDefinition?: JsonSchemaValue;
 	description?: string;
 	strict?: boolean;
 };

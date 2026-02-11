@@ -196,6 +196,36 @@ describe('prepareAdditionalResponsesParams', () => {
 		});
 	});
 
+	it('sets text format for json_schema with schemaDefinition object (v1.4+ format)', () => {
+		const schemaObject = {
+			type: 'object',
+			properties: { a: { type: 'number' } },
+			required: ['a'],
+		};
+
+		const body = prepareAdditionalResponsesParams({
+			textFormat: {
+				textOptions: {
+					type: 'json_schema',
+					name: 'MySchema',
+					schemaDefinition: schemaObject,
+					verbosity: 'low',
+				},
+			},
+		} as unknown as IDataObject);
+
+		expect(body).toEqual({
+			text: {
+				verbosity: 'low',
+				format: {
+					type: 'json_schema',
+					name: 'MySchema',
+					schema: schemaObject,
+				},
+			},
+		});
+	});
+
 	it('sets text format for json_object and text', () => {
 		const jsonObj = prepareAdditionalResponsesParams({
 			textFormat: { textOptions: { type: 'json_object', verbosity: 'medium' } },

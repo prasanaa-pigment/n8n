@@ -75,7 +75,8 @@ export class LmChatOpenAi implements INodeType {
 		name: 'lmChatOpenAi',
 		icon: { light: 'file:openAiLight.svg', dark: 'file:openAiLight.dark.svg' },
 		group: ['transform'],
-		version: [1, 1.1, 1.2, 1.3],
+		version: [1, 1.1, 1.2, 1.3, 1.4],
+		defaultVersion: 1.4,
 		description: 'For advanced usage with an AI chain',
 		defaults: {
 			name: 'OpenAI Chat Model',
@@ -465,6 +466,7 @@ export class LmChatOpenAi implements INodeType {
 										displayOptions: {
 											show: {
 												strict: [true],
+												'@version': [{ _cnd: { lt: 1.4 } }],
 											},
 										},
 									},
@@ -477,6 +479,27 @@ export class LmChatOpenAi implements INodeType {
 										displayOptions: {
 											show: {
 												type: ['json_schema'],
+												'@version': [{ _cnd: { lt: 1.4 } }],
+											},
+										},
+									},
+									{
+										displayName: 'Schema',
+										name: 'schemaDefinition',
+										type: 'jsonSchema',
+										default: {
+											type: 'object',
+											properties: {
+												message: { type: 'string' },
+											},
+											required: ['message'],
+										},
+										noDataExpression: true,
+										description: 'The schema of the response format',
+										displayOptions: {
+											show: {
+												type: ['json_schema'],
+												'@version': [{ _cnd: { gte: 1.4 } }],
 											},
 										},
 									},

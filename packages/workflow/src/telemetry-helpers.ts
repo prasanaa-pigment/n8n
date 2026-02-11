@@ -46,7 +46,7 @@ import type {
 	IRun,
 	INodeParameterResourceLocator,
 } from './interfaces';
-import { NodeConnectionTypes } from './interfaces';
+import { NodeConnectionTypes, type NodeParameterValueType } from './interfaces';
 import { getNodeParameters, isSubNodeType } from './node-helpers';
 import { jsonParse } from './utils';
 
@@ -741,7 +741,8 @@ export function resolveAIMetrics(nodes: INode[], nodeTypes: INodeTypes): FromAIC
 	for (const [node, _] of tools) {
 		// FlatMap to support values in resourceLocators
 		const values = Object.values(node.parameters).flatMap((param) => {
-			if (param && typeof param === 'object' && 'value' in param) param = param.value;
+			if (param && typeof param === 'object' && 'value' in param)
+				param = param.value as NodeParameterValueType;
 			return typeof param === 'string' ? param : [];
 		});
 

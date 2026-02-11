@@ -10,6 +10,7 @@ import {
 	type ResourceMapperValue,
 	nodeConnectionTypes,
 	type IBinaryData,
+	type JsonSchemaValue,
 } from './interfaces';
 
 export function isResourceLocatorValue(value: unknown): value is INodeParameterResourceLocator {
@@ -88,6 +89,10 @@ export const isAssignmentCollectionValue = (value: unknown): value is Assignment
 		Array.isArray(value.assignments) &&
 		value.assignments.every(isAssignmentValue)
 	);
+};
+
+export const isJsonSchemaValue = (value: unknown): value is JsonSchemaValue => {
+	return typeof value === 'object' && value !== null && 'type' in value && value.type === 'object';
 };
 
 export const isFilterValue = (value: unknown): value is FilterValue => {

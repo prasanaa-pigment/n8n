@@ -1418,6 +1418,18 @@ export interface INodeParameterResourceLocator {
 
 export type IconOrEmoji = { type: 'icon'; value: string } | { type: 'emoji'; value: string };
 
+export interface JsonSchemaValue {
+	type: 'object';
+	properties?: Record<string, unknown>;
+	required?: string[];
+	additionalProperties?: boolean;
+}
+
+export interface JsonSchemaTypeOptions {
+	defaultMode?: 'visual' | 'rawSchema';
+	allFieldsRequired?: boolean;
+}
+
 export type NodeParameterValueType =
 	// TODO: Later also has to be possible to add multiple ones with the name name. So array has to be possible
 	| NodeParameterValue
@@ -1459,7 +1471,8 @@ export type NodePropertyTypes =
 	| 'filter'
 	| 'assignmentCollection'
 	| 'credentials'
-	| 'workflowSelector';
+	| 'workflowSelector'
+	| 'jsonSchema';
 
 export type CodeAutocompleteTypes = 'function' | 'functionItem';
 
@@ -1538,6 +1551,7 @@ export interface INodePropertyTypeOptions {
 	resourceMapper?: ResourceMapperTypeOptions;
 	filter?: FilterTypeOptions;
 	assignment?: AssignmentTypeOptions;
+	jsonSchema?: JsonSchemaTypeOptions;
 	minRequiredFields?: number; // Supported by: fixedCollection
 	maxAllowedFields?: number; // Supported by: fixedCollection
 	hideOptionalFields?: boolean; // Supported by: fixedCollection - hide non-required fields by default

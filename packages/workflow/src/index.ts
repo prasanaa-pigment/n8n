@@ -66,6 +66,7 @@ export {
 	isResourceMapperValue,
 	isResourceLocatorValue,
 	isFilterValue,
+	isJsonSchemaValue,
 	isNodeConnectionType,
 	isBinaryValue,
 } from './type-guards';

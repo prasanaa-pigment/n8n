@@ -15,6 +15,7 @@ import type {
 	INodeTypeDescription,
 	ISupplyDataFunctions,
 	SupplyData,
+	JsonSchemaValue,
 } from 'n8n-workflow';
 import {
 	jsonParse,
@@ -155,17 +156,23 @@ function getTool(
 
 	if (useSchema) {
 		try {
-			// We initialize these even though one of them will always be empty
-			// it makes it easier to navigate the ternary operator
-			const jsonExample = ctx.getNodeParameter('jsonSchemaExample', itemIndex, '') as string;
-			const inputSchema = ctx.getNodeParameter('inputSchema', itemIndex, '') as string;
+			let jsonSchema: JSONSchema7;
 
-			const schemaType = ctx.getNodeParameter('schemaType', itemIndex) as 'fromJson' | 'manual';
+			if (ctx.getNode().typeVersion >= 1.4) {
+				const schema = ctx.getNodeParameter('schema', itemIndex) as JsonSchemaValue;
+				jsonSchema = schema as unknown as JSONSchema7;
+			} else {
+				// We initialize these even though one of them will always be empty
+				// it makes it easier to navigate the ternary operator
+				const jsonExample = ctx.getNodeParameter('jsonSchemaExample', itemIndex, '') as string;
+				const inputSchema = ctx.getNodeParameter('inputSchema', itemIndex, '') as string;
 
-			const jsonSchema =
-				schemaType === 'fromJson'
-					? generateSchemaFromExample(jsonExample, ctx.getNode().typeVersion >= 1.3)
-					: jsonParse<JSONSchema7>(inputSchema);
+				const schemaType = ctx.getNodeParameter('schemaType', itemIndex) as 'fromJson' | 'manual';
+				jsonSchema =
+					schemaType === 'fromJson'
+						? generateSchemaFromExample(jsonExample, ctx.getNode().typeVersion >= 1.3)
+						: jsonParse<JSONSchema7>(inputSchema);
+			}
 
 			const zodSchema = convertJsonSchemaToZod<DynamicZodObject>(jsonSchema);
 
@@ -193,7 +200,7 @@ export class ToolCode implements INodeType {
 		icon: 'fa:code',
 		iconColor: 'black',
 		group: ['transform'],
-		version: [1, 1.1, 1.2, 1.3],
+		version: [1, 1.1, 1.2, 1.3, 1.4],
 		description: 'Write a tool in JS or Python',
 		defaults: {
 			name: 'Code Tool',
@@ -332,10 +339,50 @@ export class ToolCode implements INodeType {
 				noDataExpression: true,
 				default: false,
 			},
-			{ ...schemaTypeField, displayOptions: { show: { specifyInputSchema: [true] } } },
-			jsonSchemaExampleField,
-			jsonSchemaExampleNotice,
-			jsonSchemaField,
+			{
+				...schemaTypeField,
+				displayOptions: { show: { specifyInputSchema: [true], '@version': [1, 1.1, 1.2, 1.3] } },
+			},
+			{
+				...jsonSchemaExampleField,
+				displayOptions: {
+					show: { ...jsonSchemaExampleField.displayOptions?.show, '@version': [1, 1.1, 1.2, 1.3] },
+				},
+			},
+			{
+				...jsonSchemaExampleNotice,
+				displayOptions: {
+					show: { ...jsonSchemaExampleNotice.displayOptions?.show, '@version': [1, 1.1, 1.2, 1.3] },
+				},
+			},
+			{
+				...jsonSchemaField,
+				displayOptions: {
+					show: { ...jsonSchemaField.displayOptions?.show, '@version': [1, 1.1, 1.2, 1.3] },
+				},
+			},
+			{
+				displayName: 'Input Schema',
+				name: 'schema',
+				type: 'jsonSchema',
+				default: {
+					type: 'object',
+					properties: {
+						some_input: {
+							type: 'string',
+							description: 'Some input to the function',
+						},
+					},
+				},
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						specifyInputSchema: [true],
+						'@version': [{ _cnd: { gte: 1.4 } }],
+					},
+				},
+				description: 'Schema to use for the function input',
+			},
 		],
 	};
 

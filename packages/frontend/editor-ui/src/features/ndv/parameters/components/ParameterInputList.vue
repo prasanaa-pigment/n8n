@@ -3,6 +3,7 @@ import type {
 	AssignmentCollectionValue,
 	CalloutAction,
 	FilterValue,
+	JsonSchemaValue,
 	INodeParameters,
 	INodeProperties,
 	NodeParameterValueType,
@@ -33,6 +34,7 @@ import { useI18n } from '@n8n/i18n';
 import AssignmentCollection from './AssignmentCollection/AssignmentCollection.vue';
 import ButtonParameter from './ButtonParameter/ButtonParameter.vue';
 import FilterConditions from './FilterConditions/FilterConditions.vue';
+import JsonSchemaBuilder from './JsonSchemaBuilder/JsonSchemaBuilder.vue';
 import ImportCurlParameter from './ImportCurlParameter.vue';
 import MultipleParameter from './MultipleParameter.vue';
 import ParameterInputFull from './ParameterInputFull.vue';
@@ -807,6 +809,15 @@ watch(
 				:is-read-only="isReadOnly"
 				:default-type="item.parameter.typeOptions?.assignment?.defaultType"
 				:disable-type="item.parameter.typeOptions?.assignment?.disableType"
+				@value-changed="valueChanged"
+			/>
+			<JsonSchemaBuilder
+				v-else-if="item.parameter.type === 'jsonSchema'"
+				:parameter="item.parameter"
+				:value="getParameterValue<JsonSchemaValue>(item.parameter.name)"
+				:path="item.path"
+				:node="node"
+				:is-read-only="isReadOnly"
 				@value-changed="valueChanged"
 			/>
 			<div v-else-if="credentialsParameterIndex !== index" class="parameter-item">

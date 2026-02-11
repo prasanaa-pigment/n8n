@@ -442,6 +442,7 @@ const properties: INodeProperties[] = [
 								displayOptions: {
 									show: {
 										strict: [true],
+										'@version': [{ _cnd: { lt: 2.2 } }],
 									},
 								},
 							},
@@ -454,6 +455,27 @@ const properties: INodeProperties[] = [
 								displayOptions: {
 									show: {
 										type: ['json_schema'],
+										'@version': [{ _cnd: { lt: 2.2 } }],
+									},
+								},
+							},
+							{
+								displayName: 'Schema',
+								name: 'schemaDefinition',
+								type: 'jsonSchema',
+								default: {
+									type: 'object',
+									properties: {
+										message: { type: 'string' },
+									},
+									required: ['message'],
+								},
+								noDataExpression: true,
+								description: 'The schema of the response format',
+								displayOptions: {
+									show: {
+										type: ['json_schema'],
+										'@version': [{ _cnd: { gte: 2.2 } }],
 									},
 								},
 							},

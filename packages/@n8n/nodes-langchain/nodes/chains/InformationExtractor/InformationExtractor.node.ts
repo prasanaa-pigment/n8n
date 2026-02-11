@@ -8,6 +8,7 @@ import type {
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodePropertyOptions,
+	JsonSchemaValue,
 } from 'n8n-workflow';
 import type { z } from 'zod';
 
@@ -32,8 +33,8 @@ export class InformationExtractor implements INodeType {
 		icon: 'fa:project-diagram',
 		iconColor: 'black',
 		group: ['transform'],
-		version: [1, 1.1, 1.2],
-		defaultVersion: 1.2,
+		version: [1, 1.1, 1.2, 1.3],
+		defaultVersion: 1.3,
 		description: 'Extract information from text in a structured format',
 		codex: {
 			alias: ['NER', 'parse', 'parsing', 'JSON', 'data extraction', 'structured'],
@@ -86,6 +87,11 @@ export class InformationExtractor implements INodeType {
 					...(schemaTypeField.options as INodePropertyOptions[]),
 				],
 				default: 'fromAttributes',
+				displayOptions: {
+					show: {
+						'@version': [1, 1.1, 1.2],
+					},
+				},
 			},
 			{
 				...jsonSchemaExampleField,
@@ -125,6 +131,7 @@ export class InformationExtractor implements INodeType {
 				displayOptions: {
 					show: {
 						schemaType: ['fromAttributes'],
+						'@version': [1, 1.1, 1.2],
 					},
 				},
 				typeOptions: {
@@ -192,6 +199,26 @@ export class InformationExtractor implements INodeType {
 				],
 			},
 			{
+				displayName: 'Schema',
+				name: 'schema',
+				type: 'jsonSchema',
+				default: {
+					type: 'object',
+					properties: {
+						state: { type: 'string' },
+						cities: { type: 'array', items: { type: 'string' } },
+					},
+					required: ['state', 'cities'],
+				},
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.3 } }],
+					},
+				},
+				description: 'Schema defining the structure of information to extract',
+			},
+			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
@@ -226,45 +253,53 @@ export class InformationExtractor implements INodeType {
 			0,
 		)) as BaseLanguageModel;
 
-		const schemaType = this.getNodeParameter('schemaType', 0, '') as
-			| 'fromAttributes'
-			| 'fromJson'
-			| 'manual';
-
+		const nodeVersion = this.getNode().typeVersion;
 		let parser: OutputFixingParser<object>;
 
-		if (schemaType === 'fromAttributes') {
-			const attributes = this.getNodeParameter(
-				'attributes.attributes',
-				0,
-				[],
-			) as AttributeDefinition[];
-
-			if (attributes.length === 0) {
-				throw new NodeOperationError(this.getNode(), 'At least one attribute must be specified');
-			}
-
-			parser = OutputFixingParser.fromLLM(
-				llm,
-				StructuredOutputParser.fromZodSchema(makeZodSchemaFromAttributes(attributes)),
-			);
-		} else {
-			let jsonSchema: JSONSchema7;
-
-			if (schemaType === 'fromJson') {
-				const jsonExample = this.getNodeParameter('jsonSchemaExample', 0, '') as string;
-				// Enforce all fields to be required in the generated schema if the node version is 1.2 or higher
-				const jsonExampleAllFieldsRequired = this.getNode().typeVersion >= 1.2;
-
-				jsonSchema = generateSchemaFromExample(jsonExample, jsonExampleAllFieldsRequired);
-			} else {
-				const inputSchema = this.getNodeParameter('inputSchema', 0, '') as string;
-				jsonSchema = jsonParse<JSONSchema7>(inputSchema);
-			}
-
+		if (nodeVersion >= 1.3) {
+			const schema = this.getNodeParameter('schema', 0) as JsonSchemaValue;
+			const jsonSchema = schema as unknown as JSONSchema7;
 			const zodSchema = convertJsonSchemaToZod<z.ZodSchema<object>>(jsonSchema);
-
 			parser = OutputFixingParser.fromLLM(llm, StructuredOutputParser.fromZodSchema(zodSchema));
+		} else {
+			const schemaType = this.getNodeParameter('schemaType', 0, '') as
+				| 'fromAttributes'
+				| 'fromJson'
+				| 'manual';
+
+			if (schemaType === 'fromAttributes') {
+				const attributes = this.getNodeParameter(
+					'attributes.attributes',
+					0,
+					[],
+				) as AttributeDefinition[];
+
+				if (attributes.length === 0) {
+					throw new NodeOperationError(this.getNode(), 'At least one attribute must be specified');
+				}
+
+				parser = OutputFixingParser.fromLLM(
+					llm,
+					StructuredOutputParser.fromZodSchema(makeZodSchemaFromAttributes(attributes)),
+				);
+			} else {
+				let jsonSchema: JSONSchema7;
+
+				if (schemaType === 'fromJson') {
+					const jsonExample = this.getNodeParameter('jsonSchemaExample', 0, '') as string;
+					// Enforce all fields to be required in the generated schema if the node version is 1.2 or higher
+					const jsonExampleAllFieldsRequired = this.getNode().typeVersion >= 1.2;
+
+					jsonSchema = generateSchemaFromExample(jsonExample, jsonExampleAllFieldsRequired);
+				} else {
+					const inputSchema = this.getNodeParameter('inputSchema', 0, '') as string;
+					jsonSchema = jsonParse<JSONSchema7>(inputSchema);
+				}
+
+				const zodSchema = convertJsonSchemaToZod<z.ZodSchema<object>>(jsonSchema);
+
+				parser = OutputFixingParser.fromLLM(llm, StructuredOutputParser.fromZodSchema(zodSchema));
+			}
 		}
 
 		const resultData: INodeExecutionData[] = [];
