@@ -11,84 +11,49 @@ const createTestBuffer = () =>
 		0x42, 0x60, 0x82,
 	]);
 
-const mockGmInstance: any = {
-	background: jest.fn(function (this: any) {
-		return this;
-	}),
-	blur: jest.fn(function (this: any) {
-		return this;
-	}),
-	borderColor: jest.fn(function (this: any) {
-		return this;
-	}),
-	border: jest.fn(function (this: any) {
-		return this;
-	}),
-	compose: jest.fn(function (this: any) {
-		return this;
-	}),
-	geometry: jest.fn(function (this: any) {
-		return this;
-	}),
-	composite: jest.fn(function (this: any) {
-		return this;
-	}),
-	crop: jest.fn(function (this: any) {
-		return this;
-	}),
-	drawCircle: jest.fn(function (this: any) {
-		return this;
-	}),
-	drawLine: jest.fn(function (this: any) {
-		return this;
-	}),
-	drawRectangle: jest.fn(function (this: any) {
-		return this;
-	}),
-	fill: jest.fn(function (this: any) {
-		return this;
-	}),
-	font: jest.fn(function (this: any) {
-		return this;
-	}),
-	fontSize: jest.fn(function (this: any) {
-		return this;
-	}),
-	drawText: jest.fn(function (this: any) {
-		return this;
-	}),
-	identify: jest.fn(function (this: any, callback: any) {
-		callback(null, { width: 100, height: 100, format: 'PNG' });
-		return this;
-	}),
-	quality: jest.fn(function (this: any) {
-		return this;
-	}),
-	resize: jest.fn(function (this: any) {
-		return this;
-	}),
-	rotate: jest.fn(function (this: any) {
-		return this;
-	}),
-	setFormat: jest.fn(function (this: any) {
-		return this;
-	}),
-	shear: jest.fn(function (this: any) {
-		return this;
-	}),
-	stream: jest.fn(function (this: any) {
-		return this;
-	}),
-	transparent: jest.fn(function (this: any) {
-		return this;
-	}),
-	toBuffer: jest.fn(function (this: any, callback: any) {
-		callback(null, createTestBuffer());
-		return this;
-	}),
-};
+let mockOutputBuffer: Buffer;
+let mockSharpInstance: Record<string, jest.Mock>;
 
-jest.mock('gm', () => jest.fn(() => mockGmInstance));
+function resetSharpMock() {
+	mockOutputBuffer = createTestBuffer();
+	const instance: Record<string, jest.Mock> = {};
+	const chainMethods = [
+		'blur',
+		'extend',
+		'composite',
+		'extract',
+		'resize',
+		'rotate',
+		'affine',
+		'ensureAlpha',
+		'raw',
+		'png',
+		'toFormat',
+	];
+	for (const method of chainMethods) {
+		instance[method] = jest.fn(() => instance);
+	}
+	instance.toBuffer = jest.fn().mockResolvedValue(mockOutputBuffer);
+	instance.metadata = jest.fn().mockResolvedValue({
+		width: 100,
+		height: 100,
+		format: 'png',
+		channels: 4,
+	});
+	mockSharpInstance = instance;
+}
+
+// Initialize before jest.mock hoisting
+resetSharpMock();
+
+jest.mock('sharp', () => ({
+	__esModule: true,
+	default: jest.fn(() => mockSharpInstance),
+}));
+
+jest.mock('sharp-bmp', () => ({
+	encode: jest.fn(() => ({ data: createTestBuffer(), width: 100, height: 100 })),
+}));
 
 describe('EditImage Node', () => {
 	let editImageNode: EditImage;
@@ -97,6 +62,7 @@ describe('EditImage Node', () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		resetSharpMock();
 		editImageNode = new EditImage();
 		mockNode = {
 			id: 'test-node-id',
@@ -1371,6 +1337,14 @@ describe('EditImage Node', () => {
 				fileExtension: 'png',
 			});
 
+			// For transparent, toBuffer with resolveWithObject returns { data, info }
+			mockSharpInstance.toBuffer.mockResolvedValueOnce({
+				data: Buffer.alloc(400, 0xff),
+				info: { width: 10, height: 10, channels: 4 },
+			});
+			// Second toBuffer call (reconstructing after pixel manipulation) returns normal buffer
+			mockSharpInstance.toBuffer.mockResolvedValueOnce(mockOutputBuffer);
+
 			const result = await editImageNode.execute.call(mockExecuteFunctions);
 
 			expect(result[0]).toHaveLength(1);
@@ -1408,6 +1382,12 @@ describe('EditImage Node', () => {
 				mimeType: 'image/png',
 				fileExtension: 'png',
 			});
+
+			mockSharpInstance.toBuffer.mockResolvedValueOnce({
+				data: Buffer.alloc(400, 0xff),
+				info: { width: 10, height: 10, channels: 4 },
+			});
+			mockSharpInstance.toBuffer.mockResolvedValueOnce(mockOutputBuffer);
 
 			const result = await editImageNode.execute.call(mockExecuteFunctions);
 
@@ -1469,6 +1449,267 @@ describe('EditImage Node', () => {
 
 			expect(result[0]).toHaveLength(1);
 			expect(result[0][0].binary).toHaveProperty('data');
+		});
+	});
+
+	describe('sharp API calls', () => {
+		it('should call sharp.blur for blur operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'blur';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'blur') return 5;
+				if (paramName === 'sigma') return 3;
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			expect(mockSharpInstance.blur).toHaveBeenCalledWith(3);
+		});
+
+		it('should call sharp.extend for border operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'border';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'borderColor') return '#ff0000';
+				if (paramName === 'borderWidth') return 5;
+				if (paramName === 'borderHeight') return 10;
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			expect(mockSharpInstance.extend).toHaveBeenCalledWith({
+				top: 10,
+				bottom: 10,
+				left: 5,
+				right: 5,
+				background: '#ff0000',
+			});
+		});
+
+		it('should call sharp.extract for crop operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'crop';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'width') return 50;
+				if (paramName === 'height') return 50;
+				if (paramName === 'positionX') return 10;
+				if (paramName === 'positionY') return 20;
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			expect(mockSharpInstance.extract).toHaveBeenCalledWith({
+				left: 10,
+				top: 20,
+				width: 50,
+				height: 50,
+			});
+		});
+
+		it('should call sharp.rotate for rotate operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'rotate';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'rotate') return 45;
+				if (paramName === 'backgroundColor') return '#00ff00';
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			expect(mockSharpInstance.rotate).toHaveBeenCalledWith(45, { background: '#00ff00' });
+		});
+
+		it('should call sharp.composite for composite operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+						overlay: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'overlay.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'composite';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'dataPropertyNameComposite') return 'overlay';
+				if (paramName === 'operator') return 'Multiply';
+				if (paramName === 'positionX') return 5;
+				if (paramName === 'positionY') return 10;
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			expect(mockSharpInstance.composite).toHaveBeenCalledWith([
+				{
+					input: testBuffer,
+					top: 10,
+					left: 5,
+					blend: 'multiply',
+				},
+			]);
+		});
+
+		it('should call sharp.affine for shear operation', async () => {
+			const testBuffer = createTestBuffer();
+			const items: INodeExecutionData[] = [
+				{
+					json: {},
+					binary: {
+						data: {
+							data: testBuffer.toString('base64'),
+							mimeType: 'image/png',
+							fileExtension: 'png',
+							fileName: 'test.png',
+						},
+					},
+				},
+			];
+
+			mockExecuteFunctions.getInputData.mockReturnValue(items);
+			mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
+				if (paramName === 'operation') return 'shear';
+				if (paramName === 'dataPropertyName') return 'data';
+				if (paramName === 'degreesX') return 20;
+				if (paramName === 'degreesY') return 10;
+				if (paramName === 'options') return {};
+				return {};
+			});
+
+			mockExecuteFunctions.helpers.getBinaryDataBuffer.mockResolvedValue(testBuffer);
+			mockExecuteFunctions.helpers.prepareBinaryData.mockResolvedValue({
+				data: testBuffer.toString('base64'),
+				mimeType: 'image/png',
+				fileExtension: 'png',
+			});
+
+			await editImageNode.execute.call(mockExecuteFunctions);
+
+			const expectedX = Math.tan(20 * (Math.PI / 180));
+			const expectedY = Math.tan(10 * (Math.PI / 180));
+			expect(mockSharpInstance.affine).toHaveBeenCalledWith([1, expectedY, expectedX, 1]);
 		});
 	});
 });

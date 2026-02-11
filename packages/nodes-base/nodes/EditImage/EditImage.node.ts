@@ -1,6 +1,7 @@
-import { writeFile as fsWriteFile } from 'fs/promises';
 import getSystemFonts from 'get-system-fonts';
-import gm from 'gm';
+import sharp from 'sharp';
+import type { Blend, FormatEnum } from 'sharp';
+import { encode as encodeBmp } from 'sharp-bmp';
 import type {
 	IBinaryData,
 	IDataObject,
@@ -14,7 +15,6 @@ import type {
 } from 'n8n-workflow';
 import { NodeOperationError, NodeConnectionTypes, deepCopy } from 'n8n-workflow';
 import { parse as pathParse } from 'path';
-import { file } from 'tmp-promise';
 
 type EditImageNodeOptions = {
 	destinationKey?: string;
@@ -23,6 +23,50 @@ type EditImageNodeOptions = {
 	format?: string;
 	quality?: number;
 };
+
+const COMPOSITE_BLEND_MAP: Record<string, Blend> = {
+	Add: 'add',
+	Atop: 'atop',
+	Difference: 'difference',
+	In: 'in',
+	Multiply: 'multiply',
+	Out: 'out',
+	Over: 'over',
+	Plus: 'add',
+	Xor: 'xor',
+};
+
+function generateDrawSvg(width: number, height: number, operationData: IDataObject): string {
+	const color = operationData.color as string;
+	const x1 = operationData.startPositionX as number;
+	const y1 = operationData.startPositionY as number;
+	const x2 = operationData.endPositionX as number;
+	const y2 = operationData.endPositionY as number;
+
+	let shapeElement = '';
+	if (operationData.primitive === 'rectangle') {
+		const rx = (operationData.cornerRadius as number) || 0;
+		const w = x2 - x1;
+		const h = y2 - y1;
+		shapeElement = `<rect x="${x1}" y="${y1}" width="${w}" height="${h}" rx="${rx}" fill="${color}"/>`;
+	} else if (operationData.primitive === 'circle') {
+		const r = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+		shapeElement = `<circle cx="${x1}" cy="${y1}" r="${r}" fill="${color}"/>`;
+	} else if (operationData.primitive === 'line') {
+		shapeElement = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1"/>`;
+	}
+
+	return `<svg width="${width}" height="${height}">${shapeElement}</svg>`;
+}
+
+function escapeXml(text: string): string {
+	return text
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&apos;');
+}
 
 const nodeOperations: INodePropertyOptions[] = [
 	{
@@ -340,22 +384,6 @@ const nodeOperationOptions: INodeProperties[] = [
 	//         blur
 	// ----------------------------------
 	{
-		displayName: 'Blur',
-		name: 'blur',
-		type: 'number',
-		typeOptions: {
-			minValue: 0,
-			maxValue: 1000,
-		},
-		default: 5,
-		displayOptions: {
-			show: {
-				operation: ['blur'],
-			},
-		},
-		description: 'How strong the blur should be',
-	},
-	{
 		displayName: 'Sigma',
 		name: 'sigma',
 		type: 'number',
@@ -448,60 +476,12 @@ const nodeOperationOptions: INodeProperties[] = [
 				value: 'Atop',
 			},
 			{
-				name: 'Bumpmap',
-				value: 'Bumpmap',
-			},
-			{
-				name: 'Copy',
-				value: 'Copy',
-			},
-			{
-				name: 'Copy Black',
-				value: 'CopyBlack',
-			},
-			{
-				name: 'Copy Blue',
-				value: 'CopyBlue',
-			},
-			{
-				name: 'Copy Cyan',
-				value: 'CopyCyan',
-			},
-			{
-				name: 'Copy Green',
-				value: 'CopyGreen',
-			},
-			{
-				name: 'Copy Magenta',
-				value: 'CopyMagenta',
-			},
-			{
-				name: 'Copy Opacity',
-				value: 'CopyOpacity',
-			},
-			{
-				name: 'Copy Red',
-				value: 'CopyRed',
-			},
-			{
-				name: 'Copy Yellow',
-				value: 'CopyYellow',
-			},
-			{
 				name: 'Difference',
 				value: 'Difference',
 			},
 			{
-				name: 'Divide',
-				value: 'Divide',
-			},
-			{
 				name: 'In',
 				value: 'In',
-			},
-			{
-				name: 'Minus',
-				value: 'Minus',
 			},
 			{
 				name: 'Multiply',
@@ -518,10 +498,6 @@ const nodeOperationOptions: INodeProperties[] = [
 			{
 				name: 'Plus',
 				value: 'Plus',
-			},
-			{
-				name: 'Subtract',
-				value: 'Subtract',
 			},
 			{
 				name: 'Xor',
@@ -1021,10 +997,6 @@ export class EditImage implements INodeType {
 					binaryPropertyName = typeof dataPropertyName === 'string' ? dataPropertyName : 'data';
 				}
 
-				const cleanupFunctions: Array<() => void> = [];
-
-				let gmInstance: gm.State;
-
 				const requiredOperationParameters: {
 					[key: string]: string[];
 				} = {
@@ -1052,13 +1024,11 @@ export class EditImage implements INodeType {
 
 				let operations: IDataObject[] = [];
 				if (operation === 'multiStep') {
-					// Operation parameters are already in the correct format
 					const operationsData = this.getNodeParameter('operations', itemIndex, {
 						operations: [],
 					}) as IDataObject;
 					operations = operationsData.operations as IDataObject[];
 				} else {
-					// Operation parameters have to first get collected
 					const operationParameters: IDataObject = {};
 					requiredOperationParameters[operation].forEach((parameterName) => {
 						try {
@@ -1074,15 +1044,11 @@ export class EditImage implements INodeType {
 					];
 				}
 
+				let imageBuffer: Buffer | undefined;
+
 				if (operations[0].operation !== 'create') {
-					// "create" generates a new image so does not require any incoming data.
 					this.helpers.assertBinaryData(itemIndex, dataPropertyName);
-					const binaryDataBuffer = await this.helpers.getBinaryDataBuffer(
-						itemIndex,
-						dataPropertyName,
-					);
-					gmInstance = gm(binaryDataBuffer);
-					gmInstance = gmInstance.background('transparent');
+					imageBuffer = await this.helpers.getBinaryDataBuffer(itemIndex, dataPropertyName);
 				}
 
 				const newItem: INodeExecutionData = {
@@ -1094,142 +1060,125 @@ export class EditImage implements INodeType {
 				};
 
 				if (operation === 'information') {
-					// Just return the information
-					const imageData = await new Promise<IDataObject>((resolve, reject) => {
-						gmInstance = gmInstance.identify((error, data) => {
-							if (error) {
-								reject(error);
-								return;
-							}
-							resolve(data as unknown as IDataObject);
-						});
-					});
-
-					newItem.json = imageData;
+					const metadata = await sharp(imageBuffer!).metadata();
+					newItem.json = metadata as unknown as IDataObject;
 				}
 
 				for (let i = 0; i < operations.length; i++) {
 					const operationData = operations[i];
 					if (operationData.operation === 'blur') {
-						gmInstance = gmInstance!.blur(
-							operationData.blur as number,
-							operationData.sigma as number,
-						);
+						const sigma = operationData.sigma as number;
+						imageBuffer = await sharp(imageBuffer!)
+							.blur(sigma > 0 ? sigma : 0.3)
+							.toBuffer();
 					} else if (operationData.operation === 'border') {
-						gmInstance = gmInstance!
-							.borderColor(operationData.borderColor as string)
-							.border(operationData.borderWidth as number, operationData.borderHeight as number);
+						imageBuffer = await sharp(imageBuffer!)
+							.extend({
+								top: operationData.borderHeight as number,
+								bottom: operationData.borderHeight as number,
+								left: operationData.borderWidth as number,
+								right: operationData.borderWidth as number,
+								background: operationData.borderColor as string,
+							})
+							.toBuffer();
 					} else if (operationData.operation === 'composite') {
-						const positionX = operationData.positionX as number;
-						const positionY = operationData.positionY as number;
-						const operator = operationData.operator as string;
-
-						const geometryString =
-							(positionX >= 0 ? '+' : '') + positionX + (positionY >= 0 ? '+' : '') + positionY;
-
-						const binaryPropertyName = operationData.dataPropertyNameComposite as string;
-						this.helpers.assertBinaryData(itemIndex, binaryPropertyName);
-						const binaryDataBuffer = await this.helpers.getBinaryDataBuffer(
+						const compositePropertyName = operationData.dataPropertyNameComposite as string;
+						this.helpers.assertBinaryData(itemIndex, compositePropertyName);
+						const compositeBuffer = await this.helpers.getBinaryDataBuffer(
 							itemIndex,
-							binaryPropertyName,
+							compositePropertyName,
 						);
 
-						const { path, cleanup } = await file();
-						cleanupFunctions.push(cleanup);
-						await fsWriteFile(path, binaryDataBuffer);
+						const blendMode = COMPOSITE_BLEND_MAP[operationData.operator as string] || 'over';
 
-						if (operations[0].operation === 'create') {
-							// It seems like if the image gets created newly we have to create a new gm instance
-							// else it fails for some reason
-							gmInstance = gm(gmInstance!.stream('png'))
-								.compose(operator)
-								.geometry(geometryString)
-								.composite(path);
-						} else {
-							gmInstance = gmInstance!.compose(operator).geometry(geometryString).composite(path);
-						}
-
-						if (operations.length !== i + 1) {
-							// If there are other operations after the current one create a new gm instance
-							// because else things do get messed up
-							gmInstance = gm(gmInstance.stream());
-						}
+						imageBuffer = await sharp(imageBuffer!)
+							.composite([
+								{
+									input: compositeBuffer,
+									top: operationData.positionY as number,
+									left: operationData.positionX as number,
+									blend: blendMode,
+								},
+							])
+							.toBuffer();
 					} else if (operationData.operation === 'create') {
-						gmInstance = gm(
-							operationData.width as number,
-							operationData.height as number,
-							operationData.backgroundColor as string,
-						);
+						imageBuffer = await sharp({
+							create: {
+								width: operationData.width as number,
+								height: operationData.height as number,
+								channels: 4,
+								background: operationData.backgroundColor as string,
+							},
+						})
+							.png()
+							.toBuffer();
 						if (!options.format) {
 							options.format = 'png';
 						}
 					} else if (operationData.operation === 'crop') {
-						gmInstance = gmInstance!.crop(
-							operationData.width as number,
-							operationData.height as number,
-							operationData.positionX as number,
-							operationData.positionY as number,
-						);
+						imageBuffer = await sharp(imageBuffer!)
+							.extract({
+								left: operationData.positionX as number,
+								top: operationData.positionY as number,
+								width: operationData.width as number,
+								height: operationData.height as number,
+							})
+							.toBuffer();
 					} else if (operationData.operation === 'draw') {
-						gmInstance = gmInstance!.fill(operationData.color as string);
-
-						if (operationData.primitive === 'line') {
-							gmInstance = gmInstance.drawLine(
-								operationData.startPositionX as number,
-								operationData.startPositionY as number,
-								operationData.endPositionX as number,
-								operationData.endPositionY as number,
-							);
-						} else if (operationData.primitive === 'circle') {
-							gmInstance = gmInstance.drawCircle(
-								operationData.startPositionX as number,
-								operationData.startPositionY as number,
-								operationData.endPositionX as number,
-								operationData.endPositionY as number,
-							);
-						} else if (operationData.primitive === 'rectangle') {
-							gmInstance = gmInstance.drawRectangle(
-								operationData.startPositionX as number,
-								operationData.startPositionY as number,
-								operationData.endPositionX as number,
-								operationData.endPositionY as number,
-								(operationData.cornerRadius as number) || undefined,
-							);
-						}
+						const metadata = await sharp(imageBuffer!).metadata();
+						const svgOverlay = generateDrawSvg(metadata.width!, metadata.height!, operationData);
+						imageBuffer = await sharp(imageBuffer!)
+							.composite([{ input: Buffer.from(svgOverlay), top: 0, left: 0 }])
+							.toBuffer();
 					} else if (operationData.operation === 'resize') {
 						const resizeOption = operationData.resizeOption as string;
+						const width = operationData.width as number;
+						const height = operationData.height as number;
 
-						// By default use "maximumArea"
-						let option: gm.ResizeOption = '@';
-						if (resizeOption === 'ignoreAspectRatio') {
-							option = '!';
-						} else if (resizeOption === 'minimumArea') {
-							option = '^';
+						if (resizeOption === 'percent') {
+							const metadata = await sharp(imageBuffer!).metadata();
+							const newWidth = Math.round((metadata.width! * width) / 100);
+							const newHeight = Math.round((metadata.height! * height) / 100);
+							imageBuffer = await sharp(imageBuffer!)
+								.resize(newWidth, newHeight, { fit: 'fill' })
+								.toBuffer();
 						} else if (resizeOption === 'onlyIfSmaller') {
-							option = '<';
-						} else if (resizeOption === 'onlyIfLarger') {
-							option = '>';
-						} else if (resizeOption === 'percent') {
-							option = '%';
+							const metadata = await sharp(imageBuffer!).metadata();
+							if (metadata.width! < width || metadata.height! < height) {
+								imageBuffer = await sharp(imageBuffer!)
+									.resize(width, height, { fit: 'inside' })
+									.toBuffer();
+							}
+						} else {
+							const resizeOptions: sharp.ResizeOptions = {};
+							if (resizeOption === 'ignoreAspectRatio') {
+								resizeOptions.fit = 'fill';
+							} else if (resizeOption === 'minimumArea') {
+								resizeOptions.fit = 'outside';
+							} else if (resizeOption === 'onlyIfLarger') {
+								resizeOptions.fit = 'inside';
+								resizeOptions.withoutEnlargement = true;
+							} else {
+								// maximumArea (default)
+								resizeOptions.fit = 'inside';
+							}
+							imageBuffer = await sharp(imageBuffer!)
+								.resize(width, height, resizeOptions)
+								.toBuffer();
 						}
-
-						gmInstance = gmInstance!.resize(
-							operationData.width as number,
-							operationData.height as number,
-							option,
-						);
 					} else if (operationData.operation === 'rotate') {
-						gmInstance = gmInstance!.rotate(
-							operationData.backgroundColor as string,
-							operationData.rotate as number,
-						);
+						imageBuffer = await sharp(imageBuffer!)
+							.rotate(operationData.rotate as number, {
+								background: operationData.backgroundColor as string,
+							})
+							.toBuffer();
 					} else if (operationData.operation === 'shear') {
-						gmInstance = gmInstance!.shear(
-							operationData.degreesX as number,
-							operationData.degreesY as number,
-						);
+						const degreesX = (operationData.degreesX as number) * (Math.PI / 180);
+						const degreesY = (operationData.degreesY as number) * (Math.PI / 180);
+						imageBuffer = await sharp(imageBuffer!)
+							.affine([1, Math.tan(degreesY), Math.tan(degreesX), 1])
+							.toBuffer();
 					} else if (operationData.operation === 'text') {
-						// Split the text in multiple lines
 						const lines: string[] = [];
 						let currentLine = '';
 						(operationData.text as string).split('\n').forEach((textLine: string) => {
@@ -1249,9 +1198,6 @@ export class EditImage implements INodeType {
 							currentLine = '';
 						});
 
-						// Combine the lines to a single string
-						const renderText = lines.join('\n');
-
 						let font = (options.font || operationData.font) as string | undefined;
 						if (!font) {
 							const fonts = await getSystemFonts();
@@ -1265,26 +1211,59 @@ export class EditImage implements INodeType {
 							);
 						}
 
-						gmInstance = gmInstance!
-							.fill(operationData.fontColor as string)
-							.fontSize(operationData.fontSize as number)
-							.font(font)
-							.drawText(
-								operationData.positionX as number,
-								operationData.positionY as number,
-								renderText,
-							);
+						// Extract filename as font-family for SVG. Relies on fontconfig resolving
+						// the filename to the installed font (works with msttcorefonts in Docker).
+						const fontFamily = pathParse(font).name;
+						const fontSize = operationData.fontSize as number;
+						const fontColor = operationData.fontColor as string;
+						const posX = operationData.positionX as number;
+						const posY = operationData.positionY as number;
+
+						const metadata = await sharp(imageBuffer!).metadata();
+						const tspans = lines
+							.map(
+								(line, idx) =>
+									`<tspan x="${posX}" dy="${idx === 0 ? 0 : fontSize * 1.2}">${escapeXml(line)}</tspan>`,
+							)
+							.join('');
+
+						const svgText = `<svg width="${metadata.width}" height="${metadata.height}"><text x="${posX}" y="${posY}" font-family="${escapeXml(fontFamily)}" font-size="${fontSize}" fill="${fontColor}">${tspans}</text></svg>`;
+
+						imageBuffer = await sharp(imageBuffer!)
+							.composite([{ input: Buffer.from(svgText), top: 0, left: 0 }])
+							.toBuffer();
 					} else if (operationData.operation === 'transparent') {
-						gmInstance = gmInstance!.transparent(operationData.color as string);
+						const targetColor = operationData.color as string;
+						const hex = targetColor.replace('#', '');
+						const targetR = parseInt(hex.slice(0, 2), 16);
+						const targetG = parseInt(hex.slice(2, 4), 16);
+						const targetB = parseInt(hex.slice(4, 6), 16);
+
+						const { data, info } = await sharp(imageBuffer!)
+							.ensureAlpha()
+							.raw()
+							.toBuffer({ resolveWithObject: true });
+
+						for (let px = 0; px < data.length; px += 4) {
+							if (data[px] === targetR && data[px + 1] === targetG && data[px + 2] === targetB) {
+								data[px + 3] = 0;
+							}
+						}
+
+						imageBuffer = await sharp(data, {
+							raw: {
+								width: info.width,
+								height: info.height,
+								channels: 4,
+							},
+						})
+							.png()
+							.toBuffer();
 					}
 				}
 
 				if (item.binary !== undefined && newItem.binary) {
-					// Create a shallow copy of the binary data so that the old
-					// data references which do not get changed still stay behind
-					// but the incoming data does not get changed.
 					Object.assign(newItem.binary, item.binary);
-					// Make a deep copy of the binary data we change
 					if (newItem.binary[binaryPropertyName]) {
 						newItem.binary[binaryPropertyName] = deepCopy(newItem.binary[binaryPropertyName]);
 					}
@@ -1297,12 +1276,27 @@ export class EditImage implements INodeType {
 					};
 				}
 
-				if (options.quality !== undefined) {
-					gmInstance = gmInstance!.quality(options.quality as number);
-				}
-
 				if (options.format !== undefined) {
-					gmInstance = gmInstance!.setFormat(options.format as string);
+					if (options.format === 'bmp') {
+						const { data: rawData, info: rawInfo } = await sharp(imageBuffer!)
+							.ensureAlpha()
+							.raw()
+							.toBuffer({ resolveWithObject: true });
+						const bmpResult = encodeBmp({
+							data: rawData,
+							width: rawInfo.width,
+							height: rawInfo.height,
+						});
+						imageBuffer = bmpResult.data;
+					} else {
+						const formatOptions: Record<string, unknown> = {};
+						if (options.quality !== undefined) {
+							formatOptions.quality = options.quality;
+						}
+						imageBuffer = await sharp(imageBuffer!)
+							.toFormat(options.format as keyof FormatEnum, formatOptions)
+							.toBuffer();
+					}
 					newItem.binary![binaryPropertyName].fileExtension = options.format as string;
 					newItem.binary![binaryPropertyName].mimeType = `image/${options.format}`;
 					const fileName = newItem.binary![binaryPropertyName].fileName;
@@ -1310,31 +1304,28 @@ export class EditImage implements INodeType {
 						newItem.binary![binaryPropertyName].fileName =
 							fileName.split('.').slice(0, -1).join('.') + '.' + options.format;
 					}
+				} else if (options.quality !== undefined) {
+					const metadata = await sharp(imageBuffer!).metadata();
+					if (metadata.format && ['jpeg', 'png', 'tiff', 'webp'].includes(metadata.format)) {
+						imageBuffer = await sharp(imageBuffer!)
+							.toFormat(metadata.format as keyof FormatEnum, {
+								quality: options.quality,
+							})
+							.toBuffer();
+					}
 				}
 
 				if (options.fileName !== undefined) {
 					newItem.binary![binaryPropertyName].fileName = options.fileName as string;
 				}
 
-				returnData.push(
-					await new Promise<INodeExecutionData>((resolve, reject) => {
-						gmInstance.toBuffer(async (error: Error | null, buffer: Buffer) => {
-							cleanupFunctions.forEach(async (cleanup) => cleanup());
+				const binaryData = await this.helpers.prepareBinaryData(imageBuffer!);
+				newItem.binary![binaryPropertyName] = {
+					...newItem.binary![binaryPropertyName],
+					...binaryData,
+				};
 
-							if (error) {
-								return reject(error);
-							}
-
-							const binaryData = await this.helpers.prepareBinaryData(Buffer.from(buffer));
-							newItem.binary![binaryPropertyName] = {
-								...newItem.binary![binaryPropertyName],
-								...binaryData,
-							};
-
-							return resolve(newItem);
-						});
-					}),
-				);
+				returnData.push(newItem);
 			} catch (error) {
 				if (this.continueOnFail()) {
 					returnData.push({
