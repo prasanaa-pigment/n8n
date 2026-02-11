@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import WorkflowExecutionsSidebar from './WorkflowExecutionsSidebar.vue';
+import WorkflowExecutionsTable from './WorkflowExecutionsTable.vue';
 import { useWorkflowSaving } from '@/app/composables/useWorkflowSaving';
 import { MAIN_HEADER_TABS } from '@/app/constants';
 import type { IWorkflowDb } from '@/Interface';
-import type { ExecutionFilterType } from '../../executions.types';
+import type { ExecutionFilterType, WorkflowExecutionViewMode } from '../../executions.types';
 import { getNodeViewTab } from '@/app/utils/nodeViewUtils';
 import type { ExecutionSummary } from 'n8n-workflow';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
+
+const VIEW_MODE_STORAGE_KEY = 'n8n-workflow-executions-view-mode';
 
 const props = withDefaults(
 	defineProps<{
@@ -36,6 +39,18 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const { promptSaveUnsavedWorkflowChanges } = useWorkflowSaving({ router });
+
+const viewMode = ref<WorkflowExecutionViewMode>(
+	(localStorage.getItem(VIEW_MODE_STORAGE_KEY) as WorkflowExecutionViewMode) || 'detail',
+);
+
+watch(viewMode, (newMode) => {
+	localStorage.setItem(VIEW_MODE_STORAGE_KEY, newMode);
+});
+
+function onViewModeChange(mode: WorkflowExecutionViewMode) {
+	viewMode.value = mode;
+}
 
 const temporaryExecution = computed<ExecutionSummary | undefined>(() =>
 	props.executions.find((execution) => execution.id === props.execution?.id)
@@ -80,27 +95,44 @@ onBeforeRouteLeave(async (to, _, next) => {
 
 <template>
 	<div :class="$style.container">
-		<WorkflowExecutionsSidebar
+		<template v-if="viewMode === 'detail'">
+			<WorkflowExecutionsSidebar
+				:executions="executions"
+				:loading="loading && !executions.length"
+				:loading-more="loadingMore"
+				:temporary-execution="temporaryExecution"
+				:workflow="workflow"
+				:view-mode="viewMode"
+				@update:auto-refresh="emit('update:auto-refresh', $event)"
+				@update:view-mode="onViewModeChange"
+				@reload-executions="emit('reload')"
+				@filter-updated="emit('update:filters', $event)"
+				@load-more="emit('load-more')"
+				@retry-execution="onRetryExecution"
+			/>
+			<div v-if="!hidePreview" :class="$style.content">
+				<RouterView
+					name="executionPreview"
+					:execution="execution"
+					@delete-current-execution="onDeleteCurrentExecution"
+					@retry-execution="onRetryExecution"
+					@stop-execution="onStopExecution"
+				/>
+			</div>
+		</template>
+		<WorkflowExecutionsTable
+			v-else
 			:executions="executions"
-			:loading="loading && !executions.length"
-			:loading-more="loadingMore"
-			:temporary-execution="temporaryExecution"
 			:workflow="workflow"
+			:loading="loading"
+			:loading-more="loadingMore"
+			:view-mode="viewMode"
+			@update:view-mode="onViewModeChange"
 			@update:auto-refresh="emit('update:auto-refresh', $event)"
-			@reload-executions="emit('reload')"
 			@filter-updated="emit('update:filters', $event)"
 			@load-more="emit('load-more')"
-			@retry-execution="onRetryExecution"
+			@execution:stop-many="emit('reload')"
 		/>
-		<div v-if="!hidePreview" :class="$style.content">
-			<RouterView
-				name="executionPreview"
-				:execution="execution"
-				@delete-current-execution="onDeleteCurrentExecution"
-				@retry-execution="onRetryExecution"
-				@stop-execution="onStopExecution"
-			/>
-		</div>
 	</div>
 </template>
 

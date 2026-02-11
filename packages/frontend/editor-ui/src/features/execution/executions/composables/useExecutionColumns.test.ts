@@ -105,6 +105,42 @@ describe('useExecutionColumns', () => {
 		expect(toggleableColumns.value.every((c) => c.toggleable)).toBe(true);
 	});
 
+	it('should exclude columns specified in excludeColumns option', () => {
+		const executions = ref<ExecutionSummaryWithCustomData[]>([]);
+		const { visibleColumns, visibleColumnCount, allColumns } = useExecutionColumns(executions, {
+			excludeColumns: ['workflow'],
+		});
+
+		expect(visibleColumnCount.value).toBe(7);
+		expect(allColumns.value.find((c) => c.id === 'workflow')).toBeUndefined();
+		expect(visibleColumns.value.find((c) => c.id === 'workflow')).toBeUndefined();
+	});
+
+	it('should exclude multiple columns', () => {
+		const executions = ref<ExecutionSummaryWithCustomData[]>([]);
+		const { visibleColumnCount, allColumns } = useExecutionColumns(executions, {
+			excludeColumns: ['workflow', 'mode', 'tags'],
+		});
+
+		expect(visibleColumnCount.value).toBe(5);
+		expect(allColumns.value.find((c) => c.id === 'workflow')).toBeUndefined();
+		expect(allColumns.value.find((c) => c.id === 'mode')).toBeUndefined();
+		expect(allColumns.value.find((c) => c.id === 'tags')).toBeUndefined();
+	});
+
+	it('should exclude columns and still include custom data columns', async () => {
+		const executions = ref<ExecutionSummaryWithCustomData[]>([
+			makeExecution({ customData: { orderId: '123' } }),
+		]);
+		const { allColumns } = useExecutionColumns(executions, {
+			excludeColumns: ['workflow'],
+		});
+
+		expect(allColumns.value.find((c) => c.id === 'workflow')).toBeUndefined();
+		expect(allColumns.value.find((c) => c.id === 'customData:orderId')).toBeDefined();
+		expect(allColumns.value.length).toBe(8); // 7 static (excl workflow) + 1 custom
+	});
+
 	it('should return column labels', () => {
 		const executions = ref<ExecutionSummaryWithCustomData[]>([
 			makeExecution({ customData: { orderId: '123' } }),

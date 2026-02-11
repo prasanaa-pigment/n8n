@@ -93,6 +93,8 @@ export type ExecutionColumnId =
 	| 'mode'
 	| `customData:${string}`;
 
+export type WorkflowExecutionViewMode = 'detail' | 'table';
+
 export type ExecutionColumnGroup = 'standard' | 'annotation' | 'customData';
 
 export type ExecutionColumnDefinition = {

@@ -15,15 +15,15 @@ const STATIC_COLUMNS: ExecutionColumnDefinition[] = [
 		group: 'standard',
 	},
 	{
-		id: 'status',
-		labelKey: 'executionsList.status',
+		id: 'startedAt',
+		labelKey: 'executionsList.startedAt',
 		toggleable: true,
 		visible: true,
 		group: 'standard',
 	},
 	{
-		id: 'startedAt',
-		labelKey: 'executionsList.startedAt',
+		id: 'status',
+		labelKey: 'executionsList.status',
 		toggleable: true,
 		visible: true,
 		group: 'standard',
@@ -65,7 +65,10 @@ const STATIC_COLUMNS: ExecutionColumnDefinition[] = [
 	},
 ];
 
-export function useExecutionColumns(executions: Ref<ExecutionSummaryWithCustomData[]>) {
+export function useExecutionColumns(
+	executions: Ref<ExecutionSummaryWithCustomData[]>,
+	options?: { excludeColumns?: ExecutionColumnId[] },
+) {
 	const i18n = useI18n();
 	const columnVisibility = ref<Record<string, boolean>>({});
 
@@ -81,6 +84,8 @@ export function useExecutionColumns(executions: Ref<ExecutionSummaryWithCustomDa
 		return [...keys].sort();
 	});
 
+	const excludeSet = new Set(options?.excludeColumns ?? []);
+
 	const allColumns = computed<ExecutionColumnDefinition[]>(() => {
 		const dynamicColumns: ExecutionColumnDefinition[] = customDataKeys.value.map((key) => ({
 			id: `customData:${key}` as ExecutionColumnId,
@@ -90,7 +95,8 @@ export function useExecutionColumns(executions: Ref<ExecutionSummaryWithCustomDa
 			group: 'customData' as const,
 		}));
 
-		return [...STATIC_COLUMNS, ...dynamicColumns];
+		const columns = [...STATIC_COLUMNS, ...dynamicColumns];
+		return excludeSet.size > 0 ? columns.filter((col) => !excludeSet.has(col.id)) : columns;
 	});
 
 	const visibleColumns = computed(() => allColumns.value.filter((col) => isColumnVisible(col.id)));
