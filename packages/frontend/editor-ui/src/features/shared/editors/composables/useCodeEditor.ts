@@ -250,12 +250,13 @@ export const useCodeEditor = <L extends CodeNodeLanguageOption>({
 			codeAfterCursor: string,
 		): Promise<string | null> => {
 			const lang = toValue(language);
-			if (lang !== 'javaScript' && lang !== 'python') return null;
+			if (lang !== 'javaScript' && lang !== 'python' && lang !== 'pythonNative') return null;
+			const apiLanguage = lang === 'pythonNative' ? 'python' : lang;
 			try {
 				return await fetchCodeCompletion(rootStore.restApiContext, {
 					codeBeforeCursor,
 					codeAfterCursor,
-					language: lang,
+					language: apiLanguage,
 					mode: mode.value,
 				});
 			} catch {
