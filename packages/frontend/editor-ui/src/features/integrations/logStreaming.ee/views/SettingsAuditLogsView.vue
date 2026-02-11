@@ -9,7 +9,7 @@ import { useDebounce } from '@/app/composables/useDebounce';
 import ResourcesListLayout from '@/app/components/layouts/ResourcesListLayout.vue';
 import AuditLogPayload from '../components/AuditLogPayload.vue';
 import type { BaseFilters, DatatableColumn } from '@/Interface';
-import { ElDatePicker, ElPagination } from 'element-plus';
+import { ElDatePicker } from 'element-plus';
 import {
 	N8nHeading,
 	N8nInputLabel,
@@ -119,28 +119,39 @@ function displayName(log: AuditLogResource): string {
 	return log.eventName;
 }
 
+function formatEventName(eventName: string): string {
+	// Remove 'n8n.audit.' prefix first, then fall back to 'n8n.' prefix
+	if (eventName.startsWith('n8n.audit.')) {
+		return eventName.substring('n8n.audit.'.length);
+	}
+	if (eventName.startsWith('n8n.')) {
+		return eventName.substring('n8n.'.length);
+	}
+	return eventName;
+}
+
 function formatTimestamp(timestamp: Date | string): string {
 	return new Date(timestamp).toLocaleString();
 }
 
 function getMessage(log: AuditLogResource): string {
-	if (log.payload?.msg) {
-		return String(log.payload.msg);
+	if (log.message) {
+		return log.message;
 	}
 	return '';
 }
 
 function getUserDisplay(log: AuditLogResource): string {
-	if (log.user) {
-		return log.user.email;
+	if (log.payload?.email) {
+		return `${log.payload.email}`;
 	}
-	if (!log.userId) {
-		return i18n.baseText('settings.auditLogs.table.row.system');
+	if (log.payload?._email) {
+		return `${log.payload._email}`;
 	}
-	if (log.payload?.userEmail) {
-		return `${log.userId} (${log.payload.userEmail})`;
+	if (log.userId) {
+		return log.userId;
 	}
-	return log.userId;
+	return i18n.baseText('settings.auditLogs.table.row.system');
 }
 
 async function initialize() {
@@ -185,17 +196,6 @@ async function onFiltersUpdated(newFilters: AuditLogFilters) {
 	filters.value = newFilters;
 	currentPage.value = 1; // Reset to first page when filters change
 	await debouncedFetchAuditLogs();
-}
-
-function onPageChange(page: number) {
-	currentPage.value = page;
-	void fetchAuditLogs();
-}
-
-function onPageSizeChange(size: number) {
-	pageSize.value = size;
-	currentPage.value = 1; // Reset to first page when page size changes
-	void fetchAuditLogs();
 }
 
 async function loadAutoRefresh() {
@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
 					</td>
 					<td>
 						<N8nText :class="$style.eventName" color="text-dark" size="small" bold>
-							{{ data.eventName }}
+							{{ formatEventName(data.eventName) }}
 						</N8nText>
 					</td>
 					<td>
@@ -408,13 +408,5 @@ onBeforeUnmount(() => {
 
 .userEmail {
 	font-size: var(--font-size--2xs);
-}
-
-.paginationContainer {
-	display: flex;
-	justify-content: center;
-	padding: var(--spacing--lg) 0;
-	margin-top: var(--spacing--md);
-	border-top: var(--border-width) var(--border-style) var(--color--foreground);
 }
 </style>

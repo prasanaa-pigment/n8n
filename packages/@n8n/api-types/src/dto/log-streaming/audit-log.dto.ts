@@ -6,6 +6,7 @@ export const auditLogEvent = z.object({
 	id: z.string(),
 	eventName: z.string(),
 	timestamp: z.date(),
+	message: z.string(),
 	userId: z.string().nullish(),
 	user: z
 		.object({
