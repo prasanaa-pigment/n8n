@@ -239,12 +239,25 @@ export class CollaborationService {
 	 * after page refresh, since write-lock is persisted in backend cache
 	 * but lost in frontend memory
 	 */
-	async getWriteLock(userId: User['id'], workflowId: Workflow['id']): Promise<string | null> {
+	async getWriteLock(
+		userId: User['id'],
+		workflowId: Workflow['id'],
+	): Promise<{ clientId: string; userId: string } | null> {
 		if (!(await this.accessService.hasReadAccess(userId, workflowId))) {
 			return null;
 		}
 
-		return await this.state.getWriteLock(workflowId);
+		const clientId = await this.state.getWriteLock(workflowId);
+		if (!clientId) {
+			return null;
+		}
+
+		const lockHolderUserId = await this.state.getUserIdForClient(workflowId, clientId);
+		if (!lockHolderUserId) {
+			return null;
+		}
+
+		return { clientId, userId: lockHolderUserId };
 	}
 
 	/**
