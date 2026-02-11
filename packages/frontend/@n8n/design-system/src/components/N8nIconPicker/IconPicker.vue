@@ -294,7 +294,6 @@ function humanizeIconName(name: string): string {
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
-						stroke-width="2"
 						stroke-linecap="round"
 						stroke-linejoin="round"
 					>
@@ -323,7 +322,6 @@ function humanizeIconName(name: string): string {
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
-							stroke-width="2"
 							stroke-linecap="round"
 							stroke-linejoin="round"
 							:class="$style.icon"
@@ -364,7 +362,6 @@ function humanizeIconName(name: string): string {
 									viewBox="0 0 24 24"
 									fill="none"
 									stroke="currentColor"
-									stroke-width="2"
 									stroke-linecap="round"
 									stroke-linejoin="round"
 									:class="$style.icon"
@@ -502,6 +499,7 @@ function humanizeIconName(name: string): string {
 		height: 20px;
 		box-sizing: content-box;
 		color: var(--color--text--tint-1);
+		stroke-width: 1.5;
 
 		&:hover {
 			color: var(--color--text--shade-1);
@@ -552,6 +550,7 @@ function humanizeIconName(name: string): string {
 		width: 16px;
 		height: 16px;
 		color: var(--color--text--tint-1);
+		stroke-width: 1.5;
 	}
 
 	.loadingState,
