@@ -150,7 +150,7 @@ export class CollaborationService {
 
 		await this.state.setWriteLock(workflowId, clientId);
 
-		await this.sendWriteAccessAcquiredMessage(workflowId, userId);
+		await this.sendWriteAccessAcquiredMessage(workflowId, userId, clientId);
 	}
 
 	private async handleWriteAccessReleaseRequested(
@@ -181,7 +181,11 @@ export class CollaborationService {
 		await this.state.renewWriteLock(workflowId, clientId);
 	}
 
-	private async sendWriteAccessAcquiredMessage(workflowId: Workflow['id'], userId: User['id']) {
+	private async sendWriteAccessAcquiredMessage(
+		workflowId: Workflow['id'],
+		userId: User['id'],
+		clientId: string,
+	) {
 		const collaborators = await this.state.getCollaborators(workflowId);
 		const userIds = collaborators.map((user) => user.userId);
 
@@ -192,6 +196,7 @@ export class CollaborationService {
 		const msgData: PushPayload<'writeAccessAcquired'> = {
 			workflowId,
 			userId,
+			clientId,
 		};
 
 		this.push.sendToUsers({ type: 'writeAccessAcquired', data: msgData }, userIds);
