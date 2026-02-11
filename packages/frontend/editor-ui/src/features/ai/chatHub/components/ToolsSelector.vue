@@ -7,7 +7,7 @@ import type { DropdownMenuItemProps } from '@n8n/design-system';
 import type { INode, INodeTypeDescription } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
 import { useUIStore } from '@/app/stores/ui.store';
-import { TOOLS_MANAGER_MODAL_KEY } from '@/features/ai/chatHub/constants';
+import { TOOLS_MANAGER_MODAL_KEY, TOOL_SETTINGS_MODAL_KEY } from '@/features/ai/chatHub/constants';
 import { useChatStore } from '@/features/ai/chatHub/chat.store';
 
 const props = defineProps<{
@@ -61,6 +61,27 @@ function openToolsManager() {
 				.filter((t) => checkedToolIdsSet.value.has(t.definition.id))
 				.map((t) => t.definition),
 			onConfirm: () => {},
+		},
+	});
+}
+
+function openToolSettings(item: ToolMenuItem) {
+	dropdownRef.value?.close();
+	const tool = item.data?.tool;
+	if (!tool) return;
+
+	const otherToolNames = chatStore.configuredTools
+		.filter((t) => t.definition.id !== tool.id)
+		.map((t) => t.definition.name);
+
+	uiStore.openModalWithData({
+		name: TOOL_SETTINGS_MODAL_KEY,
+		data: {
+			node: { ...tool },
+			existingToolNames: otherToolNames,
+			onConfirm: async (configuredNode: INode) => {
+				await chatStore.updateConfiguredTool(tool.id, configuredNode);
+			},
 		},
 	});
 }
@@ -181,6 +202,18 @@ onMounted(async () => {
 			<template #item-leading="{ item }">
 				<NodeIcon v-if="item.data?.nodeType" :node-type="item.data.nodeType" :size="16" />
 			</template>
+
+			<template #item-trailing="{ item }">
+				<N8nIconButton
+					icon="settings"
+					type="tertiary"
+					size="medium"
+					text
+					:class="$style.itemSettingsButton"
+					@click.stop="openToolSettings(item)"
+				/>
+				<span v-if="!item.checked" :class="$style.checkPlaceholder" />
+			</template>
 		</N8nDropdownMenu>
 	</div>
 </template>
@@ -228,11 +261,24 @@ onMounted(async () => {
 		color: var(--button--color--text--secondary--hover-active-focus);
 	}
 }
+
+.itemSettingsButton {
+	opacity: 0;
+}
+
+.checkPlaceholder {
+	width: 16px;
+	flex-shrink: 0;
+}
 </style>
 
 <style lang="scss">
 .tools-selector-dropdown {
 	z-index: 10000;
 	min-width: 220px;
+
+	[data-highlighted] [class*='itemSettingsButton'] {
+		opacity: 1;
+	}
 }
 </style>
