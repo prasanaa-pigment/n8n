@@ -242,7 +242,11 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		if (!hasPermission) return false;
 
 		return (
+			// check if connection settings are filled
 			requiredFieldsFilled.value &&
+			// check if scope is set, either by project or globally
+			(projectIds.value.length > 0 || isSharedGlobally.value) &&
+			// check if there are unsaved changes
 			(settingsUpdated.value || scopeUpdated.value || !isEditMode.value)
 		);
 	});
