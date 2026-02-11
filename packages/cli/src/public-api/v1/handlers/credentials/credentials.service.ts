@@ -98,6 +98,9 @@ export async function createCredential(
 	return newCredential;
 }
 
+/**
+ * Creats a credential in the personal project of the given user.
+ */
 export async function saveCredential(
 	payload: { type: string; name: string; data: ICredentialDataDecryptedObject },
 	user: User,
