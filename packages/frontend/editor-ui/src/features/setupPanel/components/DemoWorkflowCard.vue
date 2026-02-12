@@ -78,7 +78,7 @@ const onTestClick = () => {
 				:class="$style['complete-icon']"
 				size="medium"
 			/>
-			<span :class="$style['title']">{{ headerText }}</span>
+			<span :class="$style['title']" data-test-id="dwc-header">{{ headerText }}</span>
 			<N8nTooltip
 				v-if="state === 'ran'"
 				:content="i18n.baseText('setupPanel.readyToDemo.clearTooltip')"
@@ -87,6 +87,7 @@ const onTestClick = () => {
 					:class="$style.clickableText"
 					size="xsmall"
 					color="text-base"
+					data-test-id="dwc-clear"
 					@click="onClearDemoData"
 					>{{ i18n.baseText('setupPanel.readyToDemo.clear') }}</N8nText
 				>
@@ -99,6 +100,7 @@ const onTestClick = () => {
 					:class="$style.clickableText"
 					size="xsmall"
 					color="text-base"
+					data-test-id="dwc-undo"
 					@click="onReenterDemo"
 					>{{ i18n.baseText('generic.undo') }}</N8nText
 				>
@@ -107,7 +109,7 @@ const onTestClick = () => {
 
 		<template v-if="expanded">
 			<div :class="$style.content">
-				<N8nText>
+				<N8nText data-test-id="dwc-description">
 					{{ i18n.baseText('setupPanel.readyToDemo.description') }}
 				</N8nText>
 			</div>
@@ -115,7 +117,7 @@ const onTestClick = () => {
 			<footer :class="$style.footer">
 				<N8nTooltip :content="i18n.baseText('setupPanel.readyToDemo.skipTooltip')">
 					<N8nButton
-						data-test-id="node-setup-card-test-button"
+						data-test-id="dwc-skip-button"
 						:label="i18n.baseText('setupPanel.readyToDemo.skip')"
 						type="secondary"
 						size="small"
@@ -124,7 +126,7 @@ const onTestClick = () => {
 				</N8nTooltip>
 				<N8nTooltip :content="i18n.baseText('setupPanel.readyToDemo.runTooltip')">
 					<N8nButton
-						data-test-id="node-setup-card-test-button"
+						data-test-id="dwc-run-button"
 						type="primary"
 						:label="i18n.baseText('setupPanel.readyToDemo.run')"
 						icon="play"
