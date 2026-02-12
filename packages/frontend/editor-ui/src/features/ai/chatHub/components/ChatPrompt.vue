@@ -4,6 +4,7 @@ import { providerDisplayNames, TOOLS_SELECTOR_MODAL_KEY } from '@/features/ai/ch
 import type { ChatHubLLMProvider, ChatModelDto } from '@n8n/api-types';
 import ChatFile from '@n8n/chat/components/ChatFile.vue';
 import {
+	N8nButton,
 	N8nIconButton,
 	N8nIcon,
 	N8nInput,
@@ -21,13 +22,22 @@ import { I18nT } from 'vue-i18n';
 import { useUIStore } from '@/app/stores/ui.store';
 import type { MessagingState } from '@/features/ai/chatHub/chat.types';
 
-const { selectedModel, selectedTools, messagingState, showCreditsClaimedCallout } = defineProps<{
+const {
+	selectedModel,
+	selectedTools,
+	messagingState,
+	showCreditsClaimedCallout,
+	showDynamicCredentialsMissingCallout,
+	showDynamicCredentialsConnectedCallout,
+} = defineProps<{
 	messagingState: MessagingState;
 	isNewSession: boolean;
 	isToolsSelectable: boolean;
 	selectedModel: ChatModelDto | null;
 	selectedTools: INode[] | null;
 	showCreditsClaimedCallout: boolean;
+	showDynamicCredentialsMissingCallout: boolean;
+	showDynamicCredentialsConnectedCallout: boolean;
 	aiCreditsQuota: string;
 }>();
 
@@ -39,6 +49,7 @@ const emit = defineEmits<{
 	setCredentials: [ChatHubLLMProvider];
 	editAgent: [agentId: string];
 	dismissCreditsCallout: [];
+	openDynamicCredentials: [];
 }>();
 
 const inputRef = useTemplateRef<HTMLElement>('inputRef');
@@ -84,6 +95,8 @@ const calloutVisible = computed(() => {
 	return (
 		showMisisngAgentCallout.value ||
 		showMissingCredentialsCallout.value ||
+		showDynamicCredentialsMissingCallout ||
+		showDynamicCredentialsConnectedCallout ||
 		showCreditsClaimedCallout
 	);
 });
@@ -277,6 +290,52 @@ defineExpose({
 						{{ providerDisplayNames[llmProvider!] }}
 					</template>
 				</I18nT>
+			</N8nCallout>
+
+			<N8nCallout
+				v-else-if="showDynamicCredentialsMissingCallout"
+				theme="warning"
+				:class="$style.callout"
+				data-testid="dynamic-credentials-missing-callout"
+			>
+				<N8nText>{{
+					i18n.baseText(
+						isNewSession
+							? 'chatHub.chat.prompt.callout.dynamicCredentials.missing'
+							: 'chatHub.chat.prompt.callout.dynamicCredentials.expired',
+					)
+				}}</N8nText>
+				<template #trailingContent>
+					<N8nButton
+						type="warning"
+						size="small"
+						data-testid="dynamic-credentials-connect-button"
+						@click="emit('openDynamicCredentials')"
+					>
+						{{ i18n.baseText('chatHub.chat.prompt.callout.dynamicCredentials.missing.button') }}
+					</N8nButton>
+				</template>
+			</N8nCallout>
+
+			<N8nCallout
+				v-else-if="showDynamicCredentialsConnectedCallout"
+				icon="info"
+				theme="secondary"
+				:class="$style.callout"
+				data-testid="dynamic-credentials-connected-callout"
+			>
+				<N8nText>{{
+					i18n.baseText('chatHub.chat.prompt.callout.dynamicCredentials.connected')
+				}}</N8nText>
+				<template #trailingContent>
+					<a
+						href=""
+						data-testid="dynamic-credentials-manage-link"
+						@click.prevent="emit('openDynamicCredentials')"
+					>
+						{{ i18n.baseText('chatHub.chat.prompt.callout.dynamicCredentials.connected.link') }}
+					</a>
+				</template>
 			</N8nCallout>
 
 			<N8nCallout
