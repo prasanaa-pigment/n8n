@@ -34,7 +34,7 @@ import { injectWorkflowState, type WorkflowState } from '@/app/composables/useWo
 import { getResourcePermissions } from '@n8n/permissions';
 import { useDebounceFn } from '@vueuse/core';
 import { useBuilderStore } from '@/features/ai/assistant/builder.store';
-import { useWorkflowAutosaveStore } from '@/app/stores/workflowAutosave.store';
+import { useWorkflowSaveStore } from '@/app/stores/workflowSave.store';
 import { useBackendConnectionStore } from '@/app/stores/backendConnection.store';
 import {
 	useWorkflowDocumentStore,
@@ -67,7 +67,7 @@ export function useWorkflowSaving({
 	const { getWorkflowDataToSave, checkConflictingWebhooks, getWorkflowProjectRole } =
 		useWorkflowHelpers();
 
-	const autosaveStore = useWorkflowAutosaveStore();
+	const saveStore = useWorkflowSaveStore();
 	const backendConnectionStore = useBackendConnectionStore();
 
 	async function promptSaveUnsavedWorkflowChanges(
@@ -167,7 +167,7 @@ export function useWorkflowSaving({
 
 		// Prevent concurrent saves - if a save is already in progress, skip this one
 		// for autosaves (they will be rescheduled), or wait for pending save to complete
-		if (autosaveStore.pendingAutoSave) {
+		if (saveStore.pendingSave) {
 			if (autosaved) {
 				// Autosave will be rescheduled by the finally block of the in-progress save
 				return true;
@@ -175,7 +175,7 @@ export function useWorkflowSaving({
 
 			if (!forceSave) {
 				// Wait for the pending save to complete first to avoid race conditions
-				await autosaveStore.pendingAutoSave;
+				await saveStore.pendingSave;
 			}
 		}
 
@@ -244,7 +244,7 @@ export function useWorkflowSaving({
 				builderStore.resetAiBuilderMadeEdits();
 
 				// Reset retry count on successful save
-				autosaveStore.resetRetry();
+				saveStore.resetRetry();
 
 				onSaved?.(false); // Update of existing workflow
 				return true;
@@ -261,9 +261,9 @@ export function useWorkflowSaving({
 
 					// Hide modal if we already showed it
 					// So that user could explore the workflow
-					if (!autosaveStore.conflictModalShown) {
+					if (!saveStore.conflictModalShown) {
 						if (autosaved) {
-							autosaveStore.setConflictModalShown(true);
+							saveStore.setConflictModalShown(true);
 						}
 
 						const url = router.resolve({
@@ -302,15 +302,15 @@ export function useWorkflowSaving({
 
 				// Handle autosave failures with exponential backoff
 				if (autosaved) {
-					autosaveStore.incrementRetry();
-					autosaveStore.setLastError(error.message);
+					saveStore.incrementRetry();
+					saveStore.setLastError(error.message);
 
 					// Schedule retry with exponential backoff
-					const retryDelay = autosaveStore.getRetryDelay();
-					autosaveStore.setRetrying(true);
+					const retryDelay = saveStore.getRetryDelay();
+					saveStore.setRetrying(true);
 
 					setTimeout(() => {
-						autosaveStore.setRetrying(false);
+						saveStore.setRetrying(false);
 						// Trigger autosave again if workflow is still dirty
 						if (uiStore.stateIsDirty) {
 							scheduleAutoSave();
@@ -342,14 +342,14 @@ export function useWorkflowSaving({
 			}
 		})();
 
-		autosaveStore.setPendingAutoSave(savePromise);
+		saveStore.setPendingSave(savePromise);
 
 		try {
 			return await savePromise;
 		} finally {
 			// Only clear if this save is still the one marked as pending
-			if (autosaveStore.pendingAutoSave === savePromise) {
-				autosaveStore.setPendingAutoSave(null);
+			if (saveStore.pendingSave === savePromise) {
+				saveStore.setPendingSave(null);
 			}
 		}
 	}
@@ -536,22 +536,22 @@ export function useWorkflowSaving({
 	const autoSaveWorkflowDebounced = useDebounceFn(
 		() => {
 			// Check if cancelled during debounce period
-			if (autosaveStore.autoSaveState === AutoSaveState.Idle) {
+			if (saveStore.autoSaveState === AutoSaveState.Idle) {
 				return;
 			}
 
-			autosaveStore.setAutoSaveState(AutoSaveState.InProgress);
+			saveStore.setAutoSaveState(AutoSaveState.InProgress);
 
 			void (async () => {
 				try {
 					await saveCurrentWorkflow({}, true, false, true);
 				} finally {
-					if (autosaveStore.autoSaveState === AutoSaveState.InProgress) {
-						autosaveStore.setAutoSaveState(AutoSaveState.Idle);
+					if (saveStore.autoSaveState === AutoSaveState.InProgress) {
+						saveStore.setAutoSaveState(AutoSaveState.Idle);
 					}
 					// If changes were made during save, reschedule autosave
-					if (uiStore.stateIsDirty && !autosaveStore.isRetrying) {
-						autosaveStore.setAutoSaveState(AutoSaveState.Scheduled);
+					if (uiStore.stateIsDirty && !saveStore.isRetrying) {
+						saveStore.setAutoSaveState(AutoSaveState.Scheduled);
 						void autoSaveWorkflowDebounced();
 					}
 				}
@@ -564,12 +564,12 @@ export function useWorkflowSaving({
 	const scheduleAutoSave = () => {
 		// Don't schedule if a save is already in progress - the finally block
 		// will reschedule if there are pending changes
-		if (autosaveStore.autoSaveState === AutoSaveState.InProgress) {
+		if (saveStore.autoSaveState === AutoSaveState.InProgress) {
 			return;
 		}
 
 		// Don't schedule if we're waiting for retry backoff to complete
-		if (autosaveStore.isRetrying) {
+		if (saveStore.isRetrying) {
 			return;
 		}
 
@@ -578,7 +578,7 @@ export function useWorkflowSaving({
 			return;
 		}
 
-		autosaveStore.setAutoSaveState(AutoSaveState.Scheduled);
+		saveStore.setAutoSaveState(AutoSaveState.Scheduled);
 		void autoSaveWorkflowDebounced();
 	};
 
@@ -586,7 +586,7 @@ export function useWorkflowSaving({
 		if (isDebouncedFunction(autoSaveWorkflowDebounced)) {
 			autoSaveWorkflowDebounced.cancel();
 		}
-		autosaveStore.setAutoSaveState(AutoSaveState.Idle);
+		saveStore.setAutoSaveState(AutoSaveState.Idle);
 	};
 
 	// Watch for network coming back online
