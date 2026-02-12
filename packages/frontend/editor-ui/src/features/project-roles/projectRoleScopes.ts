@@ -2,29 +2,38 @@
  * UI-visible permission scopes for project roles.
  * These are the scopes shown in the role editor checkboxes and used for
  * permission counting. Excludes auto-added scopes like :list, :execute, :listProject.
+ *
+ * Operations are type-checked against RESOURCES from @n8n/permissions to ensure
+ * only valid resource:operation combinations can be specified.
  */
 
-const project = (['read', 'update', 'delete'] as const).map(
-	(action) => `project:${action}` as const,
-);
-const folder = (['read', 'update', 'create', 'move', 'delete'] as const).map(
-	(action) => `folder:${action}` as const,
-);
-const workflow = (
-	['read', 'update', 'create', 'publish', 'unpublish', 'move', 'delete'] as const
-).map((action) => `workflow:${action}` as const);
-const credential = (['read', 'update', 'create', 'share', 'move', 'delete'] as const).map(
-	(action) => `credential:${action}` as const,
-);
-const sourceControl = (['push'] as const).map((action) => `sourceControl:${action}` as const);
-const dataTable = (['read', 'readRow', 'update', 'writeRow', 'create', 'delete'] as const).map(
-	(action) => `dataTable:${action}` as const,
-);
-const projectVariable = (['read', 'update', 'create', 'delete'] as const).map(
-	(action) => `projectVariable:${action}` as const,
-);
+import { type RESOURCES } from '@n8n/permissions';
 
-export const SCOPE_TYPES = [
+/**
+ * UI-visible operations per resource for the project role editor.
+ * The `satisfies` constraint ensures every key is a valid resource and
+ * every operation exists in that resource's definition in @n8n/permissions.
+ */
+const UI_OPERATIONS = {
+	project: ['read', 'update', 'delete'],
+	folder: ['read', 'update', 'create', 'move', 'delete'],
+	workflow: ['read', 'update', 'create', 'publish', 'unpublish', 'move', 'delete'],
+	credential: ['read', 'update', 'create', 'share', 'move', 'delete'],
+	sourceControl: ['push'],
+	dataTable: ['read', 'readRow', 'update', 'writeRow', 'create', 'delete'],
+	projectVariable: ['read', 'update', 'create', 'delete'],
+} satisfies {
+	[R in keyof typeof RESOURCES]?: Array<(typeof RESOURCES)[R][number]>;
+};
+
+type ProjectResource = keyof typeof UI_OPERATIONS;
+
+/** Type-safe scope strings derived from UI_OPERATIONS */
+export type ProjectRoleScope = {
+	[R in ProjectResource]: `${R}:${(typeof UI_OPERATIONS)[R][number]}`;
+}[ProjectResource];
+
+export const SCOPE_TYPES: ProjectResource[] = [
 	'project',
 	'folder',
 	'workflow',
@@ -32,17 +41,14 @@ export const SCOPE_TYPES = [
 	'dataTable',
 	'projectVariable',
 	'sourceControl',
-] as const;
+];
 
-export const SCOPES = {
-	project,
-	folder,
-	workflow,
-	credential,
-	sourceControl,
-	dataTable,
-	projectVariable,
-} as const;
+export const SCOPES: Record<ProjectResource, ProjectRoleScope[]> = Object.fromEntries(
+	Object.entries(UI_OPERATIONS).map(([resource, operations]) => [
+		resource,
+		operations.map((op) => `${resource}:${op}`),
+	]),
+) as Record<ProjectResource, ProjectRoleScope[]>;
 
 /** All UI-visible scopes as a flat set, for permission counting */
 export const UI_VISIBLE_SCOPES: Set<string> = new Set(Object.values(SCOPES).flat());
