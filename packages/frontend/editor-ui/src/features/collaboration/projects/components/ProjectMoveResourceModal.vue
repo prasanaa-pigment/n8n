@@ -32,6 +32,7 @@ import { useRouter } from 'vue-router';
 
 import {
 	N8nButton,
+	N8nCallout,
 	N8nCheckbox,
 	N8nHeading,
 	N8nIcon,
@@ -328,7 +329,11 @@ onMounted(async () => {
 							</I18nT>
 						</template>
 					</N8nCheckbox>
-					<div v-if="unShareableCredentials.length" :class="$style.textBlock">
+					<N8nCallout
+						v-if="unShareableCredentials.length"
+						theme="warning"
+						:class="$style.textBlock"
+					>
 						<I18nT
 							keypath="projects.move.resource.modal.message.unAccessibleCredentials.note"
 							scope="global"
@@ -336,7 +341,13 @@ onMounted(async () => {
 							<template #credentials>
 								<N8nTooltip placement="top">
 									<span :class="$style.tooltipText">{{
-										i18n.baseText('projects.move.resource.modal.message.unAccessibleCredentials')
+										i18n.baseText(
+											'projects.move.resource.modal.message.unAccessibleCredentials.count',
+											{
+												adjustToNumber: unShareableCredentials.length,
+												interpolate: { count: unShareableCredentials.length },
+											},
+										)
 									}}</span>
 									<template #content>
 										<ProjectMoveResourceModalCredentialsList
@@ -347,7 +358,7 @@ onMounted(async () => {
 								</N8nTooltip>
 							</template>
 						</I18nT>
-					</div>
+					</N8nCallout>
 				</N8nText>
 			</div>
 			<N8nText v-else>{{
