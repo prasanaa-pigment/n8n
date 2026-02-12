@@ -71,9 +71,7 @@ export interface WorkflowBuilderAgentConfig {
 	/** Callback when generation completes successfully (not aborted) */
 	onGenerationSuccess?: () => Promise<void>;
 	/**
-	 * Ordered list of directories to search for node definitions.
-	 * Built-in dirs come first, then the community dir.
-	 * If not provided, falls back to ~/.n8n/node-definitions.
+	 * Ordered list of directories to search for built-in node definitions.
 	 */
 	nodeDefinitionDirs?: string[];
 	/** Callback for fetching resource locator options */
@@ -92,6 +90,8 @@ export interface BuilderFeatureFlags {
 	templateExamples?: boolean;
 	/** Enable CodeWorkflowBuilder (default: false). When false, uses legacy multi-agent system. */
 	codeBuilder?: boolean;
+	/** Enable pin data generation in code builder (default: true when codeBuilder is true). */
+	pinData?: boolean;
 	planMode?: boolean;
 }
 
@@ -271,6 +271,7 @@ export class WorkflowBuilderAgent {
 				workflowId: payload.workflowContext?.currentWorkflow?.id,
 			},
 			onTelemetryEvent: this.onTelemetryEvent,
+			generatePinData: payload.featureFlags?.pinData ?? true,
 		});
 
 		yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);
