@@ -142,6 +142,11 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 				{ connected: connection.isEnabled, connectedAt: null, settings },
 				providerKey,
 			);
+
+			const provider = this.providerRegistry.get(providerKey);
+			if (provider) {
+				await this.secretsCache.refreshProvider(providerKey, provider);
+			}
 		}
 
 		this.broadcastReload();
