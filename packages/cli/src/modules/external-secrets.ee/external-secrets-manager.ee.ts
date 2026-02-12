@@ -128,6 +128,25 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 		};
 	}
 
+	async syncProviderConnection(providerKey: string): Promise<void> {
+		await this.tearDownProviderConnection(providerKey);
+
+		const connection = await this.secretsProviderConnectionRepository.findOne({
+			where: { providerKey },
+		});
+
+		if (connection) {
+			const settings = this.decryptSettings(connection.encryptedSettings);
+			await this.setupProvider(
+				connection.type,
+				{ connected: connection.isEnabled, connectedAt: null, settings },
+				providerKey,
+			);
+		}
+
+		this.broadcastReload();
+	}
+
 	async updateProvider(provider: string): Promise<void> {
 		const providerInstance = this.providerRegistry.get(provider);
 
@@ -396,7 +415,7 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 	// Private - Utilities
 	// ========================================
 
-	broadcastReload(): void {
+	private broadcastReload(): void {
 		void this.publisher.publishCommand({ command: 'reload-external-secrets-providers' });
 	}
 

@@ -211,7 +211,7 @@ describe('SecretsProvidersConnectionsService', () => {
 			updatedAt: new Date('2024-01-02'),
 		} as unknown as SecretsProviderConnection;
 
-		it('should reload providers and broadcast after createConnection', async () => {
+		it('should sync provider connection after createConnection', async () => {
 			mockRepository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(savedConnection);
 			mockRepository.create.mockReturnValue(savedConnection);
 			mockRepository.save.mockResolvedValue(savedConnection);
@@ -223,29 +223,26 @@ describe('SecretsProvidersConnectionsService', () => {
 				projectIds: [],
 			});
 
-			expect(mockExternalSecretsManager.reloadAllProviders).toHaveBeenCalledTimes(1);
-			expect(mockExternalSecretsManager.broadcastReload).toHaveBeenCalledTimes(1);
+			expect(mockExternalSecretsManager.syncProviderConnection).toHaveBeenCalledWith('my-aws');
 		});
 
-		it('should reload providers and broadcast after updateConnection', async () => {
+		it('should sync provider connection after updateConnection', async () => {
 			mockRepository.findOne
 				.mockResolvedValueOnce(savedConnection)
 				.mockResolvedValueOnce(savedConnection);
 
 			await service.updateConnection('my-aws', { projectIds: ['p1'] });
 
-			expect(mockExternalSecretsManager.reloadAllProviders).toHaveBeenCalledTimes(1);
-			expect(mockExternalSecretsManager.broadcastReload).toHaveBeenCalledTimes(1);
+			expect(mockExternalSecretsManager.syncProviderConnection).toHaveBeenCalledWith('my-aws');
 		});
 
-		it('should reload providers and broadcast after deleteConnection', async () => {
+		it('should sync provider connection after deleteConnection', async () => {
 			mockRepository.findOne.mockResolvedValueOnce(savedConnection);
 			mockRepository.remove.mockResolvedValue(savedConnection);
 
 			await service.deleteConnection('my-aws');
 
-			expect(mockExternalSecretsManager.reloadAllProviders).toHaveBeenCalledTimes(1);
-			expect(mockExternalSecretsManager.broadcastReload).toHaveBeenCalledTimes(1);
+			expect(mockExternalSecretsManager.syncProviderConnection).toHaveBeenCalledWith('my-aws');
 		});
 	});
 });

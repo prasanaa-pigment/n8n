@@ -69,8 +69,7 @@ export class SecretsProvidersConnectionsService {
 			where: { providerKey: proposedConnection.providerKey },
 		}))!;
 
-		await this.externalSecretsManager.reloadAllProviders();
-		this.externalSecretsManager.broadcastReload();
+		await this.externalSecretsManager.syncProviderConnection(proposedConnection.providerKey);
 
 		return result;
 	}
@@ -109,8 +108,7 @@ export class SecretsProvidersConnectionsService {
 			await this.projectAccessRepository.setProjectAccess(connection.id, updates.projectIds);
 		}
 
-		await this.externalSecretsManager.reloadAllProviders();
-		this.externalSecretsManager.broadcastReload();
+		await this.externalSecretsManager.syncProviderConnection(providerKey);
 
 		return (await this.repository.findOne({ where: { providerKey } })) as SecretsProviderConnection;
 	}
@@ -125,8 +123,7 @@ export class SecretsProvidersConnectionsService {
 		await this.projectAccessRepository.deleteByConnectionId(connection.id);
 		await this.repository.remove(connection);
 
-		await this.externalSecretsManager.reloadAllProviders();
-		this.externalSecretsManager.broadcastReload();
+		await this.externalSecretsManager.syncProviderConnection(providerKey);
 
 		return connection;
 	}
