@@ -514,7 +514,7 @@ describe('CredentialsService', () => {
 
 				await expect(
 					updateCredential('cred-id', memberUser, {
-						data: { apiKey: '$secrets.newKey' },
+						data: { apiKey: '{{ $secrets.newKey }}' },
 					}),
 				).rejects.toThrow('Lacking permissions to reference external secrets in credentials');
 			});
