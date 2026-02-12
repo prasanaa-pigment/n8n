@@ -188,7 +188,6 @@ export const useSetupTemplateStore = defineStore('setupTemplate', () => {
 				rootStore,
 				workflowsStore,
 				nodeTypeProvider: nodeTypesStore,
-				readyToDemo: !!template.value.readyToDemo,
 			});
 
 			telemetry.track('User closed cred setup', {

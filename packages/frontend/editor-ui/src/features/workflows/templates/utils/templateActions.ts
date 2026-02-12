@@ -1,5 +1,5 @@
 import type { INodeUi } from '@/Interface';
-import type { ITemplatesWorkflowFull, IWorkflowTemplate } from '@n8n/rest-api-client/api/templates';
+import type { ITemplatesWorkflowFull } from '@n8n/rest-api-client/api/templates';
 import type { WorkflowData } from '@n8n/rest-api-client/api/workflows';
 import { getNewWorkflow } from '@/app/api/workflows';
 import { VIEWS } from '@/app/constants';
@@ -25,12 +25,11 @@ type ExternalHooks = ReturnType<typeof useExternalHooks>;
  * Creates a new workflow from a template
  */
 export async function createWorkflowFromTemplate(opts: {
-	template: IWorkflowTemplate;
+	template: ITemplatesWorkflowFull;
 	credentialOverrides: Record<TemplateCredentialKey, INodeCredentialsDetails>;
 	rootStore: ReturnType<typeof useRootStore>;
 	workflowsStore: ReturnType<typeof useWorkflowsStore>;
 	nodeTypeProvider: NodeTypeProvider;
-	readyToDemo: boolean;
 }) {
 	const { credentialOverrides, nodeTypeProvider, rootStore, template, workflowsStore } = opts;
 
@@ -51,7 +50,7 @@ export async function createWorkflowFromTemplate(opts: {
 		meta: {
 			templateId: template.id.toString(),
 		},
-		pinData: opts.readyToDemo ? (template.workflow.pinData ?? {}) : {},
+		pinData: template.readyToDemo ? (template.workflow.pinData ?? {}) : {},
 		// Ignored: settings, tags, versionId
 	};
 
