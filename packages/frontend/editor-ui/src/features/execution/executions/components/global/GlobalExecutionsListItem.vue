@@ -15,6 +15,7 @@ import type {
 } from '../../executions.types';
 import { WAIT_INDEFINITELY } from 'n8n-workflow';
 import { computed, ref, useCssModule } from 'vue';
+import { useRouter } from 'vue-router';
 import { type IconName } from '@n8n/design-system/components/N8nIcon/icons';
 
 import { ElDropdown, ElDropdownItem, ElDropdownMenu } from 'element-plus';
@@ -44,15 +45,21 @@ const props = withDefaults(
 		visibleColumns: ExecutionColumnDefinition[];
 		selected?: boolean;
 		workflowName?: string;
+		workflowId?: string;
 		workflowPermissions: PermissionsRecord['workflow'];
 		concurrencyCap: number;
 		isCloudDeployment?: boolean;
+		hideActions?: boolean;
+		selectedExecutionId?: string;
 	}>(),
 	{
 		selected: false,
 		workflowName: '',
+		hideActions: false,
 	},
 );
+
+const router = useRouter();
 
 const style = useCssModule();
 const locale = useI18n();
@@ -120,9 +127,13 @@ const executionIconStatusDictionary: Record<ExecutionStatus, { icon: IconName; c
 	};
 
 const errorStatuses: ExecutionStatus[] = [EXECUTION_STATUS.ERROR, EXECUTION_STATUS.CRASHED];
+const isSelectedExecution = computed(
+	() => !!props.selectedExecutionId && props.execution.id === props.selectedExecutionId,
+);
 const classes = computed(() => {
 	return {
 		[style.dangerBg]: errorStatuses.includes(props.execution.status),
+		[style.selectedExecution]: isSelectedExecution.value,
 	};
 });
 
@@ -174,14 +185,30 @@ function onSelect() {
 	emit('select', props.execution);
 }
 
+function onRowClick() {
+	if (props.workflowId) {
+		void router.push({
+			name: VIEWS.EXECUTION_PREVIEW,
+			params: { name: props.workflowId, executionId: props.execution.id },
+		});
+	}
+}
+
 async function handleActionItemClick(commandData: Command) {
 	//@ts-ignore todo: fix this type
 	emit(commandData, props.execution);
 }
 </script>
 <template>
-	<tr :class="classes">
-		<td>
+	<tr
+		:class="[classes, workflowId && style.clickableRow]"
+		:role="workflowId ? 'button' : undefined"
+		:tabindex="workflowId ? 0 : undefined"
+		@click="onRowClick"
+		@keydown.enter="onRowClick"
+		@keydown.space.prevent="onRowClick"
+	>
+		<td @click.stop>
 			<N8nCheckbox
 				:model-value="selected"
 				data-test-id="select-execution-checkbox"
@@ -309,7 +336,7 @@ async function handleActionItemClick(commandData: Command) {
 				{{ execution.customData?.[col.id.slice('customData:'.length)] ?? '-' }}
 			</td>
 		</template>
-		<td>
+		<td @click.stop>
 			<N8nButton
 				v-if="!execution.stoppedAt || execution.waitTill"
 				data-test-id="stop-execution-button"
@@ -321,7 +348,7 @@ async function handleActionItemClick(commandData: Command) {
 				{{ locale.baseText('executionsList.stop') }}
 			</N8nButton>
 		</td>
-		<td>
+		<td v-if="!hideActions" @click.stop>
 			<ElDropdown v-if="!isRunning" trigger="click" @command="handleActionItemClick">
 				<N8nIconButton text type="tertiary" icon="ellipsis-vertical" />
 				<template #dropdown>
@@ -367,6 +394,15 @@ async function handleActionItemClick(commandData: Command) {
 <style lang="scss" module>
 tr.dangerBg {
 	background-color: rgba(215, 56, 58, 0.1);
+}
+
+.clickableRow {
+	cursor: pointer;
+}
+
+.selectedExecution {
+	background-color: var(--color--primary--tint-3);
+	border-left: 3px solid var(--color--primary);
 }
 
 .workflowName {

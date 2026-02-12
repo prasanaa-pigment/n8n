@@ -13,11 +13,7 @@ import type { ExecutionSummary } from 'n8n-workflow';
 import { computed, ref, useTemplateRef, watch, type ComponentPublicInstance } from 'vue';
 import { useIntersectionObserver } from '@vueuse/core';
 import { useExecutionsStore } from '../../executions.store';
-import type {
-	ExecutionFilterType,
-	ExecutionSummaryWithCustomData,
-	WorkflowExecutionViewMode,
-} from '../../executions.types';
+import type { ExecutionFilterType, ExecutionSummaryWithCustomData } from '../../executions.types';
 import { executionRetryMessage } from '../../executions.utils';
 import { useExecutionColumns } from '../../composables/useExecutionColumns';
 import ConcurrentExecutionsHeader from '../ConcurrentExecutionsHeader.vue';
@@ -26,15 +22,14 @@ import ExecutionStopAllText from '../ExecutionStopAllText.vue';
 import ExecutionColumnPicker from '../global/ExecutionColumnPicker.vue';
 import GlobalExecutionsListItem from '../global/GlobalExecutionsListItem.vue';
 
-import {
-	N8nButton,
-	N8nCheckbox,
-	N8nHeading,
-	N8nIconButton,
-	N8nTableBase,
-	N8nTooltip,
-} from '@n8n/design-system';
+import { N8nButton, N8nCheckbox, N8nHeading, N8nTableBase } from '@n8n/design-system';
 import { ElSkeletonItem } from 'element-plus';
+
+const PANEL_OPEN_COLUMNS: Array<'status' | 'startedAt' | 'runTime'> = [
+	'status',
+	'startedAt',
+	'runTime',
+];
 
 const props = withDefaults(
 	defineProps<{
@@ -42,16 +37,17 @@ const props = withDefaults(
 		workflow: IWorkflowDb;
 		loading: boolean;
 		loadingMore: boolean;
-		viewMode: WorkflowExecutionViewMode;
+		panelOpen?: boolean;
+		selectedExecutionId?: string;
 	}>(),
 	{
 		loading: false,
 		loadingMore: false,
+		panelOpen: false,
 	},
 );
 
 const emit = defineEmits<{
-	'update:viewMode': [value: WorkflowExecutionViewMode];
 	'update:autoRefresh': [value: boolean];
 	filterUpdated: [value: ExecutionFilterType];
 	loadMore: [amount: number];
@@ -68,14 +64,19 @@ const executionsWithCustomData = computed(
 	() => props.executions as ExecutionSummaryWithCustomData[],
 );
 
-const {
-	visibleColumns,
-	visibleColumnCount,
-	toggleableColumns,
-	isColumnVisible,
-	toggleColumn,
-	getColumnLabel,
-} = useExecutionColumns(executionsWithCustomData, { excludeColumns: ['workflow'] });
+const { visibleColumns, toggleableColumns, isColumnVisible, toggleColumn, getColumnLabel } =
+	useExecutionColumns(executionsWithCustomData, { excludeColumns: ['workflow'] });
+
+const displayedColumns = computed(() => {
+	if (props.panelOpen) {
+		return visibleColumns.value.filter((col) =>
+			PANEL_OPEN_COLUMNS.includes(col.id as 'status' | 'startedAt' | 'runTime'),
+		);
+	}
+	return visibleColumns.value;
+});
+
+const displayedColumnCount = computed(() => displayedColumns.value.length);
 
 const workflowPermissions = computed(() => getResourcePermissions(props.workflow?.scopes).workflow);
 
@@ -307,31 +308,9 @@ const goToUpgrade = () => {
 <template>
 	<div :class="$style.container">
 		<div :class="$style.header">
-			<div :class="$style.headerLeft">
-				<N8nHeading tag="h2" size="medium" color="text-dark">
-					{{ i18n.baseText('generic.executions') }}
-				</N8nHeading>
-				<div :class="$style.viewToggle">
-					<N8nTooltip :content="i18n.baseText('executionsList.viewMode.detail')">
-						<N8nIconButton
-							icon="list"
-							type="tertiary"
-							size="small"
-							data-test-id="executions-view-mode-detail"
-							@click="emit('update:viewMode', 'detail')"
-						/>
-					</N8nTooltip>
-					<N8nTooltip :content="i18n.baseText('executionsList.viewMode.table')">
-						<N8nIconButton
-							icon="table"
-							type="secondary"
-							size="small"
-							data-test-id="executions-view-mode-table"
-							@click="emit('update:viewMode', 'table')"
-						/>
-					</N8nTooltip>
-				</div>
-			</div>
+			<N8nHeading tag="h2" size="medium" color="text-dark">
+				{{ i18n.baseText('generic.executions') }}
+			</N8nHeading>
 		</div>
 		<div :class="$style.controls">
 			<ConcurrentExecutionsHeader
@@ -351,6 +330,7 @@ const goToUpgrade = () => {
 			<div :class="$style.controlsRight">
 				<ExecutionStopAllText :executions="props.executions" />
 				<ExecutionColumnPicker
+					v-if="!panelOpen"
 					:columns="toggleableColumns"
 					:is-column-visible="isColumnVisible"
 					:get-column-label="getColumnLabel"
@@ -376,7 +356,7 @@ const goToUpgrade = () => {
 									@update:model-value="handleCheckAllExistingChange"
 								/>
 							</th>
-							<th :colspan="visibleColumnCount + 2">
+							<th :colspan="displayedColumnCount + (panelOpen ? 1 : 2)">
 								{{
 									i18n.baseText('executionsList.selectAll', {
 										adjustToNumber: total,
@@ -396,14 +376,14 @@ const goToUpgrade = () => {
 								/>
 							</th>
 							<th
-								v-for="col in visibleColumns"
+								v-for="col in displayedColumns"
 								:key="col.id"
 								:style="col.width ? { width: col.width } : {}"
 							>
 								{{ getColumnLabel(col) }}
 							</th>
 							<th style="width: 69px"></th>
-							<th style="width: 50px"></th>
+							<th v-if="!panelOpen" style="width: 50px"></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -411,12 +391,15 @@ const goToUpgrade = () => {
 							v-for="execution in executionsWithCustomData"
 							:key="execution.id"
 							:execution="execution"
-							:visible-columns="visibleColumns"
+							:visible-columns="displayedColumns"
 							:workflow-name="workflow.name"
+							:workflow-id="workflow.id"
 							:workflow-permissions="workflowPermissions"
 							:selected="selectedItems[execution.id] || allExistingSelected"
 							:concurrency-cap="settingsStore.concurrency"
 							:is-cloud-deployment="settingsStore.isCloudDeployment"
+							:hide-actions="panelOpen"
+							:selected-execution-id="props.selectedExecutionId"
 							data-test-id="workflow-execution-list-item"
 							@stop="stopExecution"
 							@delete="deleteExecution"
@@ -427,13 +410,13 @@ const goToUpgrade = () => {
 						/>
 						<template v-if="loading && !executions.length">
 							<tr v-for="item in executionsStore.itemsPerPage" :key="item">
-								<td v-for="col in visibleColumnCount + 3" :key="col">
+								<td v-for="col in displayedColumnCount + (panelOpen ? 2 : 3)" :key="col">
 									<ElSkeletonItem />
 								</td>
 							</tr>
 						</template>
 						<tr>
-							<td :colspan="visibleColumnCount + 3" style="text-align: center">
+							<td :colspan="displayedColumnCount + (panelOpen ? 2 : 3)" style="text-align: center">
 								<template v-if="!executions.length && !loading">
 									<span data-test-id="execution-list-empty">
 										{{ i18n.baseText('executionsList.empty') }}
@@ -480,20 +463,7 @@ const goToUpgrade = () => {
 .header {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	margin-bottom: var(--spacing--sm);
-}
-
-.headerLeft {
-	display: flex;
-	align-items: center;
-	gap: var(--spacing--xs);
-}
-
-.viewToggle {
-	display: flex;
-	align-items: center;
-	gap: var(--spacing--4xs);
 }
 
 .controls {

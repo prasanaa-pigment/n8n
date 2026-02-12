@@ -13,6 +13,7 @@ vi.mock('vue-router', async () => {
 		...actual,
 		useRouter: vi.fn(() => ({
 			resolve: vi.fn(() => ({ href: 'mockedRoute' })),
+			push: vi.fn(),
 		})),
 	};
 });

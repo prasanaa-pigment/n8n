@@ -62,40 +62,9 @@ describe('WorkflowExecutionsTable', () => {
 					workflow: { id: 'wf1', name: 'Test' },
 					loading: false,
 					loadingMore: false,
-					viewMode: 'table',
 				},
 			}),
 		).not.toThrow();
-	});
-
-	it('should render view toggle buttons', () => {
-		const { getByTestId } = renderComponent({
-			props: {
-				executions: [],
-				workflow: { id: 'wf1', name: 'Test' },
-				loading: false,
-				loadingMore: false,
-				viewMode: 'table',
-			},
-		});
-
-		expect(getByTestId('executions-view-mode-detail')).toBeVisible();
-		expect(getByTestId('executions-view-mode-table')).toBeVisible();
-	});
-
-	it('should emit update:viewMode when detail button is clicked', () => {
-		const { getByTestId, emitted } = renderComponent({
-			props: {
-				executions: [],
-				workflow: { id: 'wf1', name: 'Test' },
-				loading: false,
-				loadingMore: false,
-				viewMode: 'table',
-			},
-		});
-
-		getByTestId('executions-view-mode-detail').click();
-		expect(emitted('update:viewMode')).toEqual([['detail']]);
 	});
 
 	it('should show empty state when no executions', () => {
@@ -105,7 +74,6 @@ describe('WorkflowExecutionsTable', () => {
 				workflow: { id: 'wf1', name: 'Test' },
 				loading: false,
 				loadingMore: false,
-				viewMode: 'table',
 			},
 		});
 
@@ -121,7 +89,6 @@ describe('WorkflowExecutionsTable', () => {
 				workflow: { id: 'wf1', name: 'Test' },
 				loading: false,
 				loadingMore: false,
-				viewMode: 'table',
 			},
 		});
 
@@ -135,7 +102,6 @@ describe('WorkflowExecutionsTable', () => {
 				workflow: { id: 'wf1', name: 'Test' },
 				loading: false,
 				loadingMore: false,
-				viewMode: 'table',
 			},
 		});
 
@@ -151,7 +117,6 @@ describe('WorkflowExecutionsTable', () => {
 				workflow: { id: 'wf1', name: 'Test' },
 				loading: false,
 				loadingMore: false,
-				viewMode: 'table',
 			},
 		});
 
