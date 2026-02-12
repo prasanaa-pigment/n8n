@@ -2977,6 +2977,8 @@
 	"settings.secretsProviderConnections.delete.confirmationLabel": "Type \"{name}\" to confirm.",
 	"settings.secretsProviderConnections.delete.success": "Secret store \"{name}\" deleted successfully",
 	"settings.secretsProviderConnections.delete.error": "Failed to delete secret store",
+	"settings.secretsProviderConnections.badge.tooltip.project": "This secrets store is shared with {projectName}.",
+	"settings.secretsProviderConnections.badge.tooltip.global": "This secrets store is available to all projects and users of this instance.",
 	"settings.sourceControl.title": "Environments",
 	"settings.sourceControl.actionBox.title": "Available on the Enterprise plan",
 	"settings.sourceControl.actionBox.description": "Use multiple instances for different environments (dev, prod, etc.), deploying between them via a Git repository.",
