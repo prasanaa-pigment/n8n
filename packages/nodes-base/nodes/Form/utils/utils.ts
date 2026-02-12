@@ -23,6 +23,8 @@ import {
 } from 'n8n-workflow';
 import * as a from 'node:assert';
 import sanitize from 'sanitize-html';
+import z from 'zod';
+import zodToJsonSchema from 'zod-to-json-schema';
 
 import { getResolvables } from '../../../utils/utilities';
 import { WebhookAuthorizationError } from '../../Webhook/error';
@@ -306,6 +308,91 @@ export function prepareFormData({
 	return formData;
 }
 
+export const formFieldsToDataZodSchema = (fields: ReturnType<typeof prepareFormFields>) =>
+	z.object(
+		fields.reduce((result, current, index) => {
+			const key = `field-${index}`;
+			switch (current.fieldType) {
+				case 'radio':
+				case 'checkbox': {
+					let schema = z.array(
+						// @ts-expect-error zod enum expects a const array type with at least one element
+						z.enum(current.fieldOptions?.values.map(({ option }) => option) ?? ['']),
+					);
+					if (current.requiredField !== true) {
+						// @ts-ignore
+						schema = schema.optional();
+					}
+					switch (current.limitSelection) {
+						case 'exact':
+							//schema = schema.length(current.numberOfSelections ?? 0);
+							break;
+						case 'range':
+							//schema = schema.min(current.minSelections ?? 0).max(current.maxSelections ?? 0);
+							break;
+					}
+					return {
+						...result,
+						[key]: schema,
+					};
+				}
+				case 'dropdown': {
+					// @ts-expect-error zod enum expects a static array
+					let schema = z.enum(current.fieldOptions?.values.map(({ option }) => option) ?? ['']);
+					if (current.requiredField !== true) {
+						// @ts-ignore
+						schema = schema.optional();
+					}
+					return {
+						...result,
+						[key]: schema,
+					};
+				}
+				case 'hiddenField':
+					return {
+						...result,
+						[key]: z.enum([current.fieldValue ?? '']),
+					};
+					break;
+				case 'file':
+				case 'html':
+					// not part of input validation
+					break;
+				case 'textarea':
+				default:
+					let schema = z.string();
+					if (current.requiredField !== true) {
+						// @ts-ignore
+						schema = schema.optional();
+					}
+
+					return {
+						...result,
+						[key]: z.enum([current.fieldValue ?? '']),
+					};
+					break;
+			}
+
+			return result;
+		}, {}),
+	);
+
+export const formFieldsToFilesZodSchema = (
+	fields: ReturnType<typeof prepareFormData>['formFields'],
+) => z.object(fields.reduce((result, _current) => result, {}));
+
+export const prepareFormJson = (
+	{ authToken, ...data }: ReturnType<typeof prepareFormData>,
+	formFields: ReturnType<typeof prepareFormFields>,
+) => {
+	return {
+		form: data,
+		inputSchema: {
+			data: zodToJsonSchema(formFieldsToDataZodSchema(formFields)),
+		},
+	};
+};
+
 export const validateResponseModeConfiguration = (context: IWebhookFunctions) => {
 	const responseMode = context.getNodeParameter('responseMode', 'onReceived') as string;
 	const connectedNodes = context.getChildNodes(context.getNode().name);
@@ -409,7 +496,10 @@ export async function prepareFormReturnItem(
 	useWorkflowTimezone: boolean = false,
 ) {
 	const req = context.getRequestObject() as MultiPartFormData.Request;
-	a.ok(req.contentType === 'multipart/form-data', 'Expected multipart/form-data');
+	a.ok(
+		['multipart/form-data', 'application/json'].includes(req.contentType ?? ''),
+		'Expected multipart/form-data or application/json',
+	);
 	const bodyData = (context.getBodyData().data as IDataObject) ?? {};
 	const files = (context.getBodyData().files as IDataObject) ?? {};
 	const { binaryMode } = context.getWorkflowSettings();
@@ -570,6 +660,17 @@ export function renderForm({
 		nodeVersion: context.getNode().typeVersion,
 		authToken,
 	});
+
+	const req = context.getRequestObject();
+	if (
+		['application/json', 'json'].some((contentType) =>
+			[req.contentType, req.headers.accept].includes(contentType),
+		)
+	) {
+		res.setHeader('Content-Type', 'application/json');
+		res.send(prepareFormJson(data, formFields));
+		return;
+	}
 
 	res.setHeader('Content-Security-Policy', getWebhookSandboxCSP());
 	res.render('form-trigger', data);
