@@ -133,16 +133,17 @@ describe('Init', () => {
 			const saml = { loginEnabled: true, loginLabel: '' };
 			const ldap = { loginEnabled: false, loginLabel: '' };
 			const oidc = { loginEnabled: false, loginUrl: '', callbackUrl: '' };
+			const socialLogin = { google: { enabled: false, loginUrl: '' } };
 
 			settingsStore.userManagement.authenticationMethod = UserManagementAuthenticationMethod.Saml;
-			settingsStore.settings.sso = { saml, ldap, oidc };
+			settingsStore.settings.sso = { saml, ldap, oidc, socialLogin };
 			settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Saml] = true;
 
 			await initializeCore();
 
 			expect(ssoStore.initialize).toHaveBeenCalledWith({
 				authenticationMethod: UserManagementAuthenticationMethod.Saml,
-				config: { saml, ldap, oidc },
+				config: { saml, ldap, oidc, socialLogin },
 				features: {
 					saml: true,
 					ldap: false,

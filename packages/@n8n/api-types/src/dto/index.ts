@@ -114,6 +114,12 @@ export { RoleGetQueryDto } from './roles/role-get-query.dto';
 
 export { OidcConfigDto } from './oidc/config.dto';
 
+export {
+	GoogleSocialLoginConfigDto,
+	GitHubSocialLoginConfigDto,
+	type SocialLoginConfigResponse,
+} from './social-login/social-login-config.dto';
+
 export { CreateDataTableDto } from './data-table/create-data-table.dto';
 export { UpdateDataTableDto } from './data-table/update-data-table.dto';
 export { UpdateDataTableRowDto } from './data-table/update-data-table-row.dto';

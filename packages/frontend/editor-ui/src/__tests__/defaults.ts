@@ -88,6 +88,10 @@ export const defaultSettings: FrontendSettings = {
 		ldap: { loginEnabled: false, loginLabel: '' },
 		saml: { loginEnabled: false, loginLabel: '' },
 		oidc: { loginEnabled: false, loginUrl: '', callbackUrl: '' },
+		socialLogin: {
+			google: { enabled: false, loginUrl: '' },
+			github: { enabled: false, loginUrl: '' },
+		},
 	},
 	telemetry: {
 		enabled: false,

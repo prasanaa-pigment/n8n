@@ -408,6 +408,19 @@ describe('GlobalConfig', () => {
 				scopesInstanceRoleClaimName: 'n8n_instance_role',
 				scopesProjectsRolesClaimName: 'n8n_projects',
 			},
+			socialLogin: {
+				google: {
+					enabled: false,
+					clientId: '',
+					clientSecret: '',
+					allowedDomain: '',
+				},
+				github: {
+					enabled: false,
+					clientId: '',
+					clientSecret: '',
+				},
+			},
 		},
 		redis: {
 			prefix: 'n8n',

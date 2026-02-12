@@ -71,6 +71,8 @@ const TemplatesSearchView = async () =>
 const SettingsUsageAndPlan = async () =>
 	await import('@/features/settings/usage/views/SettingsUsageAndPlan.vue');
 const SettingsSso = async () => await import('@/features/settings/sso/views/SettingsSso.vue');
+const SocialLoginSettings = async () =>
+	await import('@/features/settings/sso/views/SocialLoginSettings.vue');
 const SignoutView = async () => await import('@/features/core/auth/views/SignoutView.vue');
 const SamlOnboarding = async () => await import('@/features/settings/sso/views/SamlOnboarding.vue');
 const SettingsSourceControl = async () =>
@@ -807,6 +809,27 @@ export const routes: RouteRecordRaw[] = [
 						getProperties() {
 							return {
 								feature: 'sso',
+							};
+						},
+					},
+				},
+			},
+			{
+				path: 'social-login',
+				name: VIEWS.SOCIAL_LOGIN_SETTINGS,
+				component: SocialLoginSettings,
+				meta: {
+					middleware: ['authenticated', 'rbac'],
+					middlewareOptions: {
+						rbac: {
+							scope: 'socialLogin:manage',
+						},
+					},
+					telemetry: {
+						pageCategory: 'settings',
+						getProperties() {
+							return {
+								feature: 'social-login',
 							};
 						},
 					},

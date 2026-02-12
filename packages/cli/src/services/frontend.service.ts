@@ -90,6 +90,22 @@ export type PublicFrontendSettings = {
 			/** Required for OIDC authentication redirect URL */
 			loginUrl: FrontendSettings['sso']['oidc']['loginUrl'];
 		};
+		socialLogin: {
+			google: {
+				/** Whether Google social login is enabled */
+				enabled: FrontendSettings['sso']['socialLogin']['google']['enabled'];
+
+				/** Backend URL that initiates the Google OAuth flow */
+				loginUrl: FrontendSettings['sso']['socialLogin']['google']['loginUrl'];
+			};
+			github: {
+				/** Whether GitHub social login is enabled */
+				enabled: FrontendSettings['sso']['socialLogin']['github']['enabled'];
+
+				/** Backend URL that initiates the GitHub OAuth flow */
+				loginUrl: FrontendSettings['sso']['socialLogin']['github']['loginUrl'];
+			};
+		};
 	};
 	/** Used to fetch community nodes on preview instance */
 	communityNodesEnabled: FrontendSettings['communityNodesEnabled'];
@@ -252,6 +268,20 @@ export class FrontendService {
 					loginEnabled: false,
 					loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/oidc/login`,
 					callbackUrl: `${instanceBaseUrl}/${restEndpoint}/sso/oidc/callback`,
+				},
+				socialLogin: {
+					google: {
+						enabled:
+							this.globalConfig.sso.socialLogin.google.enabled &&
+							this.globalConfig.sso.socialLogin.google.clientId !== '',
+						loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/social/google/login`,
+					},
+					github: {
+						enabled:
+							this.globalConfig.sso.socialLogin.github.enabled &&
+							this.globalConfig.sso.socialLogin.github.clientId !== '',
+						loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/social/github/login`,
+					},
 				},
 			},
 			dataTables: {
@@ -531,7 +561,33 @@ export class FrontendService {
 		// Refresh environment feature flags
 		this.settings.envFeatureFlags = this.collectEnvFeatureFlags();
 
+		// Refresh social login settings from resolved config (DB > env)
+		await this.refreshSocialLoginSettings();
+
 		return this.settings;
+	}
+
+	private async refreshSocialLoginSettings(): Promise<void> {
+		try {
+			const { SocialLoginService } = await import('@/modules/social-login/social-login.service');
+			const socialLoginService = Container.get(SocialLoginService);
+			const config = await socialLoginService.loadConfig();
+			const instanceBaseUrl = this.urlService.getInstanceBaseUrl();
+			const restEndpoint = this.globalConfig.endpoints.rest;
+
+			this.settings.sso.socialLogin = {
+				google: {
+					enabled: config.google.enabled && config.google.clientId !== '',
+					loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/social/google/login`,
+				},
+				github: {
+					enabled: config.github.enabled && config.github.clientId !== '',
+					loginUrl: `${instanceBaseUrl}/${restEndpoint}/sso/social/github/login`,
+				},
+			};
+		} catch {
+			// Social login module may not be loaded yet during startup — keep env-based defaults
+		}
 	}
 
 	/**
@@ -543,7 +599,7 @@ export class FrontendService {
 		const {
 			defaultLocale,
 			userManagement: { authenticationMethod, showSetupOnFirstLoad, smtpSetup },
-			sso: { saml: ssoSaml, ldap: ssoLdap, oidc: ssoOidc },
+			sso: { saml: ssoSaml, ldap: ssoLdap, oidc: ssoOidc, socialLogin: ssoSocialLogin },
 			authCookie,
 			previewMode,
 			enterprise: { saml, ldap, oidc },
@@ -569,6 +625,7 @@ export class FrontendService {
 					loginEnabled: ssoOidc.loginEnabled,
 					loginUrl: ssoOidc.loginUrl,
 				},
+				socialLogin: ssoSocialLogin,
 			},
 			authCookie,
 			previewMode,

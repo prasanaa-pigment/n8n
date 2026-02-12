@@ -1,4 +1,10 @@
-import type { OidcConfigDto, SamlPreferences } from '@n8n/api-types';
+import type {
+	OidcConfigDto,
+	SamlPreferences,
+	SocialLoginConfigResponse,
+	GoogleSocialLoginConfigDto,
+	GitHubSocialLoginConfigDto,
+} from '@n8n/api-types';
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useRootStore } from '@n8n/stores/useRootStore';
@@ -44,6 +50,10 @@ export const useSSOStore = defineStore('sso', () => {
 				loginUrl?: string;
 				callbackUrl?: string;
 			};
+			socialLogin?: {
+				google?: { enabled: boolean; loginUrl: string };
+				github?: { enabled: boolean; loginUrl: string };
+			};
 		};
 		features: {
 			saml: boolean;
@@ -70,6 +80,13 @@ export const useSSOStore = defineStore('sso', () => {
 			oidc.value.loginEnabled = options.config.oidc.loginEnabled;
 			oidc.value.loginUrl = options.config.oidc.loginUrl || '';
 			oidc.value.callbackUrl = options.config.oidc.callbackUrl || '';
+		}
+
+		if (options.config.socialLogin?.google) {
+			socialLogin.value.google = options.config.socialLogin.google;
+		}
+		if (options.config.socialLogin?.github) {
+			socialLogin.value.github = options.config.socialLogin.github;
 		}
 	};
 
@@ -194,6 +211,53 @@ export const useSSOStore = defineStore('sso', () => {
 		return await ldapApi.runLdapSync(rootStore.restApiContext, data);
 	};
 
+	/**
+	 * Social Login (Google, GitHub, etc.)
+	 */
+
+	const socialLogin = ref<{
+		google: { enabled: boolean; loginUrl: string };
+		github: { enabled: boolean; loginUrl: string };
+	}>({
+		google: { enabled: false, loginUrl: '' },
+		github: { enabled: false, loginUrl: '' },
+	});
+
+	const isGoogleSocialLoginEnabled = computed(() => socialLogin.value.google.enabled);
+	const isGitHubSocialLoginEnabled = computed(() => socialLogin.value.github.enabled);
+
+	const showSocialLoginButtons = computed(
+		() => isGoogleSocialLoginEnabled.value || isGitHubSocialLoginEnabled.value,
+	);
+
+	/** Full config from admin endpoint (with secrets redacted) */
+	const socialLoginAdminConfig = ref<SocialLoginConfigResponse | null>(null);
+
+	const getSocialLoginConfig = async (): Promise<SocialLoginConfigResponse> => {
+		const rootStore = useRootStore();
+		const config = await ssoApi.getSocialLoginConfig(rootStore.restApiContext);
+		socialLoginAdminConfig.value = config;
+		return config;
+	};
+
+	const saveGoogleSocialLoginConfig = async (
+		data: GoogleSocialLoginConfigDto,
+	): Promise<SocialLoginConfigResponse> => {
+		const rootStore = useRootStore();
+		const config = await ssoApi.saveGoogleSocialLoginConfig(rootStore.restApiContext, data);
+		socialLoginAdminConfig.value = config;
+		return config;
+	};
+
+	const saveGitHubSocialLoginConfig = async (
+		data: GitHubSocialLoginConfigDto,
+	): Promise<SocialLoginConfigResponse> => {
+		const rootStore = useRootStore();
+		const config = await ssoApi.saveGitHubSocialLoginConfig(rootStore.restApiContext, data);
+		socialLoginAdminConfig.value = config;
+		return config;
+	};
+
 	const initializeSelectedProtocol = () => {
 		if (selectedAuthProtocol.value) return;
 
@@ -236,5 +300,14 @@ export const useSSOStore = defineStore('sso', () => {
 		testLdapConnection,
 		updateLdapConfig,
 		runLdapSync,
+
+		socialLogin,
+		socialLoginAdminConfig,
+		isGoogleSocialLoginEnabled,
+		isGitHubSocialLoginEnabled,
+		showSocialLoginButtons,
+		getSocialLoginConfig,
+		saveGoogleSocialLoginConfig,
+		saveGitHubSocialLoginConfig,
 	};
 });

@@ -390,6 +390,8 @@ export const enum UserManagementAuthenticationMethod {
 	Ldap = 'ldap',
 	Saml = 'saml',
 	Oidc = 'oidc',
+	Google = 'google',
+	GitHub = 'github',
 }
 
 export interface IPermissionGroup {

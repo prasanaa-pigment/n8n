@@ -1,4 +1,11 @@
-import type { OidcConfigDto, SamlPreferences, SamlToggleDto } from '@n8n/api-types';
+import type {
+	OidcConfigDto,
+	SamlPreferences,
+	SamlToggleDto,
+	SocialLoginConfigResponse,
+	GoogleSocialLoginConfigDto,
+	GitHubSocialLoginConfigDto,
+} from '@n8n/api-types';
 
 import type { IRestApiContext } from '../types';
 import { makeRestApiRequest } from '../utils';
@@ -53,4 +60,26 @@ export const saveOidcConfig = async (
 
 export const initOidcLogin = async (context: IRestApiContext): Promise<string> => {
 	return await makeRestApiRequest(context, 'GET', '/sso/oidc/login');
+};
+
+// Social Login config
+
+export const getSocialLoginConfig = async (
+	context: IRestApiContext,
+): Promise<SocialLoginConfigResponse> => {
+	return await makeRestApiRequest(context, 'GET', '/sso/social/config');
+};
+
+export const saveGoogleSocialLoginConfig = async (
+	context: IRestApiContext,
+	data: GoogleSocialLoginConfigDto,
+): Promise<SocialLoginConfigResponse> => {
+	return await makeRestApiRequest(context, 'POST', '/sso/social/google/config', data);
+};
+
+export const saveGitHubSocialLoginConfig = async (
+	context: IRestApiContext,
+	data: GitHubSocialLoginConfigDto,
+): Promise<SocialLoginConfigResponse> => {
+	return await makeRestApiRequest(context, 'POST', '/sso/social/github/config', data);
 };

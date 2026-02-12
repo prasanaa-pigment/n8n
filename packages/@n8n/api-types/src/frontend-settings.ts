@@ -24,7 +24,7 @@ export interface ITelemetrySettings {
 	config?: ITelemetryClientConfig;
 }
 
-export type AuthenticationMethod = 'email' | 'ldap' | 'saml' | 'oidc';
+export type AuthenticationMethod = 'email' | 'ldap' | 'saml' | 'oidc' | 'google' | 'github';
 
 export interface IUserManagementSettings {
 	quota: number;
@@ -137,6 +137,16 @@ export interface FrontendSettings {
 		ldap: {
 			loginLabel: string;
 			loginEnabled: boolean;
+		};
+		socialLogin: {
+			google: {
+				enabled: boolean;
+				loginUrl: string;
+			};
+			github: {
+				enabled: boolean;
+				loginUrl: string;
+			};
 		};
 	};
 	publicApi: {

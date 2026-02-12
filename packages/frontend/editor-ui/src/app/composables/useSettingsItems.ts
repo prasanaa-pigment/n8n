@@ -99,6 +99,14 @@ export function useSettingsItems() {
 				route: { to: { name: VIEWS.SSO_SETTINGS } },
 			},
 			{
+				id: 'settings-social-login',
+				icon: 'user-check',
+				label: i18n.baseText('settings.socialLogin'),
+				position: 'top',
+				available: canUserAccessRouteByName(VIEWS.SOCIAL_LOGIN_SETTINGS),
+				route: { to: { name: VIEWS.SOCIAL_LOGIN_SETTINGS } },
+			},
+			{
 				id: 'settings-security',
 				icon: 'shield',
 				label: i18n.baseText('settings.security'),

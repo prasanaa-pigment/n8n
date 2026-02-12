@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { N8nLogo } from '@n8n/design-system';
 import SSOLogin from '@/features/settings/sso/components/SSOLogin.vue';
+import SocialLoginButtons from '@/features/settings/sso/components/SocialLoginButtons.vue';
 import type { FormFieldValueUpdate, IFormBoxConfig } from '@/Interface';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import type { EmailOrLdapLoginIdAndPassword } from './SigninView.vue';
@@ -58,6 +59,7 @@ const {
 				@update="onUpdate"
 			>
 				<SSOLogin v-if="withSso" />
+				<SocialLoginButtons v-if="withSso" />
 			</N8nFormBox>
 		</div>
 	</div>

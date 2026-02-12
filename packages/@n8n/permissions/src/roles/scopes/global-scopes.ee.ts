@@ -122,6 +122,7 @@ export const GLOBAL_OWNER_SCOPES: Scope[] = [
 	'credentialResolver:update',
 	'credentialResolver:delete',
 	'credentialResolver:list',
+	'socialLogin:manage',
 ];
 
 export const GLOBAL_ADMIN_SCOPES = GLOBAL_OWNER_SCOPES.concat();

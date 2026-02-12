@@ -74,7 +74,10 @@ export async function initializeCore() {
 	ssoStore.initialize({
 		authenticationMethod: settingsStore.userManagement
 			.authenticationMethod as UserManagementAuthenticationMethod,
-		config: settingsStore.settings.sso,
+		config: {
+			...settingsStore.settings.sso,
+			socialLogin: settingsStore.settings.sso.socialLogin,
+		},
 		features: {
 			saml: settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Saml],
 			ldap: settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Ldap],

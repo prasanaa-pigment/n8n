@@ -28,6 +28,49 @@ class LdapConfig {
 }
 
 @Config
+class GoogleSocialLoginConfig {
+	/** Whether to enable Google social login. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GOOGLE_ENABLED')
+	enabled: boolean = false;
+
+	/** Google OAuth2 Client ID. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GOOGLE_CLIENT_ID')
+	clientId: string = '';
+
+	/** Google OAuth2 Client Secret. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GOOGLE_CLIENT_SECRET')
+	clientSecret: string = '';
+
+	/** Optional: Restrict login to a specific email domain (e.g. 'mycompany.com'). */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GOOGLE_ALLOWED_DOMAIN')
+	allowedDomain: string = '';
+}
+
+@Config
+class GitHubSocialLoginConfig {
+	/** Whether to enable GitHub social login. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GITHUB_ENABLED')
+	enabled: boolean = false;
+
+	/** GitHub OAuth App Client ID. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GITHUB_CLIENT_ID')
+	clientId: string = '';
+
+	/** GitHub OAuth App Client Secret. */
+	@Env('N8N_SSO_SOCIAL_LOGIN_GITHUB_CLIENT_SECRET')
+	clientSecret: string = '';
+}
+
+@Config
+class SocialLoginConfig {
+	@Nested
+	google: GoogleSocialLoginConfig;
+
+	@Nested
+	github: GitHubSocialLoginConfig;
+}
+
+@Config
 class ProvisioningConfig {
 	/** Whether to provision the instance role from an SSO auth claim */
 	@Env('N8N_SSO_SCOPES_PROVISION_INSTANCE_ROLE')
@@ -71,4 +114,7 @@ export class SsoConfig {
 
 	@Nested
 	provisioning: ProvisioningConfig;
+
+	@Nested
+	socialLogin: SocialLoginConfig;
 }
