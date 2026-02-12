@@ -1,12 +1,13 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage } from '@langchain/core/messages';
 
-import type { ConversationEntry } from '../../code-builder/utils/code-builder-session';
 import type { StreamOutput } from '../../types/streaming';
 import type { ChatPayload } from '../../workflow-builder-agent';
 import type { AssistantHandler } from '../assistant-handler';
 import { TriageAgent } from '../triage-agent';
-import type { TriageAgentOutcome } from '../triage-agent';
+import type { TriageAgentOutcome, TriageAgentParams } from '../triage-agent';
+
+type TriageConversationEntry = NonNullable<TriageAgentParams['conversationHistory']>[number];
 
 function createMockPayload(message = 'test message'): ChatPayload {
 	return {
@@ -333,7 +334,7 @@ describe('TriageAgent', () => {
 		const llm = createMockLlm(response);
 		const handler = createMockAssistantHandler();
 
-		const history: ConversationEntry[] = [
+		const history: TriageConversationEntry[] = [
 			{ type: 'build-request', message: 'Build a Slack workflow' },
 			{ type: 'assistant-exchange', userQuery: 'How?', assistantSummary: 'Use Slack node' },
 		];

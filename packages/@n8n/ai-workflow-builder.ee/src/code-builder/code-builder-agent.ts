@@ -50,7 +50,6 @@ import { createThinkTool } from './tools/think.tool';
 import type { CodeBuilderAgentConfig, TokenUsage } from './types';
 export type { CodeBuilderAgentConfig } from './types';
 import { sanitizeLlmErrorMessage } from '../utils/error-sanitizer';
-import { entryToString } from './utils/code-builder-session';
 import { pushValidationFeedback } from './utils/content-extractors';
 import { calculateNodeChanges } from './utils/node-diff';
 import { NodeTypeParser } from './utils/node-type-parser';
@@ -300,7 +299,7 @@ export class CodeBuilderAgent {
 				textEditorToolHandler,
 				abortSignal,
 				payload,
-				previousMessages: historyContext?.conversationEntries.map(entryToString) ?? [],
+				previousMessages: historyContext?.userMessages ?? [],
 			});
 
 			const { workflow } = loopResult;
