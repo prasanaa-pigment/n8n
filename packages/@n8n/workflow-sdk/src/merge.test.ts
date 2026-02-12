@@ -1,9 +1,13 @@
 import type { NodeInstance } from './types/base';
+import { splitInBatches } from './workflow-builder/control-flow-builders/split-in-batches';
 import { workflow } from './workflow-builder';
 import { node, trigger } from './workflow-builder/node-builders/node-builder';
 
-// Helper type for Merge node
+// Helper types
 type MergeNode = NodeInstance<'n8n-nodes-base.merge', string, unknown>;
+type IfNode = NodeInstance<'n8n-nodes-base.if', string, unknown>;
+type SwitchNode = NodeInstance<'n8n-nodes-base.switch', string, unknown>;
+type SplitInBatchesNode = NodeInstance<'n8n-nodes-base.splitInBatches', string, unknown>;
 
 describe('Merge', () => {
 	describe('.input(n) syntax for merge connections', () => {
@@ -273,6 +277,247 @@ describe('Merge', () => {
 			// Merge should connect to downstream
 			const mergeConns = json.connections['Combine Sources'];
 			expect(mergeConns.main[0]![0].node).toBe('Process');
+		});
+
+		it('should connect IF true/false branches to merge via WorkflowBuilder.to()', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const ifNode = node({
+				type: 'n8n-nodes-base.if',
+				version: 2.2,
+				config: { name: 'Check' },
+			}) as IfNode;
+			const processTrue = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process True' },
+			});
+			const processFalse = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process False' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Combine' },
+			}) as MergeNode;
+			const downstream = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Final' },
+			});
+
+			// IF branches processed separately, then each branch connects to merge via builder .to()
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(ifNode.onTrue!(processTrue).onFalse(processFalse))
+				.add(processTrue)
+				.to(mergeNode.input(0))
+				.add(processFalse)
+				.to(mergeNode.input(1))
+				.add(mergeNode)
+				.to(downstream);
+
+			const json = wf.toJSON();
+
+			// IF should branch to both process nodes
+			expect(json.connections['Check'].main[0]![0].node).toBe('Process True');
+			expect(json.connections['Check'].main[1]![0].node).toBe('Process False');
+
+			// Each process node should connect to the correct merge input
+			expect(json.connections['Process True'].main[0]![0].node).toBe('Combine');
+			expect(json.connections['Process True'].main[0]![0].index).toBe(0);
+			expect(json.connections['Process False'].main[0]![0].node).toBe('Combine');
+			expect(json.connections['Process False'].main[0]![0].index).toBe(1);
+
+			// Merge should connect to downstream
+			expect(json.connections['Combine'].main[0]![0].node).toBe('Final');
+		});
+
+		it('should connect Switch cases to merge via WorkflowBuilder.to()', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const switchNode = node({
+				type: 'n8n-nodes-base.switch',
+				version: 3.4,
+				config: { name: 'Route' },
+			}) as SwitchNode;
+			const handleA = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Handle A' },
+			});
+			const handleB = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Handle B' },
+			});
+			const handleC = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Handle C' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Collect' },
+			}) as MergeNode;
+
+			// Switch fans out, then each case connects to merge via builder .to()
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(switchNode.onCase!(0, handleA).onCase(1, handleB).onCase(2, handleC))
+				.add(handleA)
+				.to(mergeNode.input(0))
+				.add(handleB)
+				.to(mergeNode.input(1))
+				.add(handleC)
+				.to(mergeNode.input(2));
+
+			const json = wf.toJSON();
+
+			// Switch should fan out to all three handlers
+			expect(json.connections['Route'].main[0]![0].node).toBe('Handle A');
+			expect(json.connections['Route'].main[1]![0].node).toBe('Handle B');
+			expect(json.connections['Route'].main[2]![0].node).toBe('Handle C');
+
+			// Each handler should connect to the correct merge input
+			expect(json.connections['Handle A'].main[0]![0].node).toBe('Collect');
+			expect(json.connections['Handle A'].main[0]![0].index).toBe(0);
+			expect(json.connections['Handle B'].main[0]![0].node).toBe('Collect');
+			expect(json.connections['Handle B'].main[0]![0].index).toBe(1);
+			expect(json.connections['Handle C'].main[0]![0].node).toBe('Collect');
+			expect(json.connections['Handle C'].main[0]![0].index).toBe(2);
+		});
+
+		it('should connect SplitInBatches done output to merge via WorkflowBuilder.to()', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const sibNode = node({
+				type: 'n8n-nodes-base.splitInBatches',
+				version: 3,
+				config: { name: 'Loop' },
+			}) as SplitInBatchesNode;
+			const processBatch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process Batch' },
+			});
+			const batchDone = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Batch Done' },
+			});
+			const otherSource = node({
+				type: 'n8n-nodes-base.httpRequest',
+				version: 4.2,
+				config: { name: 'Fetch Data' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Merge Results' },
+			}) as MergeNode;
+			const downstream = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Output' },
+			});
+
+			// SIB done branch tail connects to merge input 0 via builder .to(),
+			// separate trigger source connects to merge input 1 via builder .to()
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(splitInBatches(sibNode).onEachBatch(processBatch.to(sibNode)).onDone(batchDone))
+				.add(batchDone)
+				.to(mergeNode.input(0))
+				.add(otherSource)
+				.to(mergeNode.input(1))
+				.add(mergeNode)
+				.to(downstream);
+
+			const json = wf.toJSON();
+
+			// SIB should have loop-back from processBatch
+			expect(json.connections['Process Batch'].main[0]![0].node).toBe('Loop');
+
+			// Batch Done (SIB done branch tail) should connect to merge input 0
+			expect(json.connections['Batch Done'].main[0]![0].node).toBe('Merge Results');
+			expect(json.connections['Batch Done'].main[0]![0].index).toBe(0);
+
+			// Fetch Data should connect to merge input 1
+			expect(json.connections['Fetch Data'].main[0]![0].node).toBe('Merge Results');
+			expect(json.connections['Fetch Data'].main[0]![0].index).toBe(1);
+
+			// Merge should connect to downstream
+			expect(json.connections['Merge Results'].main[0]![0].node).toBe('Output');
+		});
+
+		it('should handle WorkflowBuilder.to() to same merge node from already-added node', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const source1 = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Source 1' },
+			});
+			const source2 = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Source 2' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Join' },
+			}) as MergeNode;
+
+			// First .to(merge.input(0)) adds the merge node,
+			// second .to(merge.input(1)) should reuse it (already present)
+			const wf = workflow('test-id', 'Test')
+				.add(t.to([source1, source2]))
+				.add(source1)
+				.to(mergeNode.input(0))
+				.add(source2)
+				.to(mergeNode.input(1));
+
+			const json = wf.toJSON();
+
+			// Should have only one merge node, not duplicated
+			const mergeNodes = json.nodes.filter((n) => n.name === 'Join');
+			expect(mergeNodes).toHaveLength(1);
+
+			// Both sources should connect to the merge
+			expect(json.connections['Source 1'].main[0]![0].node).toBe('Join');
+			expect(json.connections['Source 1'].main[0]![0].index).toBe(0);
+			expect(json.connections['Source 2'].main[0]![0].node).toBe('Join');
+			expect(json.connections['Source 2'].main[0]![0].index).toBe(1);
+		});
+
+		it('should chain downstream after WorkflowBuilder.to(inputTarget)', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const source = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Source' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Merge' },
+			}) as MergeNode;
+			const next = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Next' },
+			});
+
+			// After .to(merge.input(n)), current node becomes the merge node,
+			// so .to(next) should connect merge → next
+			const wf = workflow('test-id', 'Test').add(t).to(source).to(mergeNode.input(0)).to(next);
+
+			const json = wf.toJSON();
+
+			expect(json.connections['Source'].main[0]![0].node).toBe('Merge');
+			expect(json.connections['Source'].main[0]![0].index).toBe(0);
+			expect(json.connections['Merge'].main[0]![0].node).toBe('Next');
 		});
 
 		it('should not connect to both inputs when using inline chain pattern with .to([])', () => {
