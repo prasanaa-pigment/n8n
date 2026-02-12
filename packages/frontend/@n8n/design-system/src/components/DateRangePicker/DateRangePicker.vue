@@ -114,7 +114,7 @@ const forwarded = useForwardPropsEmits(props, emit);
 							variant="subtle"
 							label="Apply"
 							class="mt-2xs"
-							style="width: 100%"
+							:class="$style.ApplyButton"
 							@click="emit('update:open', false)"
 						/>
 					</div>
@@ -140,6 +140,10 @@ const forwarded = useForwardPropsEmits(props, emit);
 	line-height: var(--line-height--xl);
 	margin-top: 5px;
 	display: none;
+}
+
+.ApplyButton {
+	width: 100%;
 }
 
 .DateFieldSegment:focus {
