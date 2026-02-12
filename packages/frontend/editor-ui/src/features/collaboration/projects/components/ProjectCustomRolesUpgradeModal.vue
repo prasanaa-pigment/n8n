@@ -10,7 +10,7 @@ const i18n = useI18n();
 const { goToUpgrade } = usePageRedirectionHelper();
 
 const onViewPlans = async () => {
-	await goToUpgrade('custom-roles', 'upgrade-custom-roles');
+	await goToUpgrade('custom-roles-selector', 'upgrade-custom-roles');
 	visible.value = false;
 };
 </script>
