@@ -259,6 +259,34 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	to(nodeOrComposite: unknown): WorkflowBuilder {
+		// Handle InputTarget (e.g., mergeNode.input(0))
+		if (isInputTarget(nodeOrComposite)) {
+			const actualNode = nodeOrComposite.node;
+			const targetInputIndex = nodeOrComposite.inputIndex;
+
+			// Add the target node if not already present
+			if (!this._nodes.has(actualNode.name)) {
+				this.addNodeWithSubnodes(this._nodes, actualNode);
+			}
+
+			// Connect from current node with correct input index
+			if (this._currentNode) {
+				const currentGraphNode = this._nodes.get(this._currentNode);
+				if (currentGraphNode) {
+					const mainConns =
+						currentGraphNode.connections.get('main') ?? new Map<number, ConnectionTarget[]>();
+					const outputConns: ConnectionTarget[] = mainConns.get(this._currentOutput) ?? [];
+					outputConns.push({ node: actualNode.name, type: 'main', index: targetInputIndex });
+					mainConns.set(this._currentOutput, outputConns);
+					currentGraphNode.connections.set('main', mainConns);
+				}
+			}
+
+			this._currentNode = actualNode.name;
+			this._currentOutput = 0;
+			return this;
+		}
+
 		// Handle array of nodes (fan-out pattern)
 		if (Array.isArray(nodeOrComposite)) {
 			return this.handleFanOut(nodeOrComposite);

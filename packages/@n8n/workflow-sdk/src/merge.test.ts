@@ -228,6 +228,53 @@ describe('Merge', () => {
 			expect(json.connections['API 3'].main[0]![0].index).toBe(2);
 		});
 
+		it('should connect merge inputs via WorkflowBuilder.to() pattern', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: { name: 'Website Form' },
+			});
+			const gmailTrigger = trigger({
+				type: 'n8n-nodes-base.gmailTrigger',
+				version: 1.3,
+				config: { name: 'Incoming Email' },
+			});
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Combine Sources' },
+			}) as MergeNode;
+			const downstream = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process' },
+			});
+
+			// Pattern: .add(source).to(merge.input(n)) -- WorkflowBuilder.to()
+			const wf = workflow('test-id', 'Test')
+				.add(webhookTrigger)
+				.to(mergeNode.input(0))
+				.add(gmailTrigger)
+				.to(mergeNode.input(1))
+				.add(mergeNode)
+				.to(downstream);
+
+			const json = wf.toJSON();
+
+			// Both triggers should connect to the merge node
+			const webhookConns = json.connections['Website Form'];
+			expect(webhookConns.main[0]![0].node).toBe('Combine Sources');
+			expect(webhookConns.main[0]![0].index).toBe(0);
+
+			const gmailConns = json.connections['Incoming Email'];
+			expect(gmailConns.main[0]![0].node).toBe('Combine Sources');
+			expect(gmailConns.main[0]![0].index).toBe(1);
+
+			// Merge should connect to downstream
+			const mergeConns = json.connections['Combine Sources'];
+			expect(mergeConns.main[0]![0].node).toBe('Process');
+		});
+
 		it('should not connect to both inputs when using inline chain pattern with .to([])', () => {
 			const webhookTrigger = trigger({
 				type: 'n8n-nodes-base.webhook',
