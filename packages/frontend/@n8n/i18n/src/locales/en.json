@@ -3975,7 +3975,7 @@
 	"settings.ldap.form.enforceEmailUniqueness.label": "Enforce Email Uniqueness",
 	"settings.ldap.form.enforceEmailUniqueness.tooltip": "Prevents login if multiple LDAP accounts use the same email, blocking account linking attacks.",
 	"settings.ldap.section.synchronization.title": "Synchronization",
-	"settings.security": "Security",
+	"settings.security": "Security & policies",
 	"settings.security.personalSpace.title": "Personal Space",
 	"settings.security.personalSpace.publishing.title": "Publishing workflows",
 	"settings.security.personalSpace.publishing.description": "Allow users to publish workflows from their Personal Space.",
