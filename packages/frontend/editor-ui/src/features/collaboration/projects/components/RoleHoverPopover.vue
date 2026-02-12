@@ -63,7 +63,7 @@ const onButtonClick = () => {
 		<slot />
 		<template #content>
 			<div :class="$style.popoverContent">
-				<N8nText tag="div" :bold="true" size="medium" :class="$style.roleName">
+				<N8nText tag="div" :bold="true" size="large" :class="$style.roleName">
 					{{ role.displayName }}
 				</N8nText>
 				<N8nText tag="div" size="small" color="text-light" :class="$style.permissionCount">
@@ -81,7 +81,7 @@ const onButtonClick = () => {
 				</N8nText>
 				<N8nButton type="tertiary" size="small" :class="$style.actionButton" @click="onButtonClick">
 					{{ buttonText }}
-					<N8nIcon icon="arrow-up-right" size="xsmall" :class="$style.externalIcon" />
+					<N8nIcon icon="arrow-up-right" size="large" :class="$style.externalIcon" />
 				</N8nButton>
 			</div>
 		</template>
@@ -95,7 +95,7 @@ const onButtonClick = () => {
 }
 
 .roleName {
-	margin-bottom: var(--spacing--4xs);
+	margin-bottom: var(--spacing--2xs);
 }
 
 .permissionCount {
@@ -107,6 +107,8 @@ const onButtonClick = () => {
 }
 
 .actionButton {
+	display: flex;
+	align-items: center;
 	margin-top: var(--spacing--2xs);
 }
 
