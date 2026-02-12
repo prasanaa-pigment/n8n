@@ -1,4 +1,4 @@
-import { computed, watch, type Ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
 
 import type { INodeUi } from '@/Interface';
 import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
@@ -28,6 +28,8 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	const workflowState = injectWorkflowState();
 	const toast = useToast();
 	const i18n = useI18n();
+
+	const isInitialTestInProgress = ref(false);
 
 	const sourceNodes = computed(() => nodes?.value ?? workflowsStore.allNodes);
 
@@ -172,6 +174,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 			initialTestDone = true;
 
 			const seen = new Set<string>();
+			const promises: Promise<void>[] = [];
 			for (const { node, credentialTypes } of entries) {
 				for (const credType of credentialTypes) {
 					const credValue = node.credentials?.[credType];
@@ -182,8 +185,15 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 					const cred = credentialsStore.getCredentialById(selectedId);
 					if (!cred) continue;
 
-					void testCredentialInBackground(selectedId, cred.name, credType);
+					promises.push(testCredentialInBackground(selectedId, cred.name, credType));
 				}
+			}
+
+			if (promises.length > 0) {
+				isInitialTestInProgress.value = true;
+				void Promise.all(promises).then(() => {
+					isInitialTestInProgress.value = false;
+				});
 			}
 		},
 		{ immediate: true },
@@ -277,6 +287,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 		totalCredentialsMissing,
 		totalNodesRequiringSetup,
 		isAllComplete,
+		isInitialTestInProgress,
 		setCredential,
 		unsetCredential,
 	};

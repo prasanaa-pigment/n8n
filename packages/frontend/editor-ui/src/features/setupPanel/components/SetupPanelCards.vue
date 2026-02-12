@@ -10,7 +10,8 @@ import { useTelemetry } from '@/app/composables/useTelemetry';
 const i18n = useI18n();
 const telemetry = useTelemetry();
 const workflowsStore = useWorkflowsStore();
-const { nodeSetupStates, isAllComplete, setCredential, unsetCredential } = useWorkflowSetupState();
+const { nodeSetupStates, isAllComplete, isInitialTestInProgress, setCredential, unsetCredential } =
+	useWorkflowSetupState();
 
 watch(isAllComplete, (allComplete) => {
 	if (allComplete) {
@@ -60,6 +61,7 @@ const onCredentialDeselected = (nodeName: string, credentialType: string) => {
 				v-for="(state, index) in nodeSetupStates"
 				:key="state.node.id"
 				:state="state"
+				:loading="isInitialTestInProgress"
 				:expanded="index === 0"
 				@credential-selected="onCredentialSelected(state.node.name, $event)"
 				@credential-deselected="onCredentialDeselected(state.node.name, $event)"

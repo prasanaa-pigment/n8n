@@ -13,9 +13,13 @@ import type { NodeSetupState } from '../setupPanel.types';
 import { useNodeExecution } from '@/app/composables/useNodeExecution';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 
-const props = defineProps<{
-	state: NodeSetupState;
-}>();
+const props = withDefaults(
+	defineProps<{
+		state: NodeSetupState;
+		loading?: boolean;
+	}>(),
+	{ loading: false },
+);
 
 const expanded = defineModel<boolean>('expanded', { default: false });
 
@@ -129,14 +133,21 @@ onMounted(() => {
 			$style.card,
 			{
 				[$style.collapsed]: !expanded,
-				[$style.completed]: state.isComplete,
+				[$style.completed]: state.isComplete && !loading,
 				[$style['no-content']]: !state.credentialRequirements.length,
 			},
 		]"
 	>
 		<header data-test-id="node-setup-card-header" :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
-				v-if="!expanded && state.isComplete"
+				v-if="!expanded && loading"
+				icon="spinner"
+				:class="$style['loading-icon']"
+				size="medium"
+				spin
+			/>
+			<N8nIcon
+				v-else-if="!expanded && state.isComplete"
 				data-test-id="node-setup-card-complete-icon"
 				icon="check"
 				:class="$style['complete-icon']"
@@ -270,6 +281,10 @@ onMounted(() => {
 
 .complete-icon {
 	color: var(--color--success);
+}
+
+.loading-icon {
+	color: var(--color--text--tint-2);
 }
 
 .content {
