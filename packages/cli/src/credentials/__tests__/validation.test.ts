@@ -8,12 +8,61 @@ import {
 	validateExternalSecretsPermissions,
 	isChangingExternalSecretExpression,
 	validateAccessToReferencedSecretProviders,
+	extractProviderKeys,
 } from '../validation';
 
 describe('Credentials Validation', () => {
 	const ownerUser = mock<User>({ id: 'owner-id', role: GLOBAL_OWNER_ROLE });
 	const memberUser = mock<User>({ id: 'member-id', role: GLOBAL_MEMBER_ROLE });
 	const errorMessage = 'Lacking permissions to reference external secrets in credentials';
+
+	describe('extractProviderKeys', () => {
+		it('should extract single provider from dot notation', () => {
+			expect(extractProviderKeys('={{ $secrets.vault.myKey }}')).toEqual(['vault']);
+		});
+
+		it('should extract single provider from bracket notation', () => {
+			expect(extractProviderKeys("={{ $secrets['aws']['secret'] }}")).toEqual(['aws']);
+		});
+
+		it('should extract multiple providers from same expression', () => {
+			const result = extractProviderKeys(
+				'={{ $secrets.vault.myKey + ":" + $secrets.aws.otherKey }}',
+			);
+			expect(result.sort()).toEqual(['aws', 'vault']);
+		});
+
+		it('should deduplicate repeated provider keys', () => {
+			expect(extractProviderKeys('={{ $secrets.vault.key1 + $secrets.vault.key2 }}')).toEqual([
+				'vault',
+			]);
+		});
+
+		it('should return empty array when no $secrets references found', () => {
+			expect(extractProviderKeys('={{ $variables.myVar }}')).toEqual([]);
+		});
+
+		it('should return empty array for plain text', () => {
+			expect(extractProviderKeys('some plain text')).toEqual([]);
+		});
+
+		it('should return empty array when $secrets is not inside expression braces', () => {
+			expect(extractProviderKeys('$secrets.vault.key')).toEqual([]);
+			expect(extractProviderKeys('text with $secrets.vault.key but no braces')).toEqual([]);
+		});
+
+		it('should only extract providers from inside expression braces', () => {
+			expect(extractProviderKeys('$secrets.vault.key and {{ $secrets.aws.secret }}')).toEqual([
+				'aws',
+			]);
+		});
+
+		it('should extract providers from multiple expression blocks', () => {
+			const expression = 'hello {{ $secrets.vault.key }} world {{ $secrets.aws.secret }}';
+			const result = extractProviderKeys(expression);
+			expect(result.sort()).toEqual(['aws', 'vault']);
+		});
+	});
 
 	describe('validateExternalSecretsPermissions', () => {
 		it('should pass when credential data contains no external secrets', () => {
@@ -158,8 +207,8 @@ describe('Credentials Validation', () => {
 		});
 
 		it('should return true when modifying external secret in nested object', () => {
-			const existingData = { apiKey: 'plain', config: { token: '$secrets.oldToken' } };
-			const newData = { apiKey: 'plain', config: { token: '$secrets.newToken' } };
+			const existingData = { apiKey: 'plain', config: { token: '={{ $secrets.oldToken }}' } };
+			const newData = { apiKey: 'plain', config: { token: '={{ $secrets.newToken }}' } };
 
 			expect(isChangingExternalSecretExpression(newData, existingData)).toBe(true);
 		});
@@ -210,9 +259,9 @@ describe('Credentials Validation', () => {
 			accessCheckService = mock<SecretsProviderAccessCheckService>();
 		});
 
-		it('should handle provider name with underscores, hyphens and numbers', async () => {
+		it('should handle provider name with hyphens and numbers', async () => {
 			const data = {
-				apiKey: '={{ $secrets.my_provider-123.key }}',
+				apiKey: '={{ $secrets.my-provider-123.key }}',
 			};
 
 			accessCheckService.isProviderAvailableInProject = jest.fn().mockResolvedValue(true);
@@ -222,7 +271,7 @@ describe('Credentials Validation', () => {
 			).resolves.toBeUndefined();
 
 			expect(accessCheckService.isProviderAvailableInProject).toHaveBeenCalledWith(
-				'my_provider-123',
+				'my-provider-123',
 				projectId,
 			);
 		});
