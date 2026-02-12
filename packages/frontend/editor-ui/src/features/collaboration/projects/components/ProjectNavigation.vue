@@ -317,7 +317,7 @@ onBeforeUnmount(() => {
 
 .marginBot {
 	margin-bottom: var(--spacing--3xs);
-	margin-top: 0px;
+	margin-top: 0;
 }
 
 .projectAdd {
