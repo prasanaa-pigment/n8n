@@ -402,12 +402,14 @@ defineExpose({ node, isValid, nodeTypeDescription, handleChangeName });
 .tabs {
 	flex-shrink: 0;
 	margin-bottom: var(--spacing--xs);
+	padding-right: var(--spacing--md);
 }
 
 .tabContent {
 	flex: 1;
 	overflow-y: auto;
 	min-height: 0;
+	padding-right: var(--spacing--md);
 }
 
 .noParameters {

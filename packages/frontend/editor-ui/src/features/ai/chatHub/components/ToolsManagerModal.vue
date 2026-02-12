@@ -370,10 +370,6 @@ function handleSettingsChangeName(name: string) {
 }
 
 .settingsView {
-	:global(.el-dialog__body) {
-		padding-right: var(--spacing--md);
-	}
-
 	:global(.ndv-connection-hint-notice) {
 		display: none;
 	}

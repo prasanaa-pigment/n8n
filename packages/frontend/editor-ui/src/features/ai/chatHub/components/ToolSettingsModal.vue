@@ -109,7 +109,7 @@ function handleNodeNameUpdate(name: string) {
 	}
 
 	:global(.el-dialog__body) {
-		padding: var(--spacing--sm) var(--spacing--md);
+		padding: var(--spacing--sm) 0 var(--spacing--sm) var(--spacing--md);
 	}
 
 	:global(.modal-content) {
@@ -130,7 +130,7 @@ function handleNodeNameUpdate(name: string) {
 	align-items: center;
 	gap: var(--spacing--2xs);
 	width: 100%;
-	padding-top: var(--spacing--sm);
+	padding-right: var(--spacing--md);
 }
 
 .header {
