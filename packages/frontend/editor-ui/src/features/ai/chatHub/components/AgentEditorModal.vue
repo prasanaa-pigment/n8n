@@ -114,6 +114,13 @@ function closeDialog() {
 	uiStore.closeModal(props.modalName);
 }
 
+function handleInteractOutside(e: Event) {
+	const target = e.target as HTMLElement | null;
+	if (target?.closest('.el-overlay')) {
+		e.preventDefault();
+	}
+}
+
 // If the agent doesn't support tools anymore, reset toolIds
 watch(
 	selectedAgent,
@@ -270,7 +277,12 @@ async function onDelete() {
 </script>
 
 <template>
-	<N8nDialog :open="true" size="xlarge" @update:open="closeDialog">
+	<N8nDialog
+		:open="true"
+		size="xlarge"
+		@update:open="closeDialog"
+		@interact-outside="handleInteractOutside"
+	>
 		<template v-if="isLoadingAgent">
 			<div :class="$style.loader">
 				<N8nSpinner />
