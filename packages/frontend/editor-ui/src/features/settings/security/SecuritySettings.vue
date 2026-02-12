@@ -155,10 +155,15 @@ const sharingCountText = computed(() => {
 </script>
 
 <template>
-	<div :class="$style.container">
-		<N8nHeading tag="h1" size="2xlarge" class="mb-xl">
-			{{ i18n.baseText('settings.security') }}
-		</N8nHeading>
+	<div class="pb-3xl">
+		<div class="mb-xl" :class="$style.headerTitle">
+			<N8nHeading tag="h1" size="2xlarge">
+				{{ i18n.baseText('settings.security') }}
+			</N8nHeading>
+			<N8nText color="text-base" size="medium">
+				{{ i18n.baseText('settings.security.description') }}
+			</N8nText>
+		</div>
 
 		<N8nHeading tag="h2" size="large" class="mb-l">
 			{{ i18n.baseText('settings.personal.mfa.enforce.title') }}
@@ -333,14 +338,15 @@ const sharingCountText = computed(() => {
 </template>
 
 <style module>
-.container {
-	padding-bottom: var(--spacing--md);
+.headerTitle {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing--2xs);
 }
 
 .settingsSection {
 	border-radius: var(--radius);
 	border: var(--border-width) var(--border-style) var(--color--foreground);
-	max-width: 600px;
 	margin-bottom: var(--spacing--lg);
 }
 
