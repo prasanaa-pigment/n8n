@@ -797,6 +797,7 @@ function onFilesDropped(files: File[]) {
 								:has-session-streaming="isResponding"
 								:cached-agent-display-name="selectedModel?.name ?? null"
 								:cached-agent-icon="selectedModel?.icon ?? null"
+								:accepted-mime-types="selectedModel?.metadata.allowedFilesMimeTypes ?? ''"
 								:min-height="
 									didSubmitInCurrentSession &&
 									message.type === 'ai' &&

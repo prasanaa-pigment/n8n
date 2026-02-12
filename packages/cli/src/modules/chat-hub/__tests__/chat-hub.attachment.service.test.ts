@@ -74,6 +74,24 @@ describe('ChatHubAttachmentService', () => {
 			);
 		});
 
+		it('should accept application/octet-stream when explicitly in allowed types', () => {
+			const attachments = [makeAttachment('application/octet-stream')];
+			expect(() =>
+				service.validateAttachments(
+					attachments,
+					true,
+					'text/*,application/json,application/octet-stream',
+				),
+			).not.toThrow();
+		});
+
+		it('should reject application/octet-stream when not in allowed types', () => {
+			const attachments = [makeAttachment('application/octet-stream')];
+			expect(() => service.validateAttachments(attachments, true, 'image/*')).toThrow(
+				BadRequestError,
+			);
+		});
+
 		it('should handle mixed exact and wildcard patterns', () => {
 			const attachments = [
 				makeAttachment('image/png'),

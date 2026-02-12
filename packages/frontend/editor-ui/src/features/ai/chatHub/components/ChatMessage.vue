@@ -45,6 +45,7 @@ const {
 	minHeight,
 	cachedAgentDisplayName,
 	cachedAgentIcon,
+	acceptedMimeTypes,
 } = defineProps<{
 	message: ChatMessage;
 	compact: boolean;
@@ -53,6 +54,7 @@ const {
 	hasSessionStreaming: boolean;
 	cachedAgentDisplayName: string | null;
 	cachedAgentIcon: AgentIconOrEmoji | null;
+	acceptedMimeTypes: string;
 	/**
 	 * minHeight allows scrolling agent's response to the top while it is being generated
 	 */
@@ -328,6 +330,7 @@ onBeforeMount(() => {
 				type="file"
 				data-test-id="message-edit-file-input"
 				:class="$style.fileInput"
+				:accept="acceptedMimeTypes"
 				multiple
 				@change="handleFileSelect"
 			/>
