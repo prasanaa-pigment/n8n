@@ -3,6 +3,7 @@ import type { SecretsProviderConnection, SecretsProviderConnectionRepository } f
 import { mock } from 'jest-mock-extended';
 
 import { CREDENTIAL_BLANKING_VALUE } from '@/constants';
+import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import type { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
 import type { RedactionService } from '@/modules/external-secrets.ee/redaction.service.ee';
 import { SecretsProvidersConnectionsService } from '@/modules/external-secrets.ee/secrets-providers-connections.service.ee';
@@ -11,13 +12,14 @@ import type { SecretsProvider } from '@/modules/external-secrets.ee/types';
 describe('SecretsProvidersConnectionsService', () => {
 	const mockExternalSecretsManager = mock<ExternalSecretsManager>();
 	const mockRedactionService = mock<RedactionService>();
+	const mockRepository = mock<SecretsProviderConnectionRepository>();
 	const mockCipher = {
 		encrypt: jest.fn((data: IDataObject) => JSON.stringify(data)),
 		decrypt: jest.fn((data: string) => data),
 	};
 
 	const service = new SecretsProvidersConnectionsService(
-		mock<SecretsProviderConnectionRepository>(),
+		mockRepository,
 		mock(),
 		mockCipher as any,
 		mockExternalSecretsManager,
@@ -190,6 +192,58 @@ describe('SecretsProvidersConnectionsService', () => {
 
 		it('should return empty object for empty connections', () => {
 			expect(service.toSecretCompletionsResponse([])).toEqual({});
+		});
+	});
+
+	describe('getConnectionForProject', () => {
+		it('should return connection when it belongs to the given project', async () => {
+			const connection = {
+				id: 1,
+				providerKey: 'my-aws',
+				projectAccess: [{ projectId: 'project-1' }, { projectId: 'project-2' }],
+			} as unknown as SecretsProviderConnection;
+
+			mockRepository.findOne.mockResolvedValue(connection);
+
+			const result = await service.getConnectionForProject('my-aws', 'project-1');
+			expect(result).toBe(connection);
+			expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { providerKey: 'my-aws' } });
+		});
+
+		it('should throw NotFoundError when connection does not exist', async () => {
+			mockRepository.findOne.mockResolvedValue(null);
+
+			await expect(service.getConnectionForProject('missing', 'project-1')).rejects.toThrow(
+				NotFoundError,
+			);
+		});
+
+		it('should throw NotFoundError when connection does not belong to the project', async () => {
+			const connection = {
+				id: 1,
+				providerKey: 'my-aws',
+				projectAccess: [{ projectId: 'other-project' }],
+			} as unknown as SecretsProviderConnection;
+
+			mockRepository.findOne.mockResolvedValue(connection);
+
+			await expect(service.getConnectionForProject('my-aws', 'project-1')).rejects.toThrow(
+				NotFoundError,
+			);
+		});
+
+		it('should throw NotFoundError when connection has no project access entries', async () => {
+			const connection = {
+				id: 1,
+				providerKey: 'global-conn',
+				projectAccess: [],
+			} as unknown as SecretsProviderConnection;
+
+			mockRepository.findOne.mockResolvedValue(connection);
+
+			await expect(service.getConnectionForProject('global-conn', 'project-1')).rejects.toThrow(
+				NotFoundError,
+			);
 		});
 	});
 });
