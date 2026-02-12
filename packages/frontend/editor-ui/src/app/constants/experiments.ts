@@ -83,6 +83,12 @@ export const SETUP_PANEL = createExperiment('069_setup_panel', {
 	variant: 'variant',
 });
 
+export const CODE_WORKFLOW_BUILDER_EXPERIMENT = createExperiment('071_coding_workflow_builder', {
+	control: 'control',
+	codeNoPinData: 'code-no-pin-data',
+	codePinData: 'code-pin-data',
+});
+
 export const QUICK_CONNECT_EXPERIMENT = {
 	name: '073_quick_connect',
 	control: 'control',
@@ -105,6 +111,7 @@ export const EXPERIMENTS_TO_TRACK = [
 	SIDEBAR_EXPANDED_EXPERIMENT.name,
 	EMPTY_STATE_EXPERIMENT.name,
 	SETUP_PANEL.name,
+	CODE_WORKFLOW_BUILDER_EXPERIMENT.name,
 	EMPTY_STATE_BUILDER_PROMPT_EXPERIMENT.name,
 	FOCUSED_NODES_EXPERIMENT.name,
 ];
