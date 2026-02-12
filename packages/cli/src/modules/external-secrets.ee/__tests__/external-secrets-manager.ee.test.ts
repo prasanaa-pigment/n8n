@@ -255,6 +255,145 @@ describe('ExternalSecretsManager', () => {
 		});
 	});
 
+	describe('syncProviderConnection', () => {
+		const mockConnection = {
+			id: 1,
+			providerKey: 'my-vault',
+			type: 'dummy',
+			encryptedSettings: 'encrypted-data',
+			isEnabled: true,
+			projectAccess: [],
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			setUpdateDate: jest.fn(),
+		};
+
+		it('should tear down existing provider, set up new one, refresh cache, and broadcast', async () => {
+			const existingProvider = new DummyProvider();
+			await existingProvider.init({ connected: true, connectedAt: null, settings: {} });
+			mockProviderRegistry.add('my-vault', existingProvider);
+
+			const decryptedSettings = { key: 'value' };
+			mockSecretsProviderConnectionRepository.findOne.mockResolvedValue(mockConnection as any);
+			mockCipher.decrypt.mockReturnValue(JSON.stringify(decryptedSettings));
+
+			const newProvider = new DummyProvider();
+			await newProvider.init({ connected: true, connectedAt: null, settings: {} });
+			await newProvider.connect();
+			mockProviderLifecycle.initialize.mockResolvedValue({
+				success: true,
+				provider: newProvider,
+			});
+
+			await manager.syncProviderConnection('my-vault');
+
+			// Tears down existing provider
+			expect(mockRetryManager.cancelRetry).toHaveBeenCalledWith('my-vault');
+			expect(mockProviderLifecycle.disconnect).toHaveBeenCalledWith(existingProvider);
+			expect(mockProviderRegistry.remove).toHaveBeenCalledWith('my-vault');
+
+			// Sets up new provider with decrypted settings
+			expect(mockCipher.decrypt).toHaveBeenCalledWith('encrypted-data');
+			expect(mockProviderLifecycle.initialize).toHaveBeenCalledWith('dummy', {
+				connected: true,
+				connectedAt: null,
+				settings: decryptedSettings,
+			});
+
+			// Refreshes cache for the provider
+			expect(mockSecretsCache.refreshProvider).toHaveBeenCalledWith('my-vault', newProvider);
+
+			// Broadcasts reload
+			expect(mockPublisher.publishCommand).toHaveBeenCalledWith({
+				command: 'reload-external-secrets-providers',
+			});
+		});
+
+		it('should only tear down and broadcast when connection no longer exists', async () => {
+			const existingProvider = new DummyProvider();
+			mockProviderRegistry.add('my-vault', existingProvider);
+
+			mockSecretsProviderConnectionRepository.findOne.mockResolvedValue(null);
+
+			await manager.syncProviderConnection('my-vault');
+
+			// Tears down
+			expect(mockRetryManager.cancelRetry).toHaveBeenCalledWith('my-vault');
+			expect(mockProviderRegistry.remove).toHaveBeenCalledWith('my-vault');
+
+			// Does NOT set up a new provider
+			expect(mockProviderLifecycle.initialize).not.toHaveBeenCalled();
+			expect(mockSecretsCache.refreshProvider).not.toHaveBeenCalled();
+
+			// Still broadcasts reload
+			expect(mockPublisher.publishCommand).toHaveBeenCalledWith({
+				command: 'reload-external-secrets-providers',
+			});
+		});
+
+		it('should skip cache refresh when provider initialization fails', async () => {
+			mockSecretsProviderConnectionRepository.findOne.mockResolvedValue(mockConnection as any);
+			mockCipher.decrypt.mockReturnValue(JSON.stringify({ key: 'value' }));
+
+			// Provider initialization fails, so it won't be added to the registry
+			mockProviderLifecycle.initialize.mockResolvedValue({
+				success: false,
+				error: new Error('Init failed'),
+			});
+
+			await manager.syncProviderConnection('my-vault');
+
+			expect(mockProviderLifecycle.initialize).toHaveBeenCalled();
+			expect(mockSecretsCache.refreshProvider).not.toHaveBeenCalled();
+			// Still broadcasts reload
+			expect(mockPublisher.publishCommand).toHaveBeenCalledWith({
+				command: 'reload-external-secrets-providers',
+			});
+		});
+
+		it('should broadcast reload even when no existing provider to tear down', async () => {
+			mockSecretsProviderConnectionRepository.findOne.mockResolvedValue(mockConnection as any);
+			mockCipher.decrypt.mockReturnValue(JSON.stringify({ key: 'value' }));
+
+			const newProvider = new DummyProvider();
+			mockProviderLifecycle.initialize.mockResolvedValue({
+				success: true,
+				provider: newProvider,
+			});
+
+			await manager.syncProviderConnection('my-vault');
+
+			// No teardown needed (no existing provider)
+			expect(mockProviderLifecycle.disconnect).not.toHaveBeenCalled();
+
+			// Sets up provider and broadcasts
+			expect(mockProviderLifecycle.initialize).toHaveBeenCalled();
+			expect(mockPublisher.publishCommand).toHaveBeenCalledWith({
+				command: 'reload-external-secrets-providers',
+			});
+		});
+
+		it('should pass isEnabled as connected flag to setupProvider', async () => {
+			const disabledConnection = { ...mockConnection, isEnabled: false };
+			mockSecretsProviderConnectionRepository.findOne.mockResolvedValue(disabledConnection as any);
+			mockCipher.decrypt.mockReturnValue(JSON.stringify({ key: 'value' }));
+
+			const dummyProvider = new DummyProvider();
+			mockProviderLifecycle.initialize.mockResolvedValue({
+				success: true,
+				provider: dummyProvider,
+			});
+
+			await manager.syncProviderConnection('my-vault');
+
+			expect(mockProviderLifecycle.initialize).toHaveBeenCalledWith('dummy', {
+				connected: false,
+				connectedAt: null,
+				settings: { key: 'value' },
+			});
+		});
+	});
+
 	describe('updateProvider', () => {
 		it('should update connected provider', async () => {
 			const dummyProvider = new DummyProvider();
