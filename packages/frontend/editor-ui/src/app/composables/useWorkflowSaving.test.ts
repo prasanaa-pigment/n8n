@@ -613,7 +613,7 @@ describe('useWorkflowSaving', () => {
 			expect(autosaveStore.autoSaveState).toBe(AutoSaveState.Scheduled);
 		});
 
-		it('should reschedule autosave after save completes if state is still dirty', async () => {
+		it('should keep state dirty if changes were made during save', async () => {
 			const workflow = createTestWorkflow({
 				id: 'w-autosave',
 				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
@@ -633,7 +633,6 @@ describe('useWorkflowSaving', () => {
 			const uiStore = useUIStore();
 			const autosaveStore = useWorkflowAutosaveStore();
 
-			// Mark state as dirty
 			uiStore.markStateDirty();
 			const initialDirtyCount = uiStore.dirtyStateSetCount;
 
@@ -647,19 +646,16 @@ describe('useWorkflowSaving', () => {
 				workflowState: mockWorkflowState as WorkflowState,
 			});
 
-			// Set state to InProgress before save
 			autosaveStore.setAutoSaveState(AutoSaveState.InProgress);
 
-			// Simulate a change happening during save by incrementing dirty count
-			// We do this by marking dirty again after starting save
 			const savePromise = saveCurrentWorkflow({ id: workflow.id }, true, false, true);
 
-			// Mark dirty again during save to simulate user making changes
+			// Simulate user making changes during save
 			uiStore.markStateDirty();
 
 			await savePromise;
 
-			// After save, state should still be dirty (because dirtyStateSetCount changed during save)
+			// State should remain dirty because changes were made during save
 			expect(uiStore.stateIsDirty).toBe(true);
 			expect(uiStore.dirtyStateSetCount).toBeGreaterThan(initialDirtyCount);
 		});
@@ -733,10 +729,13 @@ describe('useWorkflowSaving', () => {
 			});
 
 			// Simulate a save already in progress
-			const pendingPromise = new Promise<boolean>(() => {});
+			let resolvePendingSave: ((value: boolean) => void) | undefined;
+			const pendingPromise = new Promise<boolean>((resolve) => {
+				resolvePendingSave = resolve;
+			});
 			autosaveStore.setPendingAutoSave(pendingPromise);
 
-			// Try to run autosave (autosaved=true) while another save is in progress
+			// Try to run autosave while another save is in progress
 			const result = await saveCurrentWorkflow({ id: workflow.id }, true, false, true);
 
 			// Should return true (skipped, not failed)
@@ -744,6 +743,371 @@ describe('useWorkflowSaving', () => {
 
 			// updateWorkflow should NOT have been called since we skipped
 			expect(workflowsStore.updateWorkflow).not.toHaveBeenCalled();
+
+			// Clean up pending promise
+			if (resolvePendingSave) {
+				resolvePendingSave(true);
+			}
+			await pendingPromise;
+		});
+
+		it('should wait for pending autosave when manual save is triggered', async () => {
+			const workflow = createTestWorkflow({
+				id: 'w-manual-waits',
+				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+				active: true,
+			});
+
+			vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+
+			// Mock first save to block until we manually resolve it
+			let resolveAutosave:
+				| ((value: typeof workflow & { checksum: string; versionId: string }) => void)
+				| undefined;
+			const blockedPromise = new Promise<typeof workflow & { checksum: string; versionId: string }>(
+				(resolve) => {
+					resolveAutosave = resolve;
+				},
+			);
+
+			const updateWorkflowSpy = vi
+				.spyOn(workflowsStore, 'updateWorkflow')
+				.mockImplementationOnce(async () => await blockedPromise)
+				.mockResolvedValueOnce({
+					...workflow,
+					checksum: 'test-checksum-manual',
+					versionId: 'v2',
+				});
+
+			workflowsStore.setWorkflow(workflow);
+			workflowsListStore.workflowsById = { [workflow.id]: workflow };
+			workflowsStore.workflowId = workflow.id;
+
+			const testWorkflowState: Partial<WorkflowState> = {
+				setWorkflowName: vi.fn(),
+				setWorkflowProperty: vi.fn(),
+			};
+
+			const { saveCurrentWorkflow } = useWorkflowSaving({
+				router,
+				workflowState: testWorkflowState as WorkflowState,
+			});
+
+			// Start autosave
+			const autosavePromise = saveCurrentWorkflow({ id: workflow.id }, true, false, true);
+			await Promise.resolve();
+
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+
+			// Trigger manual save while autosave is still running
+			const manualSavePromise = saveCurrentWorkflow({ id: workflow.id }, true, false, false);
+			await Promise.resolve();
+
+			// Manual save should wait - still only 1 call to updateWorkflow
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+
+			// Complete the autosave
+			if (resolveAutosave) {
+				resolveAutosave({
+					...workflow,
+					checksum: 'test-checksum-auto',
+					versionId: 'v1',
+				});
+			}
+
+			await autosavePromise;
+			const manualResult = await manualSavePromise;
+
+			// Now manual save should have completed
+			expect(manualResult).toBe(true);
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('should NOT wait for pending save when forceSave is true', async () => {
+			const workflow = createTestWorkflow({
+				id: 'w-force-save',
+				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+				active: true,
+			});
+
+			vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+			const updateWorkflowSpy = vi.spyOn(workflowsStore, 'updateWorkflow').mockResolvedValue({
+				...workflow,
+				checksum: 'test-checksum',
+				versionId: 'v1',
+			});
+
+			workflowsStore.setWorkflow(workflow);
+			workflowsListStore.workflowsById = { [workflow.id]: workflow };
+			workflowsStore.workflowId = workflow.id;
+
+			const autosaveStore = useWorkflowAutosaveStore();
+
+			const testWorkflowState: Partial<WorkflowState> = {
+				setWorkflowName: vi.fn(),
+				setWorkflowProperty: vi.fn(),
+			};
+
+			const { saveCurrentWorkflow } = useWorkflowSaving({
+				router,
+				workflowState: testWorkflowState as WorkflowState,
+			});
+
+			// Simulate a save already in progress
+			let resolvePendingSave: ((value: boolean) => void) | undefined;
+			const pendingPromise = new Promise<boolean>((resolve) => {
+				resolvePendingSave = resolve;
+			});
+			autosaveStore.setPendingAutoSave(pendingPromise);
+
+			// Force save should bypass the wait
+			const forceSavePromise = saveCurrentWorkflow({ id: workflow.id }, true, true, false);
+			await Promise.resolve();
+
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+
+			// Force save should complete without waiting for pending promise
+			const result = await forceSavePromise;
+			expect(result).toBe(true);
+
+			// Clean up pending promise
+			if (resolvePendingSave) {
+				resolvePendingSave(true);
+			}
+			await pendingPromise;
+		});
+
+		it('should properly cleanup pendingAutoSave after save completes', async () => {
+			const workflow = createTestWorkflow({
+				id: 'w-cleanup',
+				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+				active: true,
+			});
+
+			vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+
+			// Control when the save completes
+			let resolveSave:
+				| ((value: typeof workflow & { checksum: string; versionId: string }) => void)
+				| undefined;
+			const blockedPromise = new Promise<typeof workflow & { checksum: string; versionId: string }>(
+				(resolve) => {
+					resolveSave = resolve;
+				},
+			);
+
+			vi.spyOn(workflowsStore, 'updateWorkflow').mockImplementation(
+				async () => await blockedPromise,
+			);
+
+			workflowsStore.setWorkflow(workflow);
+			workflowsListStore.workflowsById = { [workflow.id]: workflow };
+			workflowsStore.workflowId = workflow.id;
+
+			const autosaveStore = useWorkflowAutosaveStore();
+
+			const testWorkflowState: Partial<WorkflowState> = {
+				setWorkflowName: vi.fn(),
+				setWorkflowProperty: vi.fn(),
+			};
+
+			const { saveCurrentWorkflow } = useWorkflowSaving({
+				router,
+				workflowState: testWorkflowState as WorkflowState,
+			});
+
+			// Before save starts
+			expect(autosaveStore.pendingAutoSave).toBeNull();
+
+			const savePromise = saveCurrentWorkflow({ id: workflow.id }, true, false, false);
+			await Promise.resolve();
+
+			// During save
+			expect(autosaveStore.pendingAutoSave).toBeTruthy();
+
+			// Complete the save
+			if (resolveSave) {
+				resolveSave({
+					...workflow,
+					checksum: 'test-checksum',
+					versionId: 'v1',
+				});
+			}
+
+			await savePromise;
+
+			// After save completes
+			expect(autosaveStore.pendingAutoSave).toBeNull();
+		});
+
+		it('should handle consecutive autosave and manual save correctly', async () => {
+			const workflow = createTestWorkflow({
+				id: 'w-consecutive',
+				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+				active: true,
+			});
+
+			vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+
+			// Track execution order to verify manual save waits for autosave
+			const callOrder: string[] = [];
+
+			let resolveAutosave1:
+				| ((value: typeof workflow & { checksum: string; versionId: string }) => void)
+				| undefined;
+			const blockedPromise = new Promise<typeof workflow & { checksum: string; versionId: string }>(
+				(resolve) => {
+					resolveAutosave1 = resolve;
+				},
+			);
+
+			const updateWorkflowSpy = vi
+				.spyOn(workflowsStore, 'updateWorkflow')
+				.mockImplementationOnce(async () => {
+					callOrder.push('autosave1-start');
+					const result = await blockedPromise;
+					callOrder.push('autosave1-complete');
+					return result;
+				})
+				.mockImplementationOnce(async () => {
+					await Promise.resolve();
+					callOrder.push('manual-save');
+					return {
+						...workflow,
+						checksum: 'test-checksum-manual',
+						versionId: 'v2',
+					};
+				});
+
+			workflowsStore.setWorkflow(workflow);
+			workflowsListStore.workflowsById = { [workflow.id]: workflow };
+			workflowsStore.workflowId = workflow.id;
+
+			const autosaveStore = useWorkflowAutosaveStore();
+
+			const testWorkflowState: Partial<WorkflowState> = {
+				setWorkflowName: vi.fn(),
+				setWorkflowProperty: vi.fn(),
+			};
+
+			const { saveCurrentWorkflow } = useWorkflowSaving({
+				router,
+				workflowState: testWorkflowState as WorkflowState,
+			});
+
+			// Start first autosave
+			const autosave1Promise = saveCurrentWorkflow({ id: workflow.id }, true, false, true);
+			await Promise.resolve();
+
+			expect(callOrder).toContain('autosave1-start');
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+
+			// Second autosave while first is running should be skipped
+			const autosave2Promise = saveCurrentWorkflow({ id: workflow.id }, true, false, true);
+			const autosave2Result = await autosave2Promise;
+			expect(autosave2Result).toBe(true);
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+
+			// Manual save while autosave is running should wait
+			const manualSavePromise = saveCurrentWorkflow({ id: workflow.id }, true, false, false);
+			await Promise.resolve();
+
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(1);
+			expect(callOrder).not.toContain('manual-save');
+
+			// Complete the first autosave
+			if (resolveAutosave1) {
+				resolveAutosave1({
+					...workflow,
+					checksum: 'test-checksum-auto',
+					versionId: 'v1',
+				});
+			}
+
+			await autosave1Promise;
+			const manualSaveResult = await manualSavePromise;
+
+			// Verify ordering: autosave completes before manual save starts
+			expect(manualSaveResult).toBe(true);
+			expect(callOrder).toEqual(['autosave1-start', 'autosave1-complete', 'manual-save']);
+			expect(updateWorkflowSpy).toHaveBeenCalledTimes(2);
+			expect(autosaveStore.pendingAutoSave).toBeNull();
+		});
+
+		it('should handle manual save failure and cleanup pendingAutoSave', async () => {
+			const workflow = createTestWorkflow({
+				id: 'w-failure',
+				nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+				active: true,
+			});
+
+			vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+			vi.spyOn(workflowsStore, 'updateWorkflow').mockRejectedValue(new Error('Network error'));
+
+			workflowsStore.setWorkflow(workflow);
+			workflowsListStore.workflowsById = { [workflow.id]: workflow };
+			workflowsStore.workflowId = workflow.id;
+
+			const autosaveStore = useWorkflowAutosaveStore();
+
+			const testWorkflowState: Partial<WorkflowState> = {
+				setWorkflowName: vi.fn(),
+				setWorkflowProperty: vi.fn(),
+			};
+
+			const { saveCurrentWorkflow } = useWorkflowSaving({
+				router,
+				workflowState: testWorkflowState as WorkflowState,
+			});
+
+			const result = await saveCurrentWorkflow({ id: workflow.id }, true, false, false);
+
+			expect(result).toBe(false);
+			expect(autosaveStore.pendingAutoSave).toBeNull();
+		});
+
+		it('should handle autosave failure with retry behavior', async () => {
+			vi.useFakeTimers();
+
+			try {
+				const workflow = createTestWorkflow({
+					id: 'w-autosave-failure',
+					nodes: [createTestNode({ type: CHAT_TRIGGER_NODE_TYPE, disabled: false })],
+					active: true,
+				});
+
+				vi.spyOn(workflowsListStore, 'fetchWorkflow').mockResolvedValue(workflow);
+				const errorMessage = 'Network timeout';
+				vi.spyOn(workflowsStore, 'updateWorkflow').mockRejectedValue(new Error(errorMessage));
+
+				workflowsStore.setWorkflow(workflow);
+				workflowsListStore.workflowsById = { [workflow.id]: workflow };
+				workflowsStore.workflowId = workflow.id;
+
+				const autosaveStore = useWorkflowAutosaveStore();
+				const initialRetryCount = autosaveStore.retryCount;
+
+				const testWorkflowState: Partial<WorkflowState> = {
+					setWorkflowName: vi.fn(),
+					setWorkflowProperty: vi.fn(),
+				};
+
+				const { saveCurrentWorkflow } = useWorkflowSaving({
+					router,
+					workflowState: testWorkflowState as WorkflowState,
+				});
+
+				const result = await saveCurrentWorkflow({ id: workflow.id }, true, false, true);
+
+				// Verify autosave failure triggers retry logic
+				expect(result).toBe(false);
+				expect(autosaveStore.pendingAutoSave).toBeNull();
+				expect(autosaveStore.retryCount).toBe(initialRetryCount + 1);
+				expect(autosaveStore.lastError).toBe(errorMessage);
+				expect(autosaveStore.isRetrying).toBe(true);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 
 		it('should not schedule autosave when network is offline', () => {
@@ -754,7 +1118,6 @@ describe('useWorkflowSaving', () => {
 
 			const { autoSaveWorkflow } = useWorkflowSaving({ router });
 
-			// Try to schedule autosave while offline
 			autoSaveWorkflow();
 
 			expect(autosaveStore.autoSaveState).toBe(AutoSaveState.Idle);
