@@ -52,7 +52,8 @@ const onReenterDemo = () => {
 };
 
 const onClearDemoData = () => {
-	workflowsStore.setWorkflowPinData(pinDataHoldover.value ?? {});
+	pinDataHoldover.value = cloneDeep(workflow.value.pinData ?? {});
+	workflowsStore.setWorkflowPinData({});
 	state.value = 'clear';
 };
 const { runEntireWorkflow } = useRunWorkflow({ router });
