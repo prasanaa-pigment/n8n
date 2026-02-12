@@ -84,7 +84,7 @@ function isInvalidToolCallBlock(
 function isToolResultBlock(
 	block: LangchainMessages.ContentBlock,
 ): block is LangchainMessages.ContentBlock.Tools.ServerToolCallResult {
-	return block.type === 'tool-result';
+	return block.type === 'server_tool_call_result';
 }
 function isCitationBlock(block: unknown): block is LangchainMessages.ContentBlock.Citation {
 	return (
