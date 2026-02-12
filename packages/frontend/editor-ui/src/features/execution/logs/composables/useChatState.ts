@@ -1,5 +1,3 @@
-import type { RunWorkflowChatPayload } from '@/features/execution/logs/composables/useChatMessaging';
-import { useChatMessaging } from '@/features/execution/logs/composables/useChatMessaging';
 import { useI18n } from '@n8n/i18n';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
 import { useRunWorkflow } from '@/app/composables/useRunWorkflow';
@@ -7,37 +5,25 @@ import { VIEWS } from '@/app/constants';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import MessageWithButtons from '@n8n/chat/components/MessageWithButtons.vue';
-import { ChatOptionsSymbol, MessageComponentKey } from '@n8n/chat/constants';
 import { chatEventBus } from '@n8n/chat/event-buses';
-import type { Chat, ChatMessage, ChatOptions, SendMessageResponse } from '@n8n/chat/types';
+import type { ChatMessage, ChatOptions, SendMessageResponse } from '@n8n/chat/types';
 import { v4 as uuid } from 'uuid';
-import type { ComputedRef, InjectionKey, Ref } from 'vue';
-import { computed, provide, ref, toValue, watch } from 'vue';
+import type { ComputedRef, Ref } from 'vue';
+import { computed, ref, toValue, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useLogsStore } from '@/app/stores/logs.store';
 import { restoreChatHistory } from '@/features/execution/logs/logs.utils';
 import type { INode, NodeParameterValue } from 'n8n-workflow';
 import { isChatNode } from '@/app/utils/aiUtils';
-import {
-	constructChatWebsocketUrl,
-	parseBotChatMessageContent,
-	shouldBlockUserInput,
-} from '@n8n/chat/utils';
 import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import { resolveParameter } from '@/app/composables/useWorkflowHelpers';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
-
-type IntegratedChat = Omit<Chat, 'sendMessage'> & {
-	sendMessage: (text: string, files: File[]) => Promise<void>;
-};
-
-const ChatSymbol = 'Chat' as unknown as InjectionKey<IntegratedChat>;
+import { MessageComponentKey } from '@n8n/chat/constants/messageComponents';
 
 interface ChatState {
 	currentSessionId: ComputedRef<string>;
 	messages: ComputedRef<ChatMessage[]>;
 	previousChatMessages: ComputedRef<string[]>;
-	sendMessage: (message: string, files?: File[]) => Promise<void>;
 	refreshSession: () => void;
 	displayExecution: (executionId: string) => void;
 	chatTriggerNode: ComputedRef<INode | null>;
@@ -66,7 +52,6 @@ export function useChatState(
 	const nodeTypesStore = useNodeTypesStore();
 	const { runWorkflow } = useRunWorkflow({ router });
 
-	const ws = ref<WebSocket | null>(null);
 	const webhookRegistered = ref(false);
 	const isRegistering = ref(false);
 	const messages = computed(() => logsStore.chatSessionMessages);
@@ -120,23 +105,6 @@ export function useChatState(
 			);
 		},
 		{ immediate: true },
-	);
-
-	const allowFileUploads = computed<boolean>(
-		() =>
-			(resolvedOptions.value?.allowFileUploads ??
-				getNodeParameterDefault('allowFileUploads', false)) === true,
-	);
-
-	const allowedFilesMimeTypes = computed<string>(() => {
-		const value = resolvedOptions.value?.allowedFilesMimeTypes;
-		return value?.toString() ?? getNodeParameterDefault<string>('allowedFilesMimeTypes', '*');
-	});
-
-	const respondNodesResponseMode = computed(
-		() =>
-			(resolvedOptions.value?.responseMode ??
-				getNodeParameterDefault<string>('responseMode', 'lastNode')) === 'responseNodes',
 	);
 
 	// Check if streaming is enabled in ChatTrigger node
@@ -289,7 +257,7 @@ export function useChatState(
 					});
 				}
 			},
-			afterMessageSent: async (_message: string, response) => {
+			afterMessageSent: (_message: string, response?: SendMessageResponse) => {
 				// Store bot response for persistence
 				if (isReadOnly || !response) {
 					return;
@@ -326,85 +294,6 @@ export function useChatState(
 			locale.baseText('chat.window.chat.response.empty'),
 		),
 	);
-
-	// This function creates a promise that resolves when the workflow execution completes
-	// It's used to handle the loading state while waiting for the workflow to finish
-	async function createExecutionPromise() {
-		return await new Promise<void>((resolve) => {
-			const resolveIfFinished = (isRunning: boolean) => {
-				if (!isRunning) {
-					unwatch();
-					resolve();
-				}
-			};
-
-			// Watch for changes in the workflow execution status
-			const unwatch = watch(() => workflowsStore.isWorkflowRunning, resolveIfFinished);
-			resolveIfFinished(workflowsStore.isWorkflowRunning);
-		});
-	}
-
-	async function onRunChatWorkflow(payload: RunWorkflowChatPayload) {
-		const runWorkflowOptions: Parameters<typeof runWorkflow>[0] = {
-			triggerNode: payload.triggerNode,
-			nodeData: payload.nodeData,
-			source: payload.source,
-		};
-
-		if (workflowsStore.chatPartialExecutionDestinationNode) {
-			runWorkflowOptions.destinationNode = {
-				nodeName: workflowsStore.chatPartialExecutionDestinationNode,
-				mode: 'inclusive',
-			};
-			workflowsStore.chatPartialExecutionDestinationNode = null;
-		}
-
-		const response = await runWorkflow(runWorkflowOptions);
-
-		if (response) {
-			if (respondNodesResponseMode.value) {
-				const wsUrl = constructChatWebsocketUrl(
-					rootStore.urlBaseEditor,
-					response.executionId as string,
-					currentSessionId.value,
-					false,
-				);
-
-				ws.value = new WebSocket(wsUrl);
-				ws.value.onmessage = (event) => {
-					if (event.data === 'n8n|heartbeat') {
-						ws.value?.send('n8n|heartbeat-ack');
-						return;
-					}
-					if (event.data === 'n8n|continue') {
-						setLoadingState(true);
-						return;
-					}
-					setLoadingState(false);
-					const newMessage: ChatMessage & { sessionId: string } = {
-						...parseBotChatMessageContent(event.data as string),
-						sessionId: currentSessionId.value,
-					};
-					chatConfig.blockUserInput.value = shouldBlockUserInput(newMessage);
-					logsStore.addChatMessage(newMessage);
-
-					if (logsStore.isOpen) {
-						chatEventBus.emit('focusInput');
-					}
-				};
-				ws.value.onclose = () => {
-					setLoadingState(false);
-					ws.value = null;
-					chatConfig.blockUserInput.value = false;
-				};
-			}
-
-			await createExecutionPromise();
-			workflowsStore.appendChatMessage(payload.message);
-			return response;
-		}
-		return;
-	}
 
 	function refreshSession() {
 		workflowState.setWorkflowExecutionData(null);

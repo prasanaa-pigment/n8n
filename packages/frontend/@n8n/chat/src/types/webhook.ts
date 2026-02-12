@@ -1,4 +1,4 @@
-import { type ChatMessage } from './messages';
+import { type ChatMessageText } from './messages';
 
 export interface LoadPreviousSessionResponseItem {
 	id: string[];
@@ -17,7 +17,7 @@ export interface LoadPreviousSessionResponse {
 export interface SendMessageResponse {
 	output?: string;
 	text?: string;
-	message?: string | ChatMessage;
+	message?: string | ChatMessageText;
 	executionId?: string;
 	executionStarted?: boolean;
 	hasReceivedChunks?: boolean;

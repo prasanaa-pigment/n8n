@@ -41,6 +41,10 @@ function createUserMessage(text: string, files: File[] = []): ChatMessage {
 function processMessageResponse(response: SendMessageResponse): string {
 	let textMessage = response.output ?? response.text ?? response.message ?? '';
 
+	if (typeof textMessage === 'object' && textMessage.type && textMessage.type === 'text') {
+		return textMessage.text;
+	}
+
 	if (textMessage === '' && Object.keys(response).length > 0) {
 		try {
 			textMessage = JSON.stringify(response, null, 2);
@@ -49,7 +53,7 @@ function processMessageResponse(response: SendMessageResponse): string {
 		}
 	}
 
-	return textMessage;
+	return textMessage as string;
 }
 
 interface EmptyStreamConfig {
@@ -199,7 +203,7 @@ async function handleNonStreamingMessage(
 
 	const receivedMessage = createBotMessage();
 	receivedMessage.text = processMessageResponse(sendMessageResponse);
-	return { botMessage: receivedMessage };
+	return { response: sendMessageResponse, botMessage: receivedMessage };
 }
 
 export const ChatPlugin: Plugin<ChatOptions> = {
