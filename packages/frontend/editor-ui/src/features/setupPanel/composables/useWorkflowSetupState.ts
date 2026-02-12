@@ -116,7 +116,7 @@ export const useWorkflowSetupState = (
 	});
 
 	const isReadyToDemo = computed(() =>
-		nodeSetupStates.value.every((x) => x.node.name in sourcePinnedData.value),
+		nodeSetupStates.value.every((x) => x.node.name in (sourcePinnedData.value ?? {})),
 	);
 
 	const isAllComplete = computed(() => {
