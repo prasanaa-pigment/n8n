@@ -520,6 +520,41 @@ describe('Merge', () => {
 			expect(json.connections['Merge'].main[0]![0].node).toBe('Next');
 		});
 
+		it('should support merge node self-loop via WorkflowBuilder.to()', () => {
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Accumulator' },
+			}) as MergeNode;
+			const process = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: { name: 'Process' },
+			});
+
+			// Merge output loops back into its own input 1 via a processing step
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(mergeNode.input(0))
+				.add(mergeNode)
+				.to(process)
+				.to(mergeNode.input(1));
+
+			const json = wf.toJSON();
+
+			// Trigger connects to merge input 0
+			expect(json.connections['Manual Trigger'].main[0]![0].node).toBe('Accumulator');
+			expect(json.connections['Manual Trigger'].main[0]![0].index).toBe(0);
+
+			// Merge connects to process
+			expect(json.connections['Accumulator'].main[0]![0].node).toBe('Process');
+
+			// Process loops back to merge input 1
+			expect(json.connections['Process'].main[0]![0].node).toBe('Accumulator');
+			expect(json.connections['Process'].main[0]![0].index).toBe(1);
+		});
+
 		it('should not connect to both inputs when using inline chain pattern with .to([])', () => {
 			const webhookTrigger = trigger({
 				type: 'n8n-nodes-base.webhook',
