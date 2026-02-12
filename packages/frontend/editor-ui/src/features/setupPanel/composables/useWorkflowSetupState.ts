@@ -13,7 +13,6 @@ import { useToast } from '@/app/composables/useToast';
 import { useI18n } from '@n8n/i18n';
 
 import { getNodeCredentialTypes, buildNodeSetupState } from '../setupPanel.utils';
-import { useSetupPanelStore } from '../setupPanel.store';
 
 /**
  * Composable that manages workflow setup state for credential configuration.
@@ -29,7 +28,6 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	const workflowState = injectWorkflowState();
 	const toast = useToast();
 	const i18n = useI18n();
-	const setupPanelStore = useSetupPanelStore();
 
 	const sourceNodes = computed(() => nodes?.value ?? workflowsStore.allNodes);
 
@@ -97,7 +95,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 				credentialTypeToNodeNames.value,
 				isTrigger,
 				hasTriggerExecutedSuccessfully(node.name),
-				setupPanelStore.isCredentialPendingTest,
+				(id) => !credentialsStore.isCredentialTestPassed(id),
 			),
 		),
 	);
@@ -125,10 +123,8 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	const credentialsBeingTested = new Set<string>();
 
 	/**
-	 * Tests a saved credential in the background and updates the pending test state.
+	 * Tests a saved credential in the background and writes the result to the credentials store.
 	 * Fetches the credential's redacted data first so the backend can unredact and test.
-	 * On any failure (fetch, test error, non-testable) removes the pending state so the
-	 * credential doesn't get stuck without a checkmark permanently.
 	 */
 	async function testCredentialInBackground(
 		credentialId: string,
@@ -140,7 +136,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 		try {
 			const credentialResponse = await credentialsStore.getCredentialData({ id: credentialId });
 			if (!credentialResponse?.data || typeof credentialResponse.data === 'string') {
-				setupPanelStore.removePendingTest(credentialId);
+				credentialsStore.markCredentialTestFailed(credentialId);
 				return;
 			}
 
@@ -152,10 +148,12 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 				data: data as ICredentialDataDecryptedObject,
 			});
 			if (result.status === 'OK') {
-				setupPanelStore.removePendingTest(credentialId);
+				credentialsStore.markCredentialTestPassed(credentialId);
+			} else {
+				credentialsStore.markCredentialTestFailed(credentialId);
 			}
 		} catch {
-			setupPanelStore.removePendingTest(credentialId);
+			credentialsStore.markCredentialTestFailed(credentialId);
 		} finally {
 			credentialsBeingTested.delete(credentialId);
 		}
@@ -164,7 +162,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	/**
 	 * Auto-test all pre-existing selected credentials on initial load.
 	 * Runs once when nodes become available so checkmarks reflect actual validity.
-	 * Subsequent credential selections are handled by setCredential.
+	 * Deduplicates by credential ID so shared credentials are only tested once.
 	 */
 	let initialTestDone = false;
 	watch(
@@ -173,16 +171,17 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 			if (initialTestDone || entries.length === 0) return;
 			initialTestDone = true;
 
+			const seen = new Set<string>();
 			for (const { node, credentialTypes } of entries) {
 				for (const credType of credentialTypes) {
 					const credValue = node.credentials?.[credType];
 					const selectedId = typeof credValue === 'string' ? undefined : credValue?.id;
-					if (!selectedId) continue;
+					if (!selectedId || seen.has(selectedId)) continue;
+					seen.add(selectedId);
 
 					const cred = credentialsStore.getCredentialById(selectedId);
 					if (!cred) continue;
 
-					setupPanelStore.addPendingTest(selectedId);
 					void testCredentialInBackground(selectedId, cred.name, credType);
 				}
 			}
@@ -206,7 +205,6 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 
 		const credentialDetails = { id: credentialId, name: credential.name };
 
-		setupPanelStore.addPendingTest(credentialId);
 		void testCredentialInBackground(credentialId, credential.name, credentialType);
 
 		workflowState.updateNodeProperties({

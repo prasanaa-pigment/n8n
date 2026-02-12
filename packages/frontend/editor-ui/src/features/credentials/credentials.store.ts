@@ -41,6 +41,24 @@ export type CredentialsStore = ReturnType<typeof useCredentialsStore>;
 export const useCredentialsStore = defineStore(STORES.CREDENTIALS, () => {
 	const state = ref<ICredentialsState>({ credentialTypes: {}, credentials: {} });
 
+	const credentialsPassedTest = ref(new Set<string>());
+
+	const markCredentialTestPassed = (id: string) => {
+		const next = new Set(credentialsPassedTest.value);
+		next.add(id);
+		credentialsPassedTest.value = next;
+	};
+
+	const markCredentialTestFailed = (id: string) => {
+		const next = new Set(credentialsPassedTest.value);
+		next.delete(id);
+		credentialsPassedTest.value = next;
+	};
+
+	const isCredentialTestPassed = (id: string): boolean => {
+		return credentialsPassedTest.value.has(id);
+	};
+
 	const rootStore = useRootStore();
 
 	// ---------------------------------------------------------------------------
@@ -452,6 +470,9 @@ export const useCredentialsStore = defineStore(STORES.CREDENTIALS, () => {
 
 	return {
 		state,
+		markCredentialTestPassed,
+		markCredentialTestFailed,
+		isCredentialTestPassed,
 		getCredentialOwnerName,
 		getCredentialsByType,
 		getCredentialById,

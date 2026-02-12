@@ -66,7 +66,6 @@ import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import { setParameterValue } from '@/app/utils/parameterUtils';
 import get from 'lodash/get';
 import { useDynamicCredentials } from '@/features/resolvers/composables/useDynamicCredentials';
-import { useSetupPanelStore } from '@/features/setupPanel/setupPanel.store';
 
 type Props = {
 	modalName: string;
@@ -94,8 +93,6 @@ const telemetry = useTelemetry();
 const router = useRouter();
 const rootStore = useRootStore();
 const { isEnabled: isDynamicCredentialsEnabled } = useDynamicCredentials();
-const setupPanelStore = useSetupPanelStore();
-
 const activeTab = ref('connection');
 const authError = ref('');
 const credentialId = ref('');
@@ -668,6 +665,14 @@ async function retestCredential() {
 		return;
 	}
 
+	// Skip the API call if the credential was already tested successfully (e.g. by the
+	// setup-panel composable's initial-load check). The store is the single source of truth.
+	if (credentialId.value && credentialsStore.isCredentialTestPassed(credentialId.value)) {
+		authError.value = '';
+		testedSuccessfully.value = true;
+		return;
+	}
+
 	const { ownedBy, sharedWithProjects, ...otherCredData } = credentialData.value;
 	const details: ICredentialsDecrypted = {
 		id: credentialId.value,
@@ -686,11 +691,14 @@ async function testCredential(credentialDetails: ICredentialsDecrypted) {
 	if (result.status === 'Error') {
 		authError.value = result.message;
 		testedSuccessfully.value = false;
+		if (credentialDetails.id) {
+			credentialsStore.markCredentialTestFailed(credentialDetails.id);
+		}
 	} else {
 		authError.value = '';
 		testedSuccessfully.value = true;
 		if (credentialDetails.id) {
-			setupPanelStore.removePendingTest(credentialDetails.id);
+			credentialsStore.markCredentialTestPassed(credentialDetails.id);
 		}
 	}
 
