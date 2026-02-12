@@ -396,7 +396,7 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 	// Private - Utilities
 	// ========================================
 
-	private broadcastReload(): void {
+	broadcastReload(): void {
 		void this.publisher.publishCommand({ command: 'reload-external-secrets-providers' });
 	}
 
