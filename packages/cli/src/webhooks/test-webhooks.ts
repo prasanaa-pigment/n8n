@@ -323,7 +323,6 @@ export class TestWebhooks implements IWebhookManager {
 
 		const timeoutDuration = TEST_WEBHOOK_TIMEOUT;
 
-		const timeout = setTimeout(async () => await this.cancelWebhook(workflow.id), timeoutDuration);
 		// Check if any webhook is a single webhook trigger and workflow is active
 		if (workflowIsActive) {
 			const singleWebhookTrigger = webhooks.find((w) =>
@@ -335,6 +334,8 @@ export class TestWebhooks implements IWebhookManager {
 				);
 			}
 		}
+
+		const timeout = setTimeout(async () => await this.cancelWebhook(workflow.id), timeoutDuration);
 
 		for (const webhook of webhooks) {
 			webhook.path = removeTrailingSlash(webhook.path);

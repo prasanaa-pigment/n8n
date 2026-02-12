@@ -101,14 +101,6 @@ export async function handleNodeComplete(
 					messages.value[index] = parsed;
 				}
 
-				// Call afterMessageSent with the component message
-				if (options.afterMessageSent) {
-					await options.afterMessageSent(userMessage, {
-						message: parsed,
-						hasReceivedChunks: true,
-					});
-				}
-
 				return shouldBlockUserInput(parsed);
 			}
 		}

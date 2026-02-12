@@ -258,6 +258,7 @@ export function useChatState(
 				[MessageComponentKey.WITH_BUTTONS]: MessageWithButtons,
 			},
 			messageHistory: messages.value,
+			disabled: ref(isReadOnly),
 			i18n: {
 				en: {
 					title: locale.baseText('chat.window.title') || 'Chat',
@@ -275,12 +276,12 @@ export function useChatState(
 				},
 			},
 			beforeMessageSent: async (message: string) => {
-				// Register fresh webhook before each message to ensure it's active
-				// This gives us a fresh webhook with full timeout for each message
-				await registerChatWebhook();
-
-				// Store user message for persistence
 				if (!isReadOnly) {
+					// Register fresh webhook before each message to ensure it's active
+					// This gives us a fresh webhook with full timeout for each message
+					await registerChatWebhook();
+
+					// Store user message for persistence
 					logsStore.addChatMessage({
 						id: uuid(),
 						text: message,
@@ -294,10 +295,10 @@ export function useChatState(
 					return;
 				}
 
-				if ('hasReceivedChunks' in response) {
+				if (response.hasReceivedChunks) {
 					const message = response.message;
 					// In streaming mode, store the completed message
-					if (message && 'text' in message) {
+					if (message && typeof message === 'object' && 'text' in message) {
 						logsStore.addChatMessage({
 							id: message.id,
 							text: message.text,
@@ -308,84 +309,15 @@ export function useChatState(
 				}
 
 				// Extract bot message from non-streaming response
-				if (response) {
-					let botMessage: string | SendMessageResponse | undefined =
-						response.output ?? response.text ?? response.message;
-					botMessage ??= response;
-
-					logsStore.addChatMessage({
-						id: uuid(),
-						text: typeof botMessage === 'string' ? botMessage : JSON.stringify(botMessage),
-						sender: 'bot',
-					});
-				}
+				const botMessage = response.output ?? response.text ?? response.message;
+				logsStore.addChatMessage({
+					id: uuid(),
+					text: typeof botMessage === 'string' ? botMessage : JSON.stringify(response),
+					sender: 'bot',
+				});
 			},
 		};
 		return options;
-	});
-
-	const { sendMessage, isLoading, setLoadingState } = useChatMessaging({
-		chatTrigger: chatTriggerNode,
-		sessionId: currentSessionId,
-		executionResultData: computed(() => workflowsStore.getWorkflowExecution?.data?.resultData),
-		onRunChatWorkflow,
-		onNewMessage: logsStore.addChatMessage,
-		ws,
-	});
-
-	// Extracted pure functions for better testability
-	function createChatConfig(params: {
-		messages: Chat['messages'];
-		sendMessage: IntegratedChat['sendMessage'];
-		currentSessionId: Chat['currentSessionId'];
-		isLoading: Ref<boolean>;
-		isDisabled: Ref<boolean>;
-		allowFileUploads: Ref<boolean>;
-		locale: ReturnType<typeof useI18n>;
-	}): { chatConfig: IntegratedChat; chatOptions: ChatOptions } {
-		const chatConfig: IntegratedChat = {
-			messages: params.messages,
-			sendMessage: params.sendMessage,
-			initialMessages: ref([]),
-			currentSessionId: params.currentSessionId,
-			waitingForResponse: params.isLoading,
-			blockUserInput: ref(false),
-		};
-
-		const chatOptions: ChatOptions = {
-			i18n: {
-				en: {
-					title: '',
-					footer: '',
-					subtitle: '',
-					inputPlaceholder: params.locale.baseText('chat.window.chat.placeholder'),
-					getStarted: '',
-					closeButtonTooltip: '',
-				},
-			},
-			webhookUrl: '',
-			mode: 'window',
-			showWindowCloseButton: true,
-			disabled: params.isDisabled,
-			allowFileUploads: params.allowFileUploads,
-			allowedFilesMimeTypes,
-			messageComponents: {
-				[MessageComponentKey.WITH_BUTTONS]: MessageWithButtons,
-			},
-		};
-
-		return { chatConfig, chatOptions };
-	}
-
-	// Initialize chat config
-	const { chatConfig, chatOptions } = createChatConfig({
-		messages,
-		sendMessage,
-		currentSessionId,
-		isLoading,
-		isDisabled: computed(() => isReadOnly),
-		allowFileUploads,
-		locale,
 	});
 
 	const restoredChatMessages = computed(() =>
@@ -394,10 +326,6 @@ export function useChatState(
 			locale.baseText('chat.window.chat.response.empty'),
 		),
 	);
-
-	// Provide chat context
-	provide(ChatSymbol, chatConfig);
-	provide(ChatOptionsSymbol, chatOptions);
 
 	// This function creates a promise that resolves when the workflow execution completes
 	// It's used to handle the loading state while waiting for the workflow to finish
@@ -516,7 +444,6 @@ export function useChatState(
 			isReadOnly ? restoredChatMessages.value : logsStore.chatSessionMessages,
 		),
 		previousChatMessages,
-		sendMessage,
 		refreshSession,
 		displayExecution,
 		chatTriggerNode,

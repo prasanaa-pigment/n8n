@@ -101,8 +101,7 @@ function destroyChat() {
 	}
 }
 
-// Watch for isOpen changes - but don't destroy/recreate the chat
-// Just let CSS handle visibility to preserve chat state
+// Watch for isOpen changes
 watch(
 	() => props.isOpen,
 	async (newIsOpen) => {
@@ -111,7 +110,6 @@ watch(
 			destroyChat();
 			initializeChat();
 		}
-		// Note: We don't destroy when closing to preserve chat state
 	},
 );
 

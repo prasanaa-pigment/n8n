@@ -27,11 +27,6 @@ export async function sendMessage(
 	sessionId: string,
 	options: ChatOptions,
 ) {
-	// Call beforeMessageSent handler if provided
-	if (options.beforeMessageSent) {
-		await options.beforeMessageSent(message);
-	}
-
 	let response: SendMessageResponse;
 
 	if (files.length > 0) {
@@ -131,11 +126,6 @@ export async function sendMessageStreaming(
 	options: ChatOptions,
 	handlers: StreamingEventHandlers,
 ): Promise<{ hasReceivedChunks: boolean }> {
-	// Call beforeMessageSent handler if provided
-	if (options.beforeMessageSent) {
-		await options.beforeMessageSent(message);
-	}
-
 	// Build request
 	const response = await (files.length > 0
 		? sendWithFiles(message, files, sessionId, options)
@@ -183,11 +173,6 @@ export async function sendMessageStreaming(
 		}
 	} finally {
 		reader.releaseLock();
-	}
-
-	// Call afterMessageSent handler if provided
-	if (options.afterMessageSent) {
-		await options.afterMessageSent(message, { hasReceivedChunks });
 	}
 
 	return { hasReceivedChunks };

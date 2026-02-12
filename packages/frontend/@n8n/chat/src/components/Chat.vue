@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Close from 'virtual:icons/mdi/close';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 import GetStarted from '@n8n/chat/components/GetStarted.vue';
 import GetStartedFooter from '@n8n/chat/components/GetStartedFooter.vue';
@@ -101,6 +101,8 @@ function onArrowKeyDown(payload: ArrowKeyDownPayload) {
 	}
 }
 
+let clearOnMessageSent: () => void;
+
 onMounted(async () => {
 	if (!messages.value.length && options.messageHistory) {
 		messages.value = options.messageHistory.map((m) => ({ ...m }));
@@ -111,10 +113,16 @@ onMounted(async () => {
 	}
 
 	// Reset history index and buffer when a new message is sent
-	chatEventBus.on('messageSent', () => {
+	clearOnMessageSent = chatEventBus.on('messageSent', () => {
 		messageHistoryIndex.value = -1;
 		currentInputBuffer.value = '';
 	});
+});
+
+onUnmounted(() => {
+	if (clearOnMessageSent) {
+		clearOnMessageSent();
+	}
 });
 </script>
 

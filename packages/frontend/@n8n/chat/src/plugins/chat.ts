@@ -123,7 +123,7 @@ interface StreamingMessageConfig {
  * Sets up streaming event handlers and processes the response chunks
  * @param config - Configuration object for streaming message handling
  */
-async function handleStreamingMessage(config: StreamingMessageConfig): Promise<void> {
+async function handleStreamingMessage(config: StreamingMessageConfig): Promise<boolean> {
 	const {
 		text,
 		files,
@@ -169,6 +169,8 @@ async function handleStreamingMessage(config: StreamingMessageConfig): Promise<v
 	if (!hasReceivedChunks) {
 		handleEmptyStreamResponse({ receivedMessage, messages });
 	}
+
+	return hasReceivedChunks;
 }
 
 interface NonStreamingMessageConfig {
@@ -234,8 +236,13 @@ export const ChatPlugin: Plugin<ChatOptions> = {
 			const streamingManager = new StreamingMessageManager();
 
 			try {
+				// Call beforeMessageSent handler if provided
+				if (options.beforeMessageSent) {
+					await options.beforeMessageSent(text);
+				}
+
 				if (options?.enableStreaming) {
-					await handleStreamingMessage({
+					const hasReceivedChunks = await handleStreamingMessage({
 						text,
 						files,
 						sessionId: currentSessionId.value as string,
@@ -245,6 +252,14 @@ export const ChatPlugin: Plugin<ChatOptions> = {
 						streamingManager,
 						blockUserInput,
 					});
+
+					// Call afterMessageSent handler if provided
+					if (options.afterMessageSent) {
+						await options.afterMessageSent(text, {
+							hasReceivedChunks,
+							message: receivedMessage.value ?? '',
+						});
+					}
 				} else {
 					const result = await handleNonStreamingMessage({
 						text,
@@ -261,6 +276,10 @@ export const ChatPlugin: Plugin<ChatOptions> = {
 					if (result.botMessage) {
 						receivedMessage.value = result.botMessage;
 						messages.value.push(result.botMessage);
+					}
+
+					if (options.afterMessageSent) {
+						await options.afterMessageSent(text, result.response);
 					}
 				}
 			} catch (error) {
