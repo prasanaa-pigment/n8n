@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { createComponentRenderer } from '@/__tests__/render';
 import { mockedStore } from '@/__tests__/utils';
 import SecuritySettings from './SecuritySettings.vue';
-import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/app/constants';
+import { EnterpriseEditionFeature } from '@/app/constants';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useUsersStore } from '@/features/settings/users/users.store';
 
@@ -20,11 +20,6 @@ const showToast = vi.fn();
 const showError = vi.fn();
 vi.mock('@/app/composables/useToast', () => ({
 	useToast: () => ({ showToast, showError }),
-}));
-
-const confirmMessage = vi.fn();
-vi.mock('@/app/composables/useMessage', () => ({
-	useMessage: () => ({ confirm: confirmMessage }),
 }));
 
 vi.mock('@n8n/stores/useRootStore', () => ({
@@ -79,7 +74,7 @@ describe('SecuritySettings', () => {
 			expect(getSecuritySettings).toHaveBeenCalled();
 		});
 
-		expect(getByText('Security')).toBeInTheDocument();
+		expect(getByText('Security & policies')).toBeInTheDocument();
 		expect(getByText('Personal Space')).toBeInTheDocument();
 	});
 
@@ -148,18 +143,17 @@ describe('SecuritySettings', () => {
 		);
 	});
 
-	it('should show confirm dialog when disabling personal space publishing', async () => {
+	it('should show alert dialog and proceed when confirming disable publishing', async () => {
 		getSecuritySettings.mockResolvedValue({
 			...defaultSettings,
 			personalSpacePublishing: true,
 		});
-		confirmMessage.mockResolvedValue(MODAL_CONFIRM);
 		updateSecuritySettings.mockResolvedValue({
 			...defaultSettings,
 			personalSpacePublishing: false,
 		});
 
-		const { getByTestId } = renderView();
+		const { getByTestId, getByRole } = renderView();
 
 		await waitFor(() => {
 			expect(getByTestId('security-personal-space-publishing-toggle')).toBeInTheDocument();
@@ -168,9 +162,14 @@ describe('SecuritySettings', () => {
 		const publishingToggle = getByTestId('security-personal-space-publishing-toggle');
 		await userEvent.click(publishingToggle);
 
+		// N8nAlertDialog should appear (uses role="dialog" via reka-ui DialogContent)
 		await waitFor(() => {
-			expect(confirmMessage).toHaveBeenCalled();
+			expect(getByRole('dialog')).toBeInTheDocument();
 		});
+
+		// Click Confirm button in the dialog
+		await userEvent.click(getByRole('button', { name: 'Confirm' }));
+
 		await waitFor(() => {
 			expect(updateSecuritySettings).toHaveBeenCalledWith(expect.anything(), {
 				personalSpacePublishing: false,
@@ -178,18 +177,17 @@ describe('SecuritySettings', () => {
 		});
 	});
 
-	it('should show confirm dialog when disabling personal space sharing', async () => {
+	it('should show alert dialog and proceed when confirming disable sharing', async () => {
 		getSecuritySettings.mockResolvedValue({
 			...defaultSettings,
 			personalSpaceSharing: true,
 		});
-		confirmMessage.mockResolvedValue(MODAL_CONFIRM);
 		updateSecuritySettings.mockResolvedValue({
 			...defaultSettings,
 			personalSpaceSharing: false,
 		});
 
-		const { getByTestId } = renderView();
+		const { getByTestId, getByRole } = renderView();
 
 		await waitFor(() => {
 			expect(getByTestId('security-personal-space-sharing-toggle')).toBeInTheDocument();
@@ -198,9 +196,14 @@ describe('SecuritySettings', () => {
 		const sharingToggle = getByTestId('security-personal-space-sharing-toggle');
 		await userEvent.click(sharingToggle);
 
+		// N8nAlertDialog should appear (uses role="dialog" via reka-ui DialogContent)
 		await waitFor(() => {
-			expect(confirmMessage).toHaveBeenCalled();
+			expect(getByRole('dialog')).toBeInTheDocument();
 		});
+
+		// Click Confirm button in the dialog
+		await userEvent.click(getByRole('button', { name: 'Confirm' }));
+
 		await waitFor(() => {
 			expect(updateSecuritySettings).toHaveBeenCalledWith(expect.anything(), {
 				personalSpaceSharing: false,
@@ -213,9 +216,8 @@ describe('SecuritySettings', () => {
 			...defaultSettings,
 			personalSpacePublishing: true,
 		});
-		confirmMessage.mockResolvedValue('cancel');
 
-		const { getByTestId } = renderView();
+		const { getByTestId, getByRole } = renderView();
 
 		await waitFor(() => {
 			expect(getByTestId('security-personal-space-publishing-toggle')).toBeInTheDocument();
@@ -224,9 +226,14 @@ describe('SecuritySettings', () => {
 		const publishingToggle = getByTestId('security-personal-space-publishing-toggle');
 		await userEvent.click(publishingToggle);
 
+		// N8nAlertDialog should appear (uses role="dialog" via reka-ui DialogContent)
 		await waitFor(() => {
-			expect(confirmMessage).toHaveBeenCalled();
+			expect(getByRole('dialog')).toBeInTheDocument();
 		});
+
+		// Click Cancel button in the dialog
+		await userEvent.click(getByRole('button', { name: 'Cancel' }));
+
 		expect(updateSecuritySettings).not.toHaveBeenCalled();
 	});
 
@@ -235,9 +242,8 @@ describe('SecuritySettings', () => {
 			...defaultSettings,
 			personalSpaceSharing: true,
 		});
-		confirmMessage.mockResolvedValue('cancel');
 
-		const { getByTestId } = renderView();
+		const { getByTestId, getByRole } = renderView();
 
 		await waitFor(() => {
 			expect(getByTestId('security-personal-space-sharing-toggle')).toBeInTheDocument();
@@ -246,9 +252,14 @@ describe('SecuritySettings', () => {
 		const sharingToggle = getByTestId('security-personal-space-sharing-toggle');
 		await userEvent.click(sharingToggle);
 
+		// N8nAlertDialog should appear (uses role="dialog" via reka-ui DialogContent)
 		await waitFor(() => {
-			expect(confirmMessage).toHaveBeenCalled();
+			expect(getByRole('dialog')).toBeInTheDocument();
 		});
+
+		// Click Cancel button in the dialog
+		await userEvent.click(getByRole('button', { name: 'Cancel' }));
+
 		expect(updateSecuritySettings).not.toHaveBeenCalled();
 	});
 
@@ -288,7 +299,7 @@ describe('SecuritySettings', () => {
 			expect(getByTestId('enable-force-mfa')).toBeInTheDocument();
 		});
 
-		expect(getByText('Security')).toBeInTheDocument();
+		expect(getByText('Security & policies')).toBeInTheDocument();
 		expect(queryByText('Personal Space')).not.toBeInTheDocument();
 	});
 
