@@ -1,15 +1,14 @@
 <script lang="ts" setup>
-import { computed, useCssModule } from 'vue';
+import { computed, ref, useCssModule } from 'vue';
 import { useAsyncState } from '@vueuse/core';
 import { ElSwitch } from 'element-plus';
 import { I18nT } from 'vue-i18n';
-import { N8nBadge, N8nHeading, N8nText, N8nTooltip } from '@n8n/design-system';
+import { N8nAlertDialog, N8nBadge, N8nHeading, N8nText, N8nTooltip } from '@n8n/design-system';
 import { useI18n, type BaseTextKey } from '@n8n/i18n';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useToast } from '@/app/composables/useToast';
 import * as securitySettingsApi from '@n8n/rest-api-client/api/security-settings';
-import { useMessage } from '@/app/composables/useMessage';
-import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/app/constants';
+import { EnterpriseEditionFeature } from '@/app/constants';
 import EnterpriseEdition from '@/app/components/EnterpriseEdition.ee.vue';
 import EnvFeatureFlag from '@/features/shared/envFeatureFlag/EnvFeatureFlag.vue';
 import { useSettingsStore } from '@/app/stores/settings.store';
@@ -22,11 +21,12 @@ const settingsStore = useSettingsStore();
 const usersStore = useUsersStore();
 const i18n = useI18n();
 const { showToast, showError } = useToast();
-const message = useMessage();
 const pageRedirectionHelper = usePageRedirectionHelper();
 
 const mfaTooltipKey = 'settings.personal.mfa.enforce.unlicensed_tooltip';
 const personalSpaceTooltipKey = 'settings.security.personalSpace.unlicensed_tooltip';
+const showPublishingDialog = ref(false);
+const showSharingDialog = ref(false);
 
 const isEnforceMFAEnabled = computed(
 	() => settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.EnforceMFA],
@@ -102,45 +102,47 @@ async function updatePersonalSpaceSetting(
 
 const personalSpacePublishing = computed({
 	get: () => state.value?.personalSpacePublishing ?? false,
-	set: async (value: boolean) => {
+	set: (value: boolean) => {
 		if (!value) {
-			const confirmed = await message.confirm(
-				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.message'),
-				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.headline'),
-				{
-					cancelButtonText: i18n.baseText('generic.cancel'),
-					confirmButtonText: i18n.baseText('generic.confirm'),
-				},
-			);
-			if (confirmed !== MODAL_CONFIRM) return;
+			showPublishingDialog.value = true;
+			return;
 		}
 		if (state.value) {
 			state.value = { ...state.value, personalSpacePublishing: value };
 		}
-		await updatePersonalSpaceSetting('personalSpacePublishing', value, 'publishing');
+		void updatePersonalSpaceSetting('personalSpacePublishing', value, 'publishing');
 	},
 });
 
+function confirmDisablePublishing() {
+	showPublishingDialog.value = false;
+	if (state.value) {
+		state.value = { ...state.value, personalSpacePublishing: false };
+	}
+	void updatePersonalSpaceSetting('personalSpacePublishing', false, 'publishing');
+}
+
 const personalSpaceSharing = computed({
 	get: () => state.value?.personalSpaceSharing ?? false,
-	set: async (value: boolean) => {
+	set: (value: boolean) => {
 		if (!value) {
-			const confirmed = await message.confirm(
-				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.message'),
-				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.headline'),
-				{
-					cancelButtonText: i18n.baseText('generic.cancel'),
-					confirmButtonText: i18n.baseText('generic.confirm'),
-				},
-			);
-			if (confirmed !== MODAL_CONFIRM) return;
+			showSharingDialog.value = true;
+			return;
 		}
 		if (state.value) {
 			state.value = { ...state.value, personalSpaceSharing: value };
 		}
-		await updatePersonalSpaceSetting('personalSpaceSharing', value, 'sharing');
+		void updatePersonalSpaceSetting('personalSpaceSharing', value, 'sharing');
 	},
 });
+
+function confirmDisableSharing() {
+	showSharingDialog.value = false;
+	if (state.value) {
+		state.value = { ...state.value, personalSpaceSharing: false };
+	}
+	void updatePersonalSpaceSetting('personalSpaceSharing', false, 'sharing');
+}
 
 const sharingCountText = computed(() => {
 	const workflows = state.value?.sharedPersonalWorkflowsCount ?? 0;
@@ -334,6 +336,32 @@ const sharingCountText = computed(() => {
 				</div>
 			</div>
 		</EnvFeatureFlag>
+
+		<N8nAlertDialog
+			:open="showPublishingDialog"
+			:title="
+				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.headline')
+			"
+			:description="
+				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.message')
+			"
+			@action="confirmDisablePublishing"
+			@cancel="showPublishingDialog = false"
+			@update:open="showPublishingDialog = $event"
+		/>
+
+		<N8nAlertDialog
+			:open="showSharingDialog"
+			:title="
+				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.headline')
+			"
+			:description="
+				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.message')
+			"
+			@action="confirmDisableSharing"
+			@cancel="showSharingDialog = false"
+			@update:open="showSharingDialog = $event"
+		/>
 	</div>
 </template>
 
