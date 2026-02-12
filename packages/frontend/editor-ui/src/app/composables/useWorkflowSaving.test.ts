@@ -733,7 +733,7 @@ describe('useWorkflowSaving', () => {
 			});
 
 			// Simulate a save already in progress
-			const pendingPromise = new Promise<void>(() => {});
+			const pendingPromise = new Promise<boolean>(() => {});
 			autosaveStore.setPendingAutoSave(pendingPromise);
 
 			// Try to run autosave (autosaved=true) while another save is in progress

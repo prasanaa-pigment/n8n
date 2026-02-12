@@ -172,169 +172,185 @@ export function useWorkflowSaving({
 				// Autosave will be rescheduled by the finally block of the in-progress save
 				return true;
 			}
-			// Wait for the pending save to complete first to avoid race conditions
-			await autosaveStore.pendingAutoSave;
+
+			if (!forceSave) {
+				// Wait for the pending save to complete first to avoid race conditions
+				await autosaveStore.pendingAutoSave;
+			}
 		}
 
-		// Check if workflow needs to be saved as new (doesn't exist in store yet)
-		const existingWorkflow = currentWorkflow
-			? workflowsListStore.getWorkflowById(currentWorkflow)
-			: null;
-		if (!currentWorkflow || !existingWorkflow?.id) {
-			const workflowId = await saveAsNewWorkflow(
-				{ parentFolderId, uiContext, autosaved },
-				redirect,
-			);
-			return !!workflowId;
-		}
+		const savePromise = (async (): Promise<boolean> => {
+			// Check if workflow needs to be saved as new (doesn't exist in store yet)
+			const existingWorkflow = currentWorkflow
+				? workflowsListStore.getWorkflowById(currentWorkflow)
+				: null;
+			if (!currentWorkflow || !existingWorkflow?.id) {
+				const workflowId = await saveAsNewWorkflow(
+					{ parentFolderId, uiContext, autosaved },
+					redirect,
+				);
+				return !!workflowId;
+			}
 
-		// Workflow exists already so update it
-		try {
-			if (!forceSave && isLoading) {
+			// Workflow exists already so update it
+			try {
+				if (!forceSave && isLoading) {
+					return true;
+				}
+				uiStore.addActiveAction('workflowSaving');
+
+				// Capture dirty state count before save to detect changes made during save
+				const dirtyCountBeforeSave = uiStore.dirtyStateSetCount;
+
+				const workflowDataRequest: WorkflowDataUpdate = await getWorkflowDataToSave();
+				// This can happen if the user has another workflow in the browser history and navigates
+				// via the browser back button, encountering our warning dialog with the new route already set
+				if (workflowDataRequest.id !== currentWorkflow) {
+					throw new Error('Attempted to save a workflow different from the current workflow');
+				}
+
+				workflowDataRequest.versionId = workflowsStore.workflowVersionId;
+				// Check if AI Builder made edits since last save
+				workflowDataRequest.aiBuilderAssisted = builderStore.getAiBuilderMadeEdits();
+				workflowDataRequest.expectedChecksum = workflowsStore.workflowChecksum;
+				workflowDataRequest.autosaved = autosaved;
+
+				const workflowData = await workflowsStore.updateWorkflow(
+					currentWorkflow,
+					workflowDataRequest,
+					forceSave,
+				);
+				if (!workflowData.checksum) {
+					throw new Error('Failed to update workflow');
+				}
+				workflowsStore.setWorkflowVersionData(
+					{
+						versionId: workflowData.versionId,
+						name: null,
+						description: null,
+					},
+					workflowData.checksum,
+				);
+				workflowState.setWorkflowProperty('updatedAt', workflowData.updatedAt);
+
+				// Only mark state clean if no new changes were made during the save
+				if (uiStore.dirtyStateSetCount === dirtyCountBeforeSave) {
+					uiStore.markStateClean();
+				}
+				uiStore.removeActiveAction('workflowSaving');
+				void useExternalHooks().run('workflow.afterUpdate', { workflowData });
+
+				// Reset AI Builder edits flag only after successful save
+				builderStore.resetAiBuilderMadeEdits();
+
+				// Reset retry count on successful save
+				autosaveStore.resetRetry();
+
+				onSaved?.(false); // Update of existing workflow
 				return true;
-			}
-			uiStore.addActiveAction('workflowSaving');
+			} catch (error) {
+				console.error(error);
 
-			// Capture dirty state count before save to detect changes made during save
-			const dirtyCountBeforeSave = uiStore.dirtyStateSetCount;
+				uiStore.removeActiveAction('workflowSaving');
 
-			const workflowDataRequest: WorkflowDataUpdate = await getWorkflowDataToSave();
-			// This can happen if the user has another workflow in the browser history and navigates
-			// via the browser back button, encountering our warning dialog with the new route already set
-			if (workflowDataRequest.id !== currentWorkflow) {
-				throw new Error('Attempted to save a workflow different from the current workflow');
-			}
+				if (error.errorCode === 100) {
+					telemetry.track('User attempted to save locked workflow', {
+						workflowId: currentWorkflow,
+						sharing_role: getWorkflowProjectRole(currentWorkflow),
+					});
 
-			workflowDataRequest.versionId = workflowsStore.workflowVersionId;
-			// Check if AI Builder made edits since last save
-			workflowDataRequest.aiBuilderAssisted = builderStore.getAiBuilderMadeEdits();
-			workflowDataRequest.expectedChecksum = workflowsStore.workflowChecksum;
-			workflowDataRequest.autosaved = autosaved;
+					// Hide modal if we already showed it
+					// So that user could explore the workflow
+					if (!autosaveStore.conflictModalShown) {
+						if (autosaved) {
+							autosaveStore.setConflictModalShown(true);
+						}
 
-			const workflowData = await workflowsStore.updateWorkflow(
-				currentWorkflow,
-				workflowDataRequest,
-				forceSave,
-			);
-			if (!workflowData.checksum) {
-				throw new Error('Failed to update workflow');
-			}
-			workflowsStore.setWorkflowVersionData(
-				{
-					versionId: workflowData.versionId,
-					name: null,
-					description: null,
-				},
-				workflowData.checksum,
-			);
-			workflowState.setWorkflowProperty('updatedAt', workflowData.updatedAt);
+						const url = router.resolve({
+							name: VIEWS.WORKFLOW,
+							params: { name: currentWorkflow },
+						}).href;
 
-			// Only mark state clean if no new changes were made during the save
-			if (uiStore.dirtyStateSetCount === dirtyCountBeforeSave) {
-				uiStore.markStateClean();
-			}
-			uiStore.removeActiveAction('workflowSaving');
-			void useExternalHooks().run('workflow.afterUpdate', { workflowData });
+						const overwrite = await message.confirm(
+							i18n.baseText('workflows.concurrentChanges.confirmMessage.message', {
+								interpolate: {
+									url,
+								},
+							}),
+							i18n.baseText('workflows.concurrentChanges.confirmMessage.title'),
+							{
+								confirmButtonText: i18n.baseText(
+									'workflows.concurrentChanges.confirmMessage.confirmButtonText',
+								),
+								cancelButtonText: i18n.baseText(
+									'workflows.concurrentChanges.confirmMessage.cancelButtonText',
+								),
+							},
+						);
 
-			// Reset AI Builder edits flag only after successful save
-			builderStore.resetAiBuilderMadeEdits();
-
-			// Reset retry count on successful save
-			autosaveStore.resetRetry();
-
-			onSaved?.(false); // Update of existing workflow
-			return true;
-		} catch (error) {
-			console.error(error);
-
-			uiStore.removeActiveAction('workflowSaving');
-
-			if (error.errorCode === 100) {
-				telemetry.track('User attempted to save locked workflow', {
-					workflowId: currentWorkflow,
-					sharing_role: getWorkflowProjectRole(currentWorkflow),
-				});
-
-				// Hide modal if we already showed it
-				// So that user could explore the workflow
-				if (!autosaveStore.conflictModalShown) {
-					if (autosaved) {
-						autosaveStore.setConflictModalShown(true);
+						if (overwrite === MODAL_CONFIRM) {
+							return await saveCurrentWorkflow({ id }, redirect, true);
+						}
 					}
 
-					const url = router.resolve({
-						name: VIEWS.WORKFLOW,
-						params: { name: currentWorkflow },
-					}).href;
+					// For autosaves, fall through to retry logic below
+					// As we want to still communicate autosave stopped working
+					if (!autosaved) {
+						return false;
+					}
+				}
 
-					const overwrite = await message.confirm(
-						i18n.baseText('workflows.concurrentChanges.confirmMessage.message', {
+				// Handle autosave failures with exponential backoff
+				if (autosaved) {
+					autosaveStore.incrementRetry();
+					autosaveStore.setLastError(error.message);
+
+					// Schedule retry with exponential backoff
+					const retryDelay = autosaveStore.getRetryDelay();
+					autosaveStore.setRetrying(true);
+
+					setTimeout(() => {
+						autosaveStore.setRetrying(false);
+						// Trigger autosave again if workflow is still dirty
+						if (uiStore.stateIsDirty) {
+							scheduleAutoSave();
+						}
+					}, retryDelay);
+
+					toast.showMessage({
+						title: i18n.baseText('workflowHelpers.showMessage.title'),
+						message: i18n.baseText('generic.autosave.retrying', {
 							interpolate: {
-								url,
+								error: error.message,
+								retryIn: `${Math.ceil(retryDelay / 1000)}s`,
 							},
 						}),
-						i18n.baseText('workflows.concurrentChanges.confirmMessage.title'),
-						{
-							confirmButtonText: i18n.baseText(
-								'workflows.concurrentChanges.confirmMessage.confirmButtonText',
-							),
-							cancelButtonText: i18n.baseText(
-								'workflows.concurrentChanges.confirmMessage.cancelButtonText',
-							),
-						},
-					);
+						type: 'error',
+						duration: retryDelay,
+					});
 
-					if (overwrite === MODAL_CONFIRM) {
-						return await saveCurrentWorkflow({ id }, redirect, true);
-					}
-				}
-
-				// For autosaves, fall through to retry logic below
-				// As we want to still communicate autosave stopped working
-				if (!autosaved) {
 					return false;
 				}
-			}
-
-			// Handle autosave failures with exponential backoff
-			if (autosaved) {
-				autosaveStore.incrementRetry();
-				autosaveStore.setLastError(error.message);
-
-				// Schedule retry with exponential backoff
-				const retryDelay = autosaveStore.getRetryDelay();
-				autosaveStore.setRetrying(true);
-
-				setTimeout(() => {
-					autosaveStore.setRetrying(false);
-					// Trigger autosave again if workflow is still dirty
-					if (uiStore.stateIsDirty) {
-						scheduleAutoSave();
-					}
-				}, retryDelay);
 
 				toast.showMessage({
 					title: i18n.baseText('workflowHelpers.showMessage.title'),
-					message: i18n.baseText('generic.autosave.retrying', {
-						interpolate: {
-							error: error.message,
-							retryIn: `${Math.ceil(retryDelay / 1000)}s`,
-						},
-					}),
+					message: error.message,
 					type: 'error',
-					duration: retryDelay,
 				});
 
 				return false;
 			}
+		})();
 
-			toast.showMessage({
-				title: i18n.baseText('workflowHelpers.showMessage.title'),
-				message: error.message,
-				type: 'error',
-			});
+		autosaveStore.setPendingAutoSave(savePromise);
 
-			return false;
+		try {
+			return await savePromise;
+		} finally {
+			// Only clear if this save is still the one marked as pending
+			if (autosaveStore.pendingAutoSave === savePromise) {
+				autosaveStore.setPendingAutoSave(null);
+			}
 		}
 	}
 
@@ -526,14 +542,13 @@ export function useWorkflowSaving({
 
 			autosaveStore.setAutoSaveState(AutoSaveState.InProgress);
 
-			const savePromise = (async () => {
+			void (async () => {
 				try {
 					await saveCurrentWorkflow({}, true, false, true);
 				} finally {
 					if (autosaveStore.autoSaveState === AutoSaveState.InProgress) {
 						autosaveStore.setAutoSaveState(AutoSaveState.Idle);
 					}
-					autosaveStore.setPendingAutoSave(null);
 					// If changes were made during save, reschedule autosave
 					if (uiStore.stateIsDirty && !autosaveStore.isRetrying) {
 						autosaveStore.setAutoSaveState(AutoSaveState.Scheduled);
@@ -541,8 +556,6 @@ export function useWorkflowSaving({
 					}
 				}
 			})();
-
-			autosaveStore.setPendingAutoSave(savePromise);
 		},
 		getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE),
 		{ maxWait: getDebounceTime(DEBOUNCE_TIME.API.AUTOSAVE_MAX_WAIT) },

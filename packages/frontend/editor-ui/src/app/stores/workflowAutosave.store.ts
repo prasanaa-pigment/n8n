@@ -9,7 +9,7 @@ import { calculateExponentialBackoff, RETRY_START_DELAY } from '@/app/utils/retr
  */
 export const useWorkflowAutosaveStore = defineStore('workflowAutosave', () => {
 	const autoSaveState = ref<AutoSaveState>(AutoSaveState.Idle);
-	const pendingAutoSave = ref<Promise<void> | null>(null);
+	const pendingAutoSave = ref<Promise<boolean> | null>(null);
 
 	// Exponential backoff state
 	const retryCount = ref(0);
@@ -22,7 +22,7 @@ export const useWorkflowAutosaveStore = defineStore('workflowAutosave', () => {
 		autoSaveState.value = state;
 	}
 
-	function setPendingAutoSave(promise: Promise<void> | null) {
+	function setPendingAutoSave(promise: Promise<boolean> | null) {
 		pendingAutoSave.value = promise;
 	}
 
